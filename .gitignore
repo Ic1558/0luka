@@ -8,4 +8,6 @@ logs/
 telemetry/raw/
 # backups
 *.bak.*
-\n# 0luka safety\nworkspaces/\n
+# 0luka safety
+workspaces/
+/artifacts/quarantine/
