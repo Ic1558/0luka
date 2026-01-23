@@ -67,13 +67,15 @@ import json,sys
 p=sys.argv[1]
 d=json.load(open(p))
 print(d.get("model",""))
-PY)"
+PY
+)"
 trace_id="$(python3 - "$ws_path/manifest.json" <<'PY' 2>/dev/null || true
 import json,sys
 p=sys.argv[1]
 d=json.load(open(p))
 print(d.get("trace_id",""))
-PY)"
+PY
+)"
 
 export OLUKA_PROMOTION_MODE=1
 msg1="promote(core): ${task:-${ws_id}}"
