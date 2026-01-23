@@ -31,3 +31,16 @@ Date: 2026-01-23T16:20:28+0700
 - push ได้ทั้งๆ ที่ repo ตามหลัง origin
 - promote ไม่มี artifact/evidence
 
+## 5) Model Routing (Gemini CLI / Claude Code)
+**No model is mandatory. Routing is a suggestion, not an enforcement.**
+
+เลือกใช้โมเดลตาม “ประเภทงาน” และ “ความเร็ว/ความเสี่ยง” ไม่ต้องล็อคว่าเริ่มด้วยตัวไหน
+
+- **Claude / Opencode / Codex (Strategist / Senior)**: planning, refactor โครงสร้าง, audit/review, root-cause
+- **Gemini CLI (Tactician / Fast Worker)**: boilerplate, file ops เยอะๆ, test/doc, run scripts
+
+Recommended routing (optional):
+1) ใครก็ได้วาง blueprint/plan (Claude/Gemini/Codex/Opencode) ตามความเหมาะสมของงาน
+2) ใครก็ได้ลงมือใน workspace (เน้นเร็ว/ไฟล์เยอะ → Gemini มักเหมาะ)
+3) ใครก็ได้ audit ก่อน promote (เน้นความเสี่ยง/ตรรกะ → Claude มักเหมาะ)
+
