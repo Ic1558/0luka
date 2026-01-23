@@ -8,3 +8,4 @@ logs/
 telemetry/raw/
 # backups
 *.bak.*
+\n# 0luka safety\nworkspaces/\n

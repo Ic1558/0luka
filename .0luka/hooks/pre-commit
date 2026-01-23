@@ -1,0 +1,18 @@
+#!/bin/sh
+set -eu
+
+# Allow promotion mode only when script sets: OLUKA_PROMOTION_MODE=1
+if [ "${OLUKA_PROMOTION_MODE:-0}" = "1" ]; then
+  exit 0
+fi
+
+changed="$(git diff --cached --name-only 2>/dev/null || true)"
+
+printf "%s\n" "$changed" | grep -q '^core/' && {
+  echo "❌ Direct Kernel modification blocked."
+  echo "   You staged files under: core/"
+  echo "   Use workspace + promote_artifact.zsh (promotion mode) instead."
+  exit 1
+}
+
+exit 0

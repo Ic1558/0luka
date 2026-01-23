@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+
+remote="${1:-origin}"
+branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
+
+git fetch -q "$remote" || {
+  echo "❌ pre-push: git fetch failed. Check network/remote."
+  exit 1
+}
+
+up_ref="$remote/$branch"
+git show-ref --verify --quiet "refs/remotes/$up_ref" || exit 0
+
+counts="$(git rev-list --left-right --count "$up_ref...HEAD" 2>/dev/null || echo "0 0")"
+behind="$(printf "%s" "$counts" | awk '{print $1}')"
+[ -n "$behind" ] || behind=0
+
+if [ "$behind" -gt 0 ] 2>/dev/null; then
+  echo "❌ Sync Required: your branch is BEHIND $up_ref by $behind commit(s)."
+  echo "   Run: git pull --rebase"
+  exit 1
+fi
+
+exit 0
