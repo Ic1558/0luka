@@ -45,7 +45,7 @@ cat > "${ws_path}/manifest.json" <<JSON
   "status": "active"
 }
 JSON
-
+chmod 644 "${ws_path}/manifest.json" 2>/dev/null || true
 say "Workspace ready: ${ws_path}"
 say "Next: work inside ${ws_path}/ (Agent writes there), then promote:"
 say "  .0luka/scripts/promote_artifact.zsh ${ws_id}"
