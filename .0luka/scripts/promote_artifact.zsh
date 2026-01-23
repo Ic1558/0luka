@@ -11,6 +11,16 @@ ws_id="${1:-}"
 [[ -n "$ws_id" ]] || die "Usage: promote_artifact.zsh <workspace_id>"
 
 ws_path="workspaces/${ws_id}"
+
+manifest="${ws_path}/manifest.json"
+json_get() { python3 - <<PY "$manifest" "$1"
+import json,sys
+p=sys.argv[1]; k=sys.argv[2]
+with open(p,"r") as f:
+  j=json.load(f)
+print(j.get(k,""))
+PY
+}
 [[ -d "$ws_path" ]] || die "Workspace not found: $ws_path"
 [[ -f "$ws_path/manifest.json" ]] || die "Invalid workspace (missing manifest.json): $ws_path"
 
@@ -45,27 +55,25 @@ arch_patch="artifacts/archive/${ws_id}_${arch_ts}.patch"
 git diff --cached > "$arch_patch" || true
 
 # Promotion commit (bypass pre-commit using env)
-task="$(python3 - <<'PY' 2>/dev/null || true
+task="$(python3 - "$ws_path/manifest.json" <<'PY' 2>/dev/null
 import json,sys
 p=sys.argv[1]
 d=json.load(open(p))
 print(d.get("task",""))
 PY
-"$ws_path/manifest.json")"
-model="$(python3 - <<'PY' 2>/dev/null || true
+)"
+model="$(python3 - "$ws_path/manifest.json" <<'PY' 2>/dev/null || true
 import json,sys
 p=sys.argv[1]
 d=json.load(open(p))
 print(d.get("model",""))
-PY
-"$ws_path/manifest.json")"
-trace_id="$(python3 - <<'PY' 2>/dev/null || true
+PY)"
+trace_id="$(python3 - "$ws_path/manifest.json" <<'PY' 2>/dev/null || true
 import json,sys
 p=sys.argv[1]
 d=json.load(open(p))
 print(d.get("trace_id",""))
-PY
-"$ws_path/manifest.json")"
+PY)"
 
 export OLUKA_PROMOTION_MODE=1
 msg1="promote(core): ${task:-${ws_id}}"
