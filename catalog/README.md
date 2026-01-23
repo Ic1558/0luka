@@ -1,0 +1,1 @@
+Artifacts catalog (approved only)

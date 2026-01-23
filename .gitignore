@@ -1,0 +1,10 @@
+# secrets
+vault/.env
+.env
+# temp
+.tmp/
+# logs
+logs/
+telemetry/raw/
+# backups
+*.bak.*

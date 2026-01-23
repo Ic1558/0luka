@@ -1,0 +1,4 @@
+- arch/
+- boq/
+- trader/
+- shared/
