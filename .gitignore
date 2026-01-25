@@ -15,6 +15,12 @@ telemetry/raw/
 *.bak.*
 # 0luka safety
 workspaces/
-/artifacts/quarantine/
-observability/stl/evidence/**/*.json
-runtime/
+.0luka/
+.claude/
+.DS_Store
+# Observability Generated
+observability/artifacts/
+observability/quarantine/
+observability/telemetry/*.latest.json
+observability/stl/ledger/*.jsonl
+artifacts/
