@@ -16,11 +16,11 @@ telemetry/raw/
 # 0luka safety
 workspaces/
 .0luka/
-.claude/
+.claude
 .DS_Store
-# Observability Generated
-observability/artifacts/
-observability/quarantine/
-observability/telemetry/*.latest.json
-observability/stl/ledger/*.jsonl
-artifacts/
+
+# Strict Hygiene (Rule 1 & 2)
+observability/**
+runtime/**
+g/**
+artifacts/**
