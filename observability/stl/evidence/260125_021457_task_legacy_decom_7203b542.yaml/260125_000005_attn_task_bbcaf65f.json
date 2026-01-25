@@ -1,0 +1,26 @@
+{
+  "attestation_version": "0.4.1",
+  "meta": {
+    "wall_time_ref": "host_lock"
+  },
+  "ontology_seal": "26d9f9ceaec6c7a04826c1870c0a5b2a9dd046f896545d5457805b1a87b3e054",
+  "prev_attn_hash": null,
+  "results": {
+    "gate.net.port": [
+      true,
+      {
+        "port": 7001
+      }
+    ],
+    "gate.proc.purity": [
+      true,
+      {
+        "legacy_proc_count": 0
+      }
+    ]
+  },
+  "task_id": "260125_021457_task_legacy_decom_7203b542.yaml",
+  "this_attn_hash": "bbcaf65f0c44eb8e1e0249d59071e9a3aae2b2a73f540466216f841ce419a79e",
+  "tk_key": "260125_000005",
+  "zen": true
+}

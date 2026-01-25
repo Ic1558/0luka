@@ -1,0 +1,45 @@
+version: "1.0"
+updated_at: "2026-01-26T02:20:00+07:00"
+
+defaults:
+  deny_by_default: true
+  allowed_roots:
+    - "~/0luka"
+  max_task_size_bytes: 1048576
+  required_task_version: "1.0"
+  require_scope_allowed_roots: true
+  require_artifact_hash_for_inputs: false
+
+actors:
+  module.execution.mcp:
+    can_propose: true
+    can_execute: true
+    allowed_kinds: ["task"]
+    capabilities:
+      filesystem: { read: true, write: true, delete: true }
+      process: { spawn: false }
+      network: { outbound: false }
+    allowed_roots:
+      - "~/0luka"
+    deny_roots:
+      - "~/.ssh"
+      - "~/.gnupg"
+      - "/System"
+
+  agent.osaurus:
+    can_propose: true
+    can_execute: false
+    allowed_kinds: ["task", "audit", "verify"]
+    capabilities:
+      filesystem: { read: true, write: true, delete: true }
+      process: { spawn: true }
+      network: { outbound: false }
+    allowed_roots:
+      - "~/0luka/artifacts"
+      - "~/0luka/core"
+
+verification:
+  required_gates_for_commit:
+    - "gate.fs.purity"
+    - "gate.hash.match"
+    - "gate.proc.clean"

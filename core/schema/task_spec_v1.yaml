@@ -1,0 +1,55 @@
+# TaskSpec v1.0 Template
+# Path: core/schema/task_spec_v1.yaml
+
+id: "YYMMDD_HHMMSS_<kind>_<slug>_<hash8>"
+version: "1.0"
+
+meta:
+  created_at: "ISO8601_TIMESTAMP"
+  kind: "task" # task | audit | verify | batch
+  trace_id: "t_correlation_id"
+  parent_id: null
+  tags: []
+
+actor:
+  proposer: "actor_id"
+  executor_hint: null
+  approval: "auto" # auto | manual | gated
+
+priority: "P2"
+status: "proposed"
+
+intent:
+  summary: "Brief description"
+  rationale: "Why this is needed"
+  success_criteria:
+    - "Condition 1"
+
+scope:
+  workspace_root: "~/0luka"
+  allowed_roots:
+    - "~/0luka"
+
+capabilities:
+  filesystem:
+    read: true
+    write: false
+    delete: false
+  process:
+    spawn: false
+  network:
+    outbound: false
+
+artifacts:
+  inputs: []
+  outputs: []
+
+verification:
+  gates:
+    - "gate.fs.purity"
+  commands: []
+  evidence_required:
+    - "stdout"
+    - "exit_code"
+
+extensions: {}

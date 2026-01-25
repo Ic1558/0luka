@@ -1,0 +1,9 @@
+intent:
+  rationale: Single-channel Governed Reality enforcement
+  success_definition: legacy_proc_count == 0
+  summary: Withdraw legacy-bridge services (02luka)
+title: Legacy Decommission
+verification:
+  gates:
+  - gate.net.port
+  - gate.proc.purity

@@ -1,0 +1,6 @@
+id: "T-20260125-002_legacy_decommission"
+title: "Silence 02luka Loops"
+intent: "Decommission legacy services causing process churn"
+status: "open"
+verification:
+  gates: ["gate.fs.root", "gate.net.port"]

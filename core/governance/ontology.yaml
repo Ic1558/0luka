@@ -1,0 +1,37 @@
+version: "0.2"
+status: "AUTHORITATIVE"
+entities:
+  opal-api:
+    class: "core-service"
+    identity: { port: 7001, process_name: "uvicorn", binary_contains: "runtime/venv/opal" }
+  heartbeat-service:
+    class: "observability-agent"
+    identity: { launchd_label: "com.0luka.heartbeat" }
+  legacy-bridge:
+    class: "transition-group"
+    members: ["mary_dispatcher", "clc_bridge", "shell_watcher"]
+    policy: "DEPRECATED_STRICT"
+    enforcement: "BLOCK_NEW_SPAWNS"
+
+invariants:
+  strict_root:
+    allow: ["core", "runtime", "ops", "observability", ".git", ".0luka", ".opencode", ".openwork"]
+    remediation: "auto-quarantine"
+  canonical_naming:
+    pattern: "^[0-9]{6}_[0-9]{6}_.*"
+    enforced_by: "gate.naming.canonical"
+
+actions:
+  service_restart:
+    id: "action.service.restart"
+    pre_gates: ["gate.proc.purity"]
+    post_gates: ["gate.net.port", "gate.proc.purity"]
+    handler: "ops/governance/handlers/service_restart.zsh"
+  system_audit:
+    id: "action.system.audit"
+    handler: "ops/governance/zen_audit.sh"
+  legacy_withdraw:
+    id: "action.legacy.withdraw"
+    pre_gates: ["gate.net.port", "gate.proc.purity"]
+    post_gates: ["gate.proc.purity", "gate.net.port"]
+    handler: "ops/governance/handlers/legacy_withdraw.zsh"

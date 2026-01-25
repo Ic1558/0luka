@@ -1,0 +1,9 @@
+intent:
+  rationale: Verify MCP integration stability
+  success_definition: Baseline JSON generated
+  summary: Capture current system baseline
+title: Zen Baseline Check
+verification:
+  gates:
+  - gate.net.port
+  - gate.proc.purity

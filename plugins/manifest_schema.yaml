@@ -1,0 +1,30 @@
+# Plugin Manifest Schema v1.0
+# Path: plugins/manifest_schema.yaml
+
+version: "1.0"
+kind: "plugin_manifest"
+
+plugin:
+  name: "string" # e.g. "module.execution.mcp"
+  description: "string"
+  version: "string"
+
+actor:
+  id: "string" # must match a policy.yaml actor
+  can_propose: boolean
+  can_execute: boolean
+
+capabilities_requested:
+  filesystem:
+    read: boolean
+    write: boolean
+    delete: boolean
+  process:
+    spawn: boolean
+    kill: boolean
+  network:
+    outbound: boolean
+
+components:
+  executor_entrypoint: "path/to/script.py" # optional
+  default_gates: [ "list", "of", "gate", "names" ]
