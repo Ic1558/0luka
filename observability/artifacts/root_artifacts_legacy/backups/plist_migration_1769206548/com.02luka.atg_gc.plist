@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.02luka.atg_gc</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/usr/bin/env</string>
+      <string>zsh</string>
+      <string>/Users/icmini/02luka/tools/atg_gc.zsh</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+      <key>Hour</key><integer>4</integer>
+      <key>Minute</key><integer>25</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>ATG_GC_DAYS_PENDING</key><string>3</string>
+      <key>ATG_GC_DAYS_REJECTED</key><string>7</string>
+      <key>ATG_GC_DAYS_ARCHIVE</key><string>30</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/02luka_atg_gc.out</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/02luka_atg_gc.err</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+  </dict>
+</plist>

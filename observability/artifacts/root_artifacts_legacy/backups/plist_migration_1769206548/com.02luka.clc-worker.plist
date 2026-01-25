@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.02luka.clc-worker</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/icmini/02luka/.venv/bin/python</string>
+        <string>-m</string>
+        <string>agents.clc_local.clc_worker</string>
+    </array>
+    
+    <key>WorkingDirectory</key>
+    <string>/Users/icmini/02luka</string>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>/Users/icmini/02luka</string>
+        <key>REDIS_HOST</key>
+        <string>127.0.0.1</string>
+        <key>REDIS_PORT</key>
+        <string>6379</string>
+        <key>REDIS_PASSWORD</key>
+        <string>gggclukaic</string>
+        <key>LUKA_SOT</key>
+        <string>/Users/icmini/02luka</string>
+    </dict>
+    
+    <key>RunAtLoad</key>
+    <true/>
+    
+    <key>KeepAlive</key>
+    <true/>
+    
+    <key>StandardOutPath</key>
+    <string>/Users/icmini/02luka/logs/clc_worker.stdout.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>/Users/icmini/02luka/logs/clc_worker.stderr.log</string>
+    
+    <key>ThrottleInterval</key>
+    <integer>5</integer>
+</dict>
+</plist>

@@ -1,0 +1,14 @@
+actor: module.followup_generator
+intent: action.followup.generate
+meta:
+  ts_utc: "2026-01-25T20:30:01Z"
+  host: "Ittipongs-Mac-mini.local"
+artifacts:
+  outputs:
+    - path: "/Users/icmini/0luka/observability/artifacts/followup/20260125T203000Z_followup.json"
+      sha256: "59a1109ae5624e0569ad27c44905d2f1c2f273d7afbcb2ae4fb97b3f9f02df6c"
+verification:
+  gates:
+    - gate.fs.purity
+    - gate.hash.match
+    - gate.proc.clean

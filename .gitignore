@@ -3,6 +3,11 @@ vault/.env
 .env
 # temp
 .tmp/
+__pycache__/
+*.pyc
+.opencode/
+.openwork/
+.n8n/
 # logs
 logs/
 telemetry/raw/
@@ -11,3 +16,5 @@ telemetry/raw/
 # 0luka safety
 workspaces/
 /artifacts/quarantine/
+observability/stl/evidence/**/*.json
+runtime/

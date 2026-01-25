@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>LUKA_SOT</key>
+		<string>/Users/icmini/02luka</string>
+		<key>PYTHONPATH</key>
+		<string>/Users/icmini/02luka</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>com.02luka.clc_local</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/icmini/02luka/.venv/bin/python3</string>
+		<string>agents/clc_local/clc_local.py</string>
+		<string>--watch-inbox</string>
+		<string>LIAM</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/icmini/02luka/logs/clc_local.err</string>
+	<key>StandardOutPath</key>
+	<string>/Users/icmini/02luka/logs/clc_local.out</string>
+	<key>WorkingDirectory</key>
+	<string>/Users/icmini/02luka</string>
+</dict>
+</plist>

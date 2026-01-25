@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.local.clear-mem-now</string>
+  <key>ProgramArguments</key>
+  <array><string>/Users/icmini/clear-mem-now</string></array>
+  <key>StartInterval</key><integer>900</integer>
+  <key>RunAtLoad</key><true/>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>CPU_SOFT</key><string>40</string>
+    <key>CPU_HARD</key><string>65</string>
+    <key>IO_PRESSURE_MAX</key><string>70</string>
+    <key>IDLE_MIN</key><string>60</string>
+    <key>JITTER_MAX</key><string>40</string>
+  </dict>
+  <key>StandardOutPath</key><string>/tmp/clear-mem-now.log</string>
+  <key>StandardErrorPath</key><string>/tmp/clear-mem-now.err</string>
+</dict>
+</plist>

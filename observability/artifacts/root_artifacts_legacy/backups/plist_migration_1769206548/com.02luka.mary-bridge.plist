@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.02luka.mary-bridge</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/icmini/02luka/.venv/bin/python</string>
+        <string>-m</string>
+        <string>opal_api.opal_api_server</string>
+    </array>
+    
+    <key>WorkingDirectory</key>
+    <string>/Users/icmini/02luka/g/apps</string>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>/Users/icmini/02luka/g/apps</string>
+        <key>REDIS_HOST</key>
+        <string>127.0.0.1</string>
+        <key>REDIS_PORT</key>
+        <string>6379</string>
+        <key>REDIS_PASSWORD</key>
+        <string>gggclukaic</string>
+    </dict>
+    
+    <key>RunAtLoad</key>
+    <true/>
+    
+    <key>KeepAlive</key>
+    <true/>
+    
+    <key>StandardOutPath</key>
+    <string>/Users/icmini/02luka/logs/mary_bridge.stdout.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>/Users/icmini/02luka/logs/mary_bridge.stderr.log</string>
+    
+    <key>ThrottleInterval</key>
+    <integer>5</integer>
+</dict>
+</plist>

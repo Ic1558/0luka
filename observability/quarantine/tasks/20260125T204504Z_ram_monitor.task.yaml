@@ -1,0 +1,14 @@
+actor: module.ram_monitor
+intent: action.ram.snapshot
+meta:
+  ts_utc: "2026-01-25T20:45:04Z"
+  host: "Ittipongs-Mac-mini.local"
+artifacts:
+  outputs:
+    - path: "/Users/icmini/0luka/observability/artifacts/ram/20260125T204504Z_ram_snapshot.json"
+      sha256: "0308407f78379d6f3b55f8e5bb87349656b61fbe10ad9cf72792d2eda7765a3f"
+verification:
+  gates:
+    - gate.fs.purity
+    - gate.hash.match
+    - gate.proc.clean

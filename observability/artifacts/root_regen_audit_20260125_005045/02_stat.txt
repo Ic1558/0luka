@@ -1,0 +1,75 @@
+== 2) Stat artifacts/ and logs/ (if exist) ==
+--- /Users/icmini/0luka/artifacts
+  File: "/Users/icmini/0luka/artifacts"
+  Size: 96           FileType: Directory
+  Mode: (0755/drwxr-xr-x)         Uid: (  501/  icmini)  Gid: (   20/   staff)
+Device: 1,16   Inode: 138764808    Links: 3
+Access: Sat Jan 24 06:52:57 2026
+Modify: Sat Jan 24 06:52:56 2026
+Change: Sat Jan 24 06:52:56 2026
+ Birth: Sat Jan 24 06:52:56 2026
+xattr:
+recent files (top 50 newest by mtime):
+1769276740 /Users/icmini/0luka/artifacts/snapshots/260125_004540_snapshot.md
+1769276572 /Users/icmini/0luka/artifacts/snapshots/260125_004252_snapshot.md
+1769276420 /Users/icmini/0luka/artifacts/snapshots/260125_004020_snapshot.md
+1769276104 /Users/icmini/0luka/artifacts/snapshots/260125_003504_snapshot.md
+1769275804 /Users/icmini/0luka/artifacts/snapshots/260125_003004_snapshot.md
+1769275497 /Users/icmini/0luka/artifacts/snapshots/260125_002457_snapshot.md
+1769275177 /Users/icmini/0luka/artifacts/snapshots/260125_001937_snapshot.md
+1769274876 /Users/icmini/0luka/artifacts/snapshots/260125_001436_snapshot.md
+1769274575 /Users/icmini/0luka/artifacts/snapshots/260125_000935_snapshot.md
+1769274274 /Users/icmini/0luka/artifacts/snapshots/260125_000434_snapshot.md
+1769273968 /Users/icmini/0luka/artifacts/snapshots/260124_235928_snapshot.md
+1769273666 /Users/icmini/0luka/artifacts/snapshots/260124_235426_snapshot.md
+1769273360 /Users/icmini/0luka/artifacts/snapshots/260124_234920_snapshot.md
+1769273048 /Users/icmini/0luka/artifacts/snapshots/260124_234408_snapshot.md
+1769272747 /Users/icmini/0luka/artifacts/snapshots/260124_233907_snapshot.md
+1769272446 /Users/icmini/0luka/artifacts/snapshots/260124_233406_snapshot.md
+1769272145 /Users/icmini/0luka/artifacts/snapshots/260124_232905_snapshot.md
+1769271844 /Users/icmini/0luka/artifacts/snapshots/260124_232404_snapshot.md
+1769271535 /Users/icmini/0luka/artifacts/snapshots/260124_231855_snapshot.md
+1769271220 /Users/icmini/0luka/artifacts/snapshots/260124_231340_snapshot.md
+1769270914 /Users/icmini/0luka/artifacts/snapshots/260124_230834_snapshot.md
+1769270595 /Users/icmini/0luka/artifacts/snapshots/260124_230315_snapshot.md
+1769270276 /Users/icmini/0luka/artifacts/snapshots/260124_225756_snapshot.md
+1769269955 /Users/icmini/0luka/artifacts/snapshots/260124_225235_snapshot.md
+1769269639 /Users/icmini/0luka/artifacts/snapshots/260124_224719_snapshot.md
+1769269327 /Users/icmini/0luka/artifacts/snapshots/260124_224207_snapshot.md
+1769269026 /Users/icmini/0luka/artifacts/snapshots/260124_223706_snapshot.md
+1769268712 /Users/icmini/0luka/artifacts/snapshots/260124_223152_snapshot.md
+1769268400 /Users/icmini/0luka/artifacts/snapshots/260124_222640_snapshot.md
+1769268092 /Users/icmini/0luka/artifacts/snapshots/260124_222132_snapshot.md
+1769267771 /Users/icmini/0luka/artifacts/snapshots/260124_221611_snapshot.md
+1769267456 /Users/icmini/0luka/artifacts/snapshots/260124_221056_snapshot.md
+1769267155 /Users/icmini/0luka/artifacts/snapshots/260124_220555_snapshot.md
+1769266846 /Users/icmini/0luka/artifacts/snapshots/260124_220046_snapshot.md
+1769266534 /Users/icmini/0luka/artifacts/snapshots/260124_215534_snapshot.md
+1769266233 /Users/icmini/0luka/artifacts/snapshots/260124_215033_snapshot.md
+1769265932 /Users/icmini/0luka/artifacts/snapshots/260124_214532_snapshot.md
+1769265631 /Users/icmini/0luka/artifacts/snapshots/260124_214031_snapshot.md
+1769265322 /Users/icmini/0luka/artifacts/snapshots/260124_213522_snapshot.md
+1769265008 /Users/icmini/0luka/artifacts/snapshots/260124_213008_snapshot.md
+1769264707 /Users/icmini/0luka/artifacts/snapshots/260124_212507_snapshot.md
+1769264406 /Users/icmini/0luka/artifacts/snapshots/260124_212006_snapshot.md
+1769264105 /Users/icmini/0luka/artifacts/snapshots/260124_211505_snapshot.md
+1769263802 /Users/icmini/0luka/artifacts/snapshots/260124_211002_snapshot.md
+1769263501 /Users/icmini/0luka/artifacts/snapshots/260124_210501_snapshot.md
+1769263200 /Users/icmini/0luka/artifacts/snapshots/260124_210000_snapshot.md
+1769262899 /Users/icmini/0luka/artifacts/snapshots/260124_205459_snapshot.md
+1769262598 /Users/icmini/0luka/artifacts/snapshots/260124_204958_snapshot.md
+1769262297 /Users/icmini/0luka/artifacts/snapshots/260124_204457_snapshot.md
+1769261997 /Users/icmini/0luka/artifacts/snapshots/260124_203957_snapshot.md
+--- /Users/icmini/0luka/logs
+  File: "/Users/icmini/0luka/logs"
+  Size: 128          FileType: Directory
+  Mode: (0744/drwxr--r--)         Uid: (  501/  icmini)  Gid: (   20/   staff)
+Device: 1,16   Inode: 138764805    Links: 4
+Access: Sat Jan 24 06:52:59 2026
+Modify: Sat Jan 24 06:52:56 2026
+Change: Sat Jan 24 06:52:56 2026
+ Birth: Sat Jan 24 06:52:56 2026
+xattr:
+recent files (top 50 newest by mtime):
+1769276744 /Users/icmini/0luka/logs/heartbeat.log
+1769212376 /Users/icmini/0luka/logs/heartbeat.err

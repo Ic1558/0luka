@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>ROOT</key>
+		<string>/Users/icmini/02luka</string>
+	</dict>
+	<key>Label</key>
+	<string>com.02luka.lac-metrics-exporter.daily</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/zsh</string>
+		<string>-lc</string>
+		<string>/usr/bin/python3 /Users/icmini/02luka/tools/telemetry/lac_metrics_exporter.py --root /Users/icmini/02luka --since 24h --limit 50 --out-json /Users/icmini/02luka_ws/g/telemetry/lac_metrics_summary_latest.json --out-md /Users/icmini/02luka_ws/g/telemetry/lac_metrics_summary_latest.md && /usr/bin/python3 /Users/icmini/02luka/tools/telemetry/lac_metrics_mls_ingest.py --input /Users/icmini/02luka_ws/g/telemetry/lac_metrics_summary_latest.json</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/icmini/02luka/logs/lac_metrics_exporter.stderr.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/icmini/02luka/logs/lac_metrics_exporter.stdout.log</string>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>8</integer>
+		<key>Minute</key>
+		<integer>30</integer>
+	</dict>
+</dict>
+</plist>

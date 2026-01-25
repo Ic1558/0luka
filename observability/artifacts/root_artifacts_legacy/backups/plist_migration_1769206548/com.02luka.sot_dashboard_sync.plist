@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.02luka.sot_dashboard_sync</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>-c</string>
+        <string>cd ~/02luka && PROJECT_ROOT=$PWD ./g/tools/sot_dashboard_sync.zsh</string>
+    </array>
+    
+    <key>StartInterval</key>
+    <integer>600</integer>
+    
+    <key>StandardOutPath</key>
+    <string>~/02luka/g/logs/sot_dashboard_sync.out</string>
+
+    <key>StandardErrorPath</key>
+    <string>~/02luka/g/logs/sot_dashboard_sync.err</string>
+    
+    <key>RunAtLoad</key>
+    <true/>
+    
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin</string>
+    </dict>
+</dict>
+</plist>

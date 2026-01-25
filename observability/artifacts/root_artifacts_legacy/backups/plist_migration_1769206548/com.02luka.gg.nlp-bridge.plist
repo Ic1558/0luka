@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.02luka.gg.nlp-bridge</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>$HOME/02luka/tools/gg_nlp_bridge.zsh</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>$HOME/02luka/logs/gg_nlp_bridge.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>$HOME/02luka/logs/gg_nlp_bridge.stderr.log</string>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>PATH</key>
+      <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+      <key>LC_ALL</key>
+      <string>C</string>
+    </dict>
+  </dict>
+</plist>

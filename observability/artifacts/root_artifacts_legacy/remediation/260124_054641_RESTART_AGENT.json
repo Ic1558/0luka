@@ -1,0 +1,9 @@
+{
+  "command_id": "50540018-e1b1-470f-b681-ec056b3833ef",
+  "action": "RESTART_AGENT",
+  "params": {
+    "port": 7001
+  },
+  "reason": "Port 7001 (Uvicorn/Agent) not in LISTEN state",
+  "timestamp": 1769208401.702515
+}

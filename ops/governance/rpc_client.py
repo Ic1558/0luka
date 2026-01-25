@@ -4,6 +4,9 @@ import os
 import struct
 
 class RPCClient:
+    CLIENT_ID = "rpc_client"
+    CLIENT_PATH = os.path.abspath(__file__)
+
     def __init__(self, sock_path="/Users/icmini/0luka/runtime/sock/gate_runner.sock"):
         self.sock_path = sock_path
 
@@ -15,7 +18,10 @@ class RPCClient:
             client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             client.connect(self.sock_path)
             
-            payload = json.dumps({"cmd": cmd, **kwargs}).encode()
+            request = {"cmd": cmd, **kwargs}
+            request["client_id"] = self.CLIENT_ID
+            request["client_path"] = self.CLIENT_PATH
+            payload = json.dumps(request).encode()
             # Protocol v0.4: [LENGTH (4B)][PAYLOAD]
             msg = struct.pack('>I', len(payload)) + payload
             client.sendall(msg)

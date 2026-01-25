@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.02luka.shell-watcher</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/zsh</string>
+      <string>-lc</string>
+      <string>${HOME}/02luka/tools/watchers/shell_watcher.zsh</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>20</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/shell-watcher.out</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/shell-watcher.err</string>
+  </dict>
+</plist>

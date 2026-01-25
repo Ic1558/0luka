@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<key>PUPPETEER_CACHE_DIR</key>
+		<string>/Users/icmini/02luka/g/tmp/puppeteer_cache</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>com.02luka.mcp.puppeteer</string>
+	<key>ProcessType</key>
+	<string>Interactive</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/bin/npx</string>
+		<string>-y</string>
+		<string>@hisma/server-puppeteer</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/icmini/02luka/logs/mcp_puppeteer.stderr.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/icmini/02luka/logs/mcp_puppeteer.stdout.log</string>
+</dict>
+</plist>

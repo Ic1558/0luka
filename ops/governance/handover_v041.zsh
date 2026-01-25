@@ -20,7 +20,10 @@ pkill -f gate_runnerd.py || true # Safety net
 rm -f "$ROOT/runtime/sock/gate_runner.sock"
 : > "$LOG_FILE" # Truncate log
 
-echo "--- 2. STARTING JUDICIAL DAEMON v0.4.1 ---"
+
+# Capture start timestamp
+START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+echo "--- 2. STARTING JUDICIAL DAEMON v0.4.1 (Start: $START_TIME) ---"
 nohup python3 gate_runnerd.py > "$LOG_FILE" 2>&1 &
 PID=$!
 echo "$PID" > "$PID_FILE"
@@ -52,10 +55,12 @@ echo "--- 5. STOPPING DAEMON ---"
 kill $PID
 wait $PID 2>/dev/null
 rm -f "$PID_FILE"
-echo "   ✅ Daemon STOPPED."
+END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+echo "   ✅ Daemon STOPPED (End: $END_TIME)."
 
 if [ $RET -eq 0 ]; then
     echo "\n🏆 HANDOVER VERIFICATION PASSED."
+    echo "Certification Window: $START_TIME <-> $END_TIME"
     exit 0
 else
     echo "\n❌ HANDOVER VERIFICATION FAILED."

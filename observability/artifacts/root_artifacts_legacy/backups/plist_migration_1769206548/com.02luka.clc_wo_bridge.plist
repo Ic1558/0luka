@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>com.02luka.clc_wo_bridge</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/icmini/02luka/.venv/bin/python3</string>
+		<string>/Users/icmini/02luka/g/tools/clc_wo_bridge_daemon.py</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/icmini/02luka/g/logs/clc_wo_bridge.err.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/icmini/02luka/g/logs/clc_wo_bridge.out.log</string>
+	<key>WorkingDirectory</key>
+	<string>/Users/icmini/02luka</string>
+</dict>
+</plist>

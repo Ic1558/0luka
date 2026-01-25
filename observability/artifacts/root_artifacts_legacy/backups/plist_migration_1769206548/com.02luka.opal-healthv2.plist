@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.02luka.opal-healthv2</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/Users/icmini/02luka/.venv/bin/zsh</string>
+      <string>/Users/icmini/02luka/g/tools/opal_health_check_v2.zsh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/icmini/02luka</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>PATH</key>
+      <string>/opt/homebrew/bin:/Users/icmini/02luka/.venv/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+      <key>PYTHONPATH</key>
+      <string>/Users/icmini/02luka</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>120</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/icmini/02luka/g/telemetry/health_v2_agent.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/icmini/02luka/g/telemetry/health_v2_agent.log</string>
+  </dict>
+</plist>

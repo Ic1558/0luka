@@ -1,0 +1,7 @@
+diff --git a/core/_smoke/README.md b/workspaces/ws_260123_170946_phase1_smoketest3/core_mirror/_smoke/README.md
+index c672674..2a1e1e1 100644
+--- a/core/_smoke/README.md
++++ b/workspaces/ws_260123_170946_phase1_smoketest3/core_mirror/_smoke/README.md
+@@ -1 +1,2 @@
+ # smoke Fri Jan 23 17:10:47 +07 2026
++# smoke2 Fri Jan 23 17:14:50 +07 2026

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.02luka.pr11.healthcheck</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>/Users/icmini/02luka/tools/pr11_healthcheck_auto.zsh</string>
+    </array>
+    
+    <!-- Day 0: Run every 12 hours (2x per day) -->
+    <!-- After Day 0: Change to 86400 (24 hours = 1x per day) -->
+    <key>StartInterval</key>
+    <integer>43200</integer>  <!-- 12 hours = 2x per day -->
+    
+    <key>RunAtLoad</key>
+    <true/>
+    
+    <key>ThrottleInterval</key>
+    <integer>30</integer>  <!-- Prevent rapid restarts -->
+    
+    <key>StandardOutPath</key>
+    <string>/Users/icmini/02luka/logs/pr11_healthcheck.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>/Users/icmini/02luka/logs/pr11_healthcheck.log</string>
+</dict>
+</plist>

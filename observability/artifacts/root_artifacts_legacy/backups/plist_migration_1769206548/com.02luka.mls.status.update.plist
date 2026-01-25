@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.02luka.mls.status.update</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/env</string>
+        <string>zsh</string>
+        <string>/Users/icmini/02luka/tools/mls_status_summary_update.zsh</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/icmini/02luka</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>LUKA_SOT</key>
+        <string>/Users/icmini/02luka</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+    <key>StartInterval</key>
+    <integer>600</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>/Users/icmini/02luka/logs/mls_status_update.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/icmini/02luka/logs/mls_status_update.err.log</string>
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
+</dict>
+</plist>

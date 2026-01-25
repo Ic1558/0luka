@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.02luka.perf-collect-daily</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>/Users/icmini/02luka/tools/perf_collect_daily.zsh</string>
+    </array>
+    
+    <!-- Run twice daily: 10:00 AM and 2:00 PM -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict>
+            <key>Hour</key>
+            <integer>10</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>14</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+        </dict>
+    </array>
+    
+    <key>ThrottleInterval</key>
+    <integer>300</integer>  <!-- Prevent rapid restarts (5 minutes) -->
+    
+    <key>RunAtLoad</key>
+    <false/>  <!-- Don't run immediately on load, wait for scheduled time -->
+    
+    <key>StandardOutPath</key>
+    <string>/Users/icmini/02luka/logs/perf_collect_daily.stdout.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>/Users/icmini/02luka/logs/perf_collect_daily.stderr.log</string>
+</dict>
+</plist>

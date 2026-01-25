@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.02luka.bridge.knowledge.sync</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>cd ~/02luka && ./tools/bridge_knowledge_sync.zsh --config config/bridge_knowledge.yaml --batch 200</string>
+  </array>
+  <key>StartInterval</key><integer>21600</integer>
+  <key>StandardOutPath</key><string>/Users/icmini/02luka/g/bridge/launchd.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/icmini/02luka/g/bridge/launchd.err.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>LC_ALL</key><string>en_US.UTF-8</string>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>WorkingDirectory</key><string>/Users/icmini/02luka</string>
+  <key>RunAtLoad</key><false/>
+  <key>KeepAlive</key><false/>
+  <key>ThrottleInterval</key><integer>30</integer>
+</dict></plist>
+

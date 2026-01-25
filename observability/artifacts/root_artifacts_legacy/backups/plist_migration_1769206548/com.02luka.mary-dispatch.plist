@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.02luka.mary-dispatch</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/zsh</string>
+      <string>-lc</string>
+      <string>${HOME}/02luka/tools/watchers/mary_dispatcher.zsh</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>20</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/mary-dispatch.out</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/mary-dispatch.err</string>
+  </dict>
+</plist>

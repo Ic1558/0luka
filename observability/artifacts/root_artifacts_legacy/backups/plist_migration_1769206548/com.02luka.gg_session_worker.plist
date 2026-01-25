@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.02luka.gg_session_worker</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/icmini/02luka/tools/gg/gg_session_inbox_worker.zsh</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>MEMORY_ROOT</key>
+    <string>/Users/icmini/02luka-memory</string>
+    <key>GG_DEFAULT_PROJECT</key>
+    <string>GG_SESSION_AUTO</string>
+  </dict>
+
+  <!-- run every 10 minutes -->
+  <key>StartInterval</key>
+  <integer>600</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/icmini/Library/Logs/gg_session_worker.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/icmini/Library/Logs/gg_session_worker.error.log</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+</dict>
+</plist>

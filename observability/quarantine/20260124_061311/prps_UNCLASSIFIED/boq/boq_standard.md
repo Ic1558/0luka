@@ -1,0 +1,3 @@
+- vat = 7%
+- rounding = 2 decimals
+- must include summary sheet

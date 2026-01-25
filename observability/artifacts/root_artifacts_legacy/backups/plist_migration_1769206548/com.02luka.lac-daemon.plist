@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.02luka.lac-daemon</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/icmini/02luka/.venv/bin/python</string>
+        <string>/Users/icmini/02luka/agents/lac_manager/lac_manager.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/icmini/02luka</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>LAC_BASE_DIR</key>
+        <string>/Users/icmini/02luka</string>
+        <key>PYTHONPATH</key>
+        <string>/Users/icmini/02luka</string>
+        <key>AGENT_ID</key>
+        <string>codex</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>5</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/icmini/02luka/logs/lac_daemon.out</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/icmini/02luka/logs/lac_daemon.err</string>
+</dict>
+</plist>

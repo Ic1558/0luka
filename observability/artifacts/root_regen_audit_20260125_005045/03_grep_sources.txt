@@ -1,0 +1,420 @@
+== 3) Grep likely regen sources (scripts/commands/plists) ==
+--- TARGET: /Users/icmini/0luka/.0luka
+~/0luka/.0luka/scripts/promote_artifact.zsh:21:mkdir -p artifacts/pending artifacts/archive
+~/0luka/.0luka/scripts/new_workspace.zsh:27:mkdir -p "${ws_path}/input" "${ws_path}/work" "${ws_path}/output" "${ws_path}/runs" "${ws_path}/core_mirror" "${ws_path}/rules" "${ws_path}/artifacts"
+~/0luka/.0luka/scripts/promote_artifact.zsh:21:mkdir -p artifacts/pending artifacts/archive
+~/0luka/.0luka/scripts/new_workspace.zsh:27:mkdir -p "${ws_path}/input" "${ws_path}/work" "${ws_path}/output" "${ws_path}/runs" "${ws_path}/core_mirror" "${ws_path}/rules" "${ws_path}/artifacts"
+~/0luka/.0luka/scripts/atg_multi_snap.zsh:15:SNAP_DIR="$HOME/0luka/artifacts/snapshots"
+~/0luka/.0luka/scripts/promote_artifact.zsh:21:mkdir -p artifacts/pending artifacts/archive
+~/0luka/.0luka/scripts/promote_artifact.zsh:23:patch_file="artifacts/pending/${ws_id}.patch"
+~/0luka/.0luka/scripts/promote_artifact.zsh:47:arch_patch="artifacts/archive/${ws_id}_${arch_ts}.patch"
+~/0luka/.0luka/scripts/promote_artifact.zsh:62:mv -f "$patch_file" "artifacts/archive/" || true
+~/0luka/.0luka/scripts/atg_multi_snap.zsh:15:SNAP_DIR="$HOME/0luka/artifacts/snapshots"
+~/0luka/.0luka/hooks/pre-commit:14:  echo "   Use workspace + promote_artifact.zsh (promotion mode) instead."
+~/0luka/.0luka/scripts/new_workspace.zsh:51:say "  .0luka/scripts/promote_artifact.zsh ${ws_id}"
+~/0luka/.0luka/scripts/promote_artifact.zsh:11:[[ -n "$ws_id" ]] || die "Usage: promote_artifact.zsh <workspace_id>"
+--- TARGET: /Users/icmini/0luka/ops
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:37:  "mkdir -p artifacts"
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:37:  "mkdir -p artifacts"
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:38:  "mkdir -p .*artifacts"
+~/0luka/ops/governance/migration_map.md:27:mkdir -p ops/tools core/config observability/{logs,artifacts} runtime/{mcp,system,workspaces}
+~/0luka/ops/tools/tools/evidence_analyzer.py:13:REMEDIATION_DIR = Path("~/0luka/artifacts/remediation").expanduser()
+~/0luka/ops/tools/tools/evidence_analyzer.py:15:REPORT_PATH = Path("~/0luka/artifacts/governance_test_report.md").expanduser()
+~/0luka/ops/tools/tools/wo_cutover_root.zsh:11:BACKUP_DIR="$HOME/0luka/artifacts/backups/plist_migration_$(date +%s)"
+~/0luka/ops/tools/tools/canary_alert.py:26:REMEDIATION_DIR = Path("~/0luka/artifacts/remediation")
+~/0luka/ops/tools/tools/zen_claim_gate.py:384:    def save_bundle(self, bundle: Dict, output_dir: str = "~/0luka/artifacts/zen_claims"):
+~/0luka/ops/tools/tools/zen_claim_gate.py:405:    parser.add_argument("--output", default="~/0luka/artifacts/zen_claims", help="Output directory")
+~/0luka/ops/tools/tools/remediator.py:18:REMEDIATION_DIR = Path("~/0luka/artifacts/remediation").expanduser()
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:5:EVID="$ROOT/observability/artifacts/root_regen_audit_$(date +%Y%m%d_%H%M%S)"
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:20:for d in "$ROOT/artifacts" "$ROOT/logs"; do
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:39:  "/artifacts"
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:75:if [[ -f "$ROOT/observability/artifacts/zen_claim_260124_065241_30b935e7a01d37fe.json" ]]; then
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:76:  cp -a "$ROOT/observability/artifacts/zen_claim_260124_065241_30b935e7a01d37fe.json" "$EVID/"
+~/0luka/ops/governance/migration_map.md:13:7. `artifacts/` → `observability/artifacts/`
+~/0luka/ops/tools/tools/evidence_analyzer.py:13:REMEDIATION_DIR = Path("~/0luka/artifacts/remediation").expanduser()
+~/0luka/ops/tools/tools/evidence_analyzer.py:15:REPORT_PATH = Path("~/0luka/artifacts/governance_test_report.md").expanduser()
+~/0luka/ops/tools/tools/wo_cutover_root.zsh:11:BACKUP_DIR="$HOME/0luka/artifacts/backups/plist_migration_$(date +%s)"
+~/0luka/ops/tools/tools/canary_alert.py:26:REMEDIATION_DIR = Path("~/0luka/artifacts/remediation")
+~/0luka/ops/tools/tools/zen_claim_gate.py:384:    def save_bundle(self, bundle: Dict, output_dir: str = "~/0luka/artifacts/zen_claims"):
+~/0luka/ops/tools/tools/zen_claim_gate.py:405:    parser.add_argument("--output", default="~/0luka/artifacts/zen_claims", help="Output directory")
+~/0luka/ops/tools/tools/remediator.py:18:REMEDIATION_DIR = Path("~/0luka/artifacts/remediation").expanduser()
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:5:EVID="$ROOT/observability/artifacts/root_regen_audit_$(date +%Y%m%d_%H%M%S)"
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:19:echo "== 2) Stat artifacts/ and logs/ (if exist) ==" | tee "$EVID/02_stat.txt"
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:40:  "artifacts/"
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:75:if [[ -f "$ROOT/observability/artifacts/zen_claim_260124_065241_30b935e7a01d37fe.json" ]]; then
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:76:  cp -a "$ROOT/observability/artifacts/zen_claim_260124_065241_30b935e7a01d37fe.json" "$EVID/"
+~/0luka/ops/governance/migration_map.md:13:7. `artifacts/` → `observability/artifacts/`
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:41:  "mkdir -p logs"
+~/0luka/ops/tools/tools/zen_claim_gate.py:164:    def verify_stability_truth(self, log_path: str = "~/02luka/logs/mary_dispatcher.log") -> bool:
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:20:for d in "$ROOT/artifacts" "$ROOT/logs"; do
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:42:  "/logs"
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:43:  "0luka/logs"
+~/0luka/ops/governance/migration_map.md:10:4. `logs/` → `observability/logs/`
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:43:  "0luka/logs"
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:44:  "promote_artifact"
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:45:  "atg_multi_snap"
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:46:  "core_history"
+~/0luka/ops/tools/wo_audit_root_regen_v1.zsh:47:  "heartbeat"
+--- TARGET: /Users/icmini/0luka/runtime
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/TASKLIST.md:10:  - [x] สร้างพื้นที่กักกัน: `mkdir -p artifacts/quarantine/phase1_preexisting/`
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:4:mkdir -p artifacts/quarantine/phase1_preexisting/
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/TASKLIST.md:10:  - [x] สร้างพื้นที่กักกัน: `mkdir -p artifacts/quarantine/phase1_preexisting/`
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:4:mkdir -p artifacts/quarantine/phase1_preexisting/
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/TASKLIST.md:18:  - **4A:** เพิ่ม `/artifacts/quarantine/` ลงใน `.gitignore`
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:28:Selected Telemetry Path: ~/0luka/artifacts/quarantine/phase1_preexisting/telemetry
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/DESIGN.md:23:    - `0luka`: `$repo/core/telemetry/` (Future) or `$repo/artifacts/quarantine/telemetry/` (Current)
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/TASKLIST.md:10:  - [x] สร้างพื้นที่กักกัน: `mkdir -p artifacts/quarantine/phase1_preexisting/`
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/TASKLIST.md:15:  - [x] ไปยัง `artifacts/quarantine/phase1_preexisting/`
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/TASKLIST.md:18:  - **4A:** เพิ่ม `/artifacts/quarantine/` ลงใน `.gitignore`
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/DIRECTIVE.md:14:- artifacts/
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/DIRECTIVE.md:32:- รายการไฟล์ใน `artifacts/quarantine/phase1_preexisting/`
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:4:mkdir -p artifacts/quarantine/phase1_preexisting/
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:5:mv index/ artifacts/quarantine/phase1_preexisting/
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:6:mv logs/ artifacts/quarantine/phase1_preexisting/
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:7:mv modules/ artifacts/quarantine/phase1_preexisting/
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:8:mv skills/ artifacts/quarantine/phase1_preexisting/
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:9:mv telemetry/ artifacts/quarantine/phase1_preexisting/
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:10:mv vault/ artifacts/quarantine/phase1_preexisting/
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:11:mv workflows/ artifacts/quarantine/phase1_preexisting/
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:12:mv agents.md artifacts/quarantine/phase1_preexisting/
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:18:artifacts/
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:39:├── artifacts/
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:69:	artifacts/
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:74:### Quarantine Content (artifacts/quarantine/phase1_preexisting/)
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:91:  - **Telemetry:** Checks `g/telemetry`, `telemetry`, `core/telemetry`, and looks into `artifacts/quarantine`.
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE.md:13:    - [x] Tailing of `artifacts/quarantine/telemetry/` (if detected).
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:23:?? artifacts/
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:28:Selected Telemetry Path: ~/0luka/artifacts/quarantine/phase1_preexisting/telemetry
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/DESIGN.md:23:    - `0luka`: `$repo/core/telemetry/` (Future) or `$repo/artifacts/quarantine/telemetry/` (Current)
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:92:  - **Logs:** Checks `g/logs`, `logs`, `core/logs`.
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:83:Selected Log Path: ~/02luka/g/logs
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:424:/bin/zsh: can't open input file: ~/Library/CloudStorage/GoogleDrive-ittipong.c@gmail.com/My Drive/02luka/02luka-repo/run/logs_rotate.zsh
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:425:/bin/zsh: can't open input file: ~/Library/CloudStorage/GoogleDrive-ittipong.c@gmail.com/My Drive/02luka/02luka-repo/run/logs_rotate.zsh
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:426:/bin/zsh: can't open input file: ~/Library/CloudStorage/GoogleDrive-ittipong.c@gmail.com/My Drive/02luka/02luka-repo/run/logs_rotate.zsh
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:427:/bin/zsh: can't open input file: ~/Library/CloudStorage/GoogleDrive-ittipong.c@gmail.com/My Drive/02luka/02luka-repo/run/logs_rotate.zsh
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:428:/bin/zsh: can't open input file: ~/Library/CloudStorage/GoogleDrive-ittipong.c@gmail.com/My Drive/02luka/02luka-repo/run/logs_rotate.zsh
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:429:/bin/zsh: can't open input file: ~/Library/CloudStorage/GoogleDrive-ittipong.c@gmail.com/My Drive/02luka/02luka-repo/run/logs_rotate.zsh
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:430:/bin/zsh: can't open input file: ~/Library/CloudStorage/GoogleDrive-ittipong.c@gmail.com/My Drive/02luka/02luka-repo/run/logs_rotate.zsh
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:431:/bin/zsh: can't open input file: ~/Library/CloudStorage/GoogleDrive-ittipong.c@gmail.com/My Drive/02luka/02luka-repo/run/logs_rotate.zsh
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:432:/bin/zsh: can't open input file: ~/Library/CloudStorage/GoogleDrive-ittipong.c@gmail.com/My Drive/02luka/02luka-repo/run/logs_rotate.zsh
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:433:/bin/zsh: can't open input file: ~/Library/CloudStorage/GoogleDrive-ittipong.c@gmail.com/My Drive/02luka/02luka-repo/run/logs_rotate.zsh
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/DESIGN.md:25:    - `$repo/g/logs/` or `$repo/logs/`
+~/0luka/runtime/workspaces/workspaces/ws_260123_164645_phase1_smoketest/core_mirror/_smoke/README_SMOKE.md:3:This file exists to verify promote_artifact flow.
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:56:	modified:   .0luka/scripts/promote_artifact.zsh
+~/0luka/runtime/workspaces/workspaces/ws_260123_170459_phase1_smoketest2/core_mirror/_smoke/README_SMOKE.md:3:This file exists to verify promote_artifact flow.
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:17: M .0luka/scripts/promote_artifact.zsh
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:68:	.0luka/scripts/atg_multi_snap.zsh
+~/0luka/runtime/workspaces/workspaces/ws_260123_172642_antigravity_phaseA_directive/EVIDENCE_LOG.md:88:### 🛠️ Script Analysis (.0luka/scripts/atg_multi_snap.zsh)
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/TASKLIST.md:5:  - [ ] Create the script file: `.0luka/scripts/atg_multi_snap.zsh`
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE.md:6:- `ls -la .0luka/scripts/atg_multi_snap.zsh` showing correct permissions (`755`).
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE.md:9:- Exit code 0 for `atg_multi_snap.zsh ~/0luka`.
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE.md:16:- Exit code 0 for `atg_multi_snap.zsh ~/02luka`.
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:3:-rwxr-xr-x@ 1 icmini  staff  3599 Jan 23 23:52 .0luka/scripts/atg_multi_snap.zsh
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:22:?? .0luka/scripts/atg_multi_snap.zsh
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:177:{"ts": "2026-01-07T21:41:00.111169+00:00", "event": "created", "lane": "FS_DAEMON", "actor": "unknown", "file": "tools/build_core_history.zsh.bak", "type": "file", "host": "Ittipongs-Mac-mini.local", "pid": 47832, "git_rev": "cfd22d29"}
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:178:{"ts": "2026-01-07T21:42:08.889792+00:00", "event": "modified", "lane": "FS_DAEMON", "actor": "unknown", "file": "tools/build_core_history.zsh", "type": "file", "host": "Ittipongs-Mac-mini.local", "pid": 47832, "git_rev": "cfd22d29"}
+~/0luka/runtime/workspaces/workspaces/ws_260123_232825_liam_multi_snap_design/EVIDENCE_LOG.md:500:[2025-11-13T06:12:04.278Z] [INFO] Report generated: heartbeat_2025-11-13_06-12-04.md
+~/0luka/runtime/venv/opal/lib/python3.14/site-packages/pip/_vendor/rich/_emoji_codes.py:2838:    "heartbeat": "💓",
+--- TARGET: /Users/icmini/Library/LaunchAgents
+~/Library/LaunchAgents/com.02luka.gmx-clc-orchestrator.plist:34:    <string>~/0luka/logs/gmx_clc_orchestrator.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.gmx-clc-orchestrator.plist:37:    <string>~/0luka/logs/gmx_clc_orchestrator.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.mls_watcher.plist:26:    <string>~/0luka/g/logs/mls_watcher.out.log</string>
+~/Library/LaunchAgents/com.02luka.mls_watcher.plist:29:    <string>~/0luka/g/logs/mls_watcher.err.log</string>
+~/Library/LaunchAgents/com.02luka.guard-health.daily.plist:26:    <string>~/0luka/logs/guard_health_daily.out</string>
+~/Library/LaunchAgents/com.02luka.guard-health.daily.plist:28:    <string>~/0luka/logs/guard_health_daily.err</string>
+~/Library/LaunchAgents/com.02luka.health_monitor.plist.backup_20251207_044721:19:	<string>~/LocalProjects/02luka_local_g/logs/health_monitor.err.log</string>
+~/Library/LaunchAgents/com.02luka.health_monitor.plist.backup_20251207_044721:21:	<string>~/LocalProjects/02luka_local_g/logs/health_monitor.out.log</string>
+~/Library/LaunchAgents/com.02luka.lac-activity-daily.plist:17:	<string>$HOME/02luka/g/logs/lac_activity_daily.err.log</string>
+~/Library/LaunchAgents/com.02luka.lac-activity-daily.plist:19:	<string>$HOME/02luka/g/logs/lac_activity_daily.out.log</string>
+~/Library/LaunchAgents/com.02luka.cloudflared.dashboard.plist:25:  <string>~/0luka/logs/cloudflared/dashboard.out.log</string>
+~/Library/LaunchAgents/com.02luka.cloudflared.dashboard.plist:28:  <string>~/0luka/logs/cloudflared/dashboard.err.log</string>
+~/Library/LaunchAgents/com.02luka.mcp.memory.plist:30:	<string>~/0luka/mcp/logs/mcp_memory.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.mcp.memory.plist:32:	<string>~/0luka/mcp/logs/mcp_memory.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.sync.gdrive.4h.plist:22:	<string>~/0luka/logs/backup_to_gdrive_stderr.log</string>
+~/Library/LaunchAgents/com.02luka.sync.gdrive.4h.plist:24:	<string>~/0luka/logs/backup_to_gdrive_stdout.log</string>
+~/Library/LaunchAgents/com.02luka.mls.status.update.plist:29:    <string>~/0luka/logs/mls_status_update.out.log</string>
+~/Library/LaunchAgents/com.02luka.mls.status.update.plist:31:    <string>~/0luka/logs/mls_status_update.err.log</string>
+~/Library/LaunchAgents/com.02luka.rnd.consumer.plist:16:	<string>~/02luka/logs/rnd_consumer.err.log</string>
+~/Library/LaunchAgents/com.02luka.rnd.consumer.plist:18:	<string>~/02luka/logs/rnd_consumer.out.log</string>
+~/Library/LaunchAgents/com.02luka.gemini-context-sync.plist:26:    <string>~/0luka/logs/gemini_context_sync.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.gemini-context-sync.plist:29:    <string>~/0luka/logs/gemini_context_sync.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.nlp-dispatcher.plist:25:    <string>$HOME/02luka/logs/nlp_dispatcher.log</string>
+~/Library/LaunchAgents/com.02luka.nlp-dispatcher.plist:27:    <string>$HOME/02luka/logs/nlp_dispatcher.err</string>
+~/Library/LaunchAgents/com.02luka.shell-executor.plist:37:    <string>~/0luka/logs/shell_executor.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.shell-executor.plist:40:    <string>~/0luka/logs/shell_executor.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.lac-daemon.plist:37:    <string>~/0luka/logs/lac_daemon.out</string>
+~/Library/LaunchAgents/com.02luka.lac-daemon.plist:40:    <string>~/0luka/logs/lac_daemon.err</string>
+~/Library/LaunchAgents/com.02luka.opal-api.plist:30:	<string>~/0luka/logs/opal_api.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.opal-api.plist:32:	<string>~/0luka/logs/opal_api.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.wo_executor.codex.plist.bak.20260124_040941:20:	<string>~/02luka/logs/codex_wo_executor.err.log</string>
+~/Library/LaunchAgents/com.02luka.wo_executor.codex.plist.bak.20260124_040941:22:	<string>~/02luka/logs/codex_wo_executor.out.log</string>
+~/Library/LaunchAgents/com.02luka.kim.bot.plist:16:    <string>$HOME/02luka/logs/kim_bot.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.kim.bot.plist:18:    <string>$HOME/02luka/logs/kim_bot.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.gh-monitor.plist:25:	<string>~/0luka/logs/gh_monitor_agent.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.gh-monitor.plist:27:	<string>~/0luka/logs/gh_monitor_agent.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.mls.ledger.monitor.plist:17:	<string>~/0luka/logs/mls_ledger_monitor.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.mls.ledger.monitor.plist:19:	<string>~/0luka/logs/mls_ledger_monitor.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.clc-executor.plist.backup_20251207_052448:20:	<string>~/LocalProjects/02luka_local_g/g/logs/launchd_clc_executor.err</string>
+~/Library/LaunchAgents/com.02luka.clc-executor.plist.backup_20251207_052448:22:	<string>~/LocalProjects/02luka_local_g/g/logs/launchd_clc_executor.out</string>
+~/Library/LaunchAgents/com.02luka.clc_local.plist:26:	<string>~/0luka/logs/clc_local.err</string>
+~/Library/LaunchAgents/com.02luka.clc_local.plist:28:	<string>~/0luka/logs/clc_local.out</string>
+~/Library/LaunchAgents/com.02luka.rag.probe.plist:13:  <key>StandardOutPath</key><string>~/02luka/logs/rag_probe.out</string>
+~/Library/LaunchAgents/com.02luka.rag.probe.plist:14:  <key>StandardErrorPath</key><string>~/02luka/logs/rag_probe.err</string>
+~/Library/LaunchAgents/com.02luka.mary-bridge.plist:37:    <string>~/0luka/logs/mary_bridge.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.mary-bridge.plist:40:    <string>~/0luka/logs/mary_bridge.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.telegram-bridge.plist:32:	<string>~/0luka/logs/com.02luka.telegram-bridge.err.log</string>
+~/Library/LaunchAgents/com.02luka.telegram-bridge.plist:34:	<string>~/0luka/logs/com.02luka.telegram-bridge.out.log</string>
+~/Library/LaunchAgents/com.02luka.clc.local.plist:15:  <key>StandardOutPath</key><string>~/0luka/logs/clc_local.out</string>
+~/Library/LaunchAgents/com.02luka.clc.local.plist:16:  <key>StandardErrorPath</key><string>~/0luka/logs/clc_local.err</string>
+~/Library/LaunchAgents/com.02luka.ram-monitor.plist:21:    <string>~/0luka/logs/ram_monitor.log</string>
+~/Library/LaunchAgents/com.02luka.ram-monitor.plist:24:    <string>~/0luka/logs/ram_monitor.log</string>
+~/Library/LaunchAgents/com.02luka.dashboard.server.plist:25:	<string>~/0luka/logs/dashboard_server.err.log</string>
+~/Library/LaunchAgents/com.02luka.dashboard.server.plist:27:	<string>~/0luka/logs/dashboard_server.out.log</string>
+~/Library/LaunchAgents/com.02luka.memory.metrics.plist:16:	<string>~/02luka/logs/memory_metrics.err.log</string>
+~/Library/LaunchAgents/com.02luka.memory.metrics.plist:18:	<string>~/02luka/logs/memory_metrics.out.log</string>
+~/Library/LaunchAgents/com.02luka.json_wo_processor.plist.bak:22:	<string>~/LocalProjects/02luka_local_g/logs/json_wo_processor.err.log</string>
+~/Library/LaunchAgents/com.02luka.json_wo_processor.plist.bak:24:	<string>~/LocalProjects/02luka_local_g/logs/json_wo_processor.out.log</string>
+~/Library/LaunchAgents/com.02luka.gg.nlp-bridge.plist:16:    <string>$HOME/02luka/logs/gg_nlp_bridge.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.gg.nlp-bridge.plist:18:    <string>$HOME/02luka/logs/gg_nlp_bridge.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.adaptive.collector.daily.plist:34:    <string>~/0luka/logs/adaptive_collector.out.log</string>
+~/Library/LaunchAgents/com.02luka.adaptive.collector.daily.plist:36:    <string>~/0luka/logs/adaptive_collector.err.log</string>
+~/Library/LaunchAgents/com.02luka.wo_executor.codex.plist:22:	<string>~/0luka/logs/codex_wo_executor.err.log</string>
+~/Library/LaunchAgents/com.02luka.wo_executor.codex.plist:24:	<string>~/0luka/logs/codex_wo_executor.out.log</string>
+~/Library/LaunchAgents/com.02luka.rag.autosync.plist.backup_20251207_044818:14:	<string>~/LocalProjects/02luka_local_g/logs/rag_autosync.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.rag.autosync.plist.backup_20251207_044818:16:	<string>~/LocalProjects/02luka_local_g/logs/rag_autosync.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.perf-collect-daily.plist:38:    <string>~/0luka/logs/perf_collect_daily.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.perf-collect-daily.plist:41:    <string>~/0luka/logs/perf_collect_daily.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.sot_dashboard_sync.plist:19:    <string>~/02luka/g/logs/sot_dashboard_sync.out</string>
+~/Library/LaunchAgents/com.02luka.sot_dashboard_sync.plist:22:    <string>~/02luka/g/logs/sot_dashboard_sync.err</string>
+~/Library/LaunchAgents/com.02luka.notify.worker.plist:25:    <string>~/0luka/logs/notify_worker.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.notify.worker.plist:28:    <string>~/0luka/logs/notify_worker.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.atg_runner.plist:14:  <key>StandardOutPath</key><string>~/0luka/g/logs/atg_runner/launchd.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.atg_runner.plist:15:  <key>StandardErrorPath</key><string>~/0luka/g/logs/atg_runner/launchd.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.lac-manager.plist:20:	<string>~/0luka/g/logs/launchd_lac_manager.err</string>
+~/Library/LaunchAgents/com.02luka.lac-manager.plist:22:	<string>~/0luka/g/logs/launchd_lac_manager.out</string>
+~/Library/LaunchAgents/com.02luka.localtruth.plist:22:	<string>~/0luka/g/logs/localtruth.err.log</string>
+~/Library/LaunchAgents/com.02luka.localtruth.plist:24:	<string>~/0luka/g/logs/localtruth.out.log</string>
+~/Library/LaunchAgents/com.02luka.mls.ledger.monitor.plist.backup_20251207_044808:16:	<string>~/LocalProjects/02luka_local_g/logs/mls_ledger_monitor.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.mls.ledger.monitor.plist.backup_20251207_044808:18:	<string>~/LocalProjects/02luka_local_g/logs/mls_ledger_monitor.stdout.log</string>
+~/Library/LaunchAgents/.backup_20251004_155010/com.02luka.cloudflared.dashboard.plist:25:	<string>~/My Drive (ittipong.c@gmail.com) (1)/02luka/logs/cloudflared.err</string>
+~/Library/LaunchAgents/.backup_20251004_155010/com.02luka.cloudflared.dashboard.plist:27:	<string>~/My Drive (ittipong.c@gmail.com) (1)/02luka/logs/cloudflared.log</string>
+~/Library/LaunchAgents/.backup_20251004_155010/com.02luka.agent.lisa.plist:29:	<string>~/My Drive (ittipong.c@gmail.com) (1)/02luka/logs/launchd/com.02luka.agent.lisa.plist.err.log</string>
+~/Library/LaunchAgents/.backup_20251004_155010/com.02luka.agent.lisa.plist:31:	<string>~/My Drive (ittipong.c@gmail.com) (1)/02luka/logs/launchd/com.02luka.agent.lisa.plist.out.log</string>
+~/Library/LaunchAgents/.backup_20251004_155010/com.02luka.cloudflared.nas-archive.plist:25:	<string>~/My Drive (ittipong.c@gmail.com) (1)/02luka/logs/nas-archive.err</string>
+~/Library/LaunchAgents/.backup_20251004_155010/com.02luka.cloudflared.nas-archive.plist:27:	<string>~/My Drive (ittipong.c@gmail.com) (1)/02luka/logs/nas-archive.log</string>
+~/Library/LaunchAgents/.backup_20251004_155010/com.02luka.nightly.selftest.plist:30:	<string>~/My Drive (ittipong.c@gmail.com) (1)/02luka/logs/nightly_selftest.error.log</string>
+~/Library/LaunchAgents/.backup_20251004_155010/com.02luka.nightly.selftest.plist:32:	<string>~/My Drive (ittipong.c@gmail.com) (1)/02luka/logs/nightly_selftest.log</string>
+~/Library/LaunchAgents/.backup_20251004_155010/com.02luka.boss.sent.watcher.plist:29:	<string>~/My Drive (ittipong.c@gmail.com) (1)/02luka/logs/boss_sent_watcher.error.log</string>
+~/Library/LaunchAgents/.backup_20251004_155010/com.02luka.boss.sent.watcher.plist:31:	<string>~/My Drive (ittipong.c@gmail.com) (1)/02luka/logs/boss_sent_watcher.log</string>
+~/Library/LaunchAgents/.backup_20251004_155010/com.02luka.boss.dropbox.watcher.plist:29:	<string>~/My Drive (ittipong.c@gmail.com) (1)/02luka/logs/boss_dropbox_watcher.error.log</string>
+~/Library/LaunchAgents/.backup_20251004_155010/com.02luka.boss.dropbox.watcher.plist:31:	<string>~/My Drive (ittipong.c@gmail.com) (1)/02luka/logs/boss_dropbox_watcher.log</string>
+~/Library/LaunchAgents/com.02luka.dashboard.daily.plist:18:  <key>StandardOutPath</key><string>$HOME/02luka/logs/dashboard.out.log</string>
+~/Library/LaunchAgents/com.02luka.dashboard.daily.plist:19:  <key>StandardErrorPath</key><string>$HOME/02luka/logs/dashboard.err.log</string>
+~/Library/LaunchAgents/com.ggmesh.watchdog.plist:17:    <string>~/01luka/logs/watchdog/stdout.log</string>
+~/Library/LaunchAgents/com.ggmesh.watchdog.plist:19:    <string>~/01luka/logs/watchdog/stderr.log</string>
+~/Library/LaunchAgents/com.02luka.memory.hub.plist.backup_20251207_044811:28:	<string>~/02luka/logs/memory_hub.err.log</string>
+~/Library/LaunchAgents/com.02luka.memory.hub.plist.backup_20251207_044811:30:	<string>~/02luka/logs/memory_hub.out.log</string>
+~/Library/LaunchAgents/com.02luka.build-latest-status.plist:22:	<string>~/0luka/logs/build_latest_status.error.log</string>
+~/Library/LaunchAgents/com.02luka.build-latest-status.plist:24:	<string>~/0luka/logs/build_latest_status.log</string>
+~/Library/LaunchAgents/com.02luka.auto-commit.plist:28:    <string>~/0luka/logs/auto_commit.log</string>
+~/Library/LaunchAgents/com.02luka.auto-commit.plist:31:    <string>~/0luka/logs/auto_commit.log</string>
+~/Library/LaunchAgents/com.02luka.memory.bridge.plist.backup_20251207_044740:18:	<string>~/02luka/logs/bridge_monitor.err.log</string>
+~/Library/LaunchAgents/com.02luka.memory.bridge.plist.backup_20251207_044740:20:	<string>~/02luka/logs/bridge_monitor.out.log</string>
+~/Library/LaunchAgents/com.02luka.pr11.healthcheck.plist:26:    <string>~/0luka/logs/pr11_healthcheck.log</string>
+~/Library/LaunchAgents/com.02luka.pr11.healthcheck.plist:29:    <string>~/0luka/logs/pr11_healthcheck.log</string>
+~/Library/LaunchAgents/com.02luka.ci-coordinator.plist:19:	<string>$HOME/02luka/logs/ci_coordinator.err</string>
+~/Library/LaunchAgents/com.02luka.ci-coordinator.plist:21:	<string>$HOME/02luka/logs/ci_coordinator.out</string>
+~/Library/LaunchAgents/com.02luka.health.dashboard.plist:28:  <string>$HOME/02luka/logs/health_dashboard.out.log</string>
+~/Library/LaunchAgents/com.02luka.health.dashboard.plist:31:  <string>$HOME/02luka/logs/health_dashboard.err.log</string>
+~/Library/LaunchAgents/com.02luka.wo_executor.codex.plist.bak.20260124_040819:20:	<string>~/02luka/logs/codex_wo_executor.err.log</string>
+~/Library/LaunchAgents/com.02luka.wo_executor.codex.plist.bak.20260124_040819:22:	<string>~/02luka/logs/codex_wo_executor.out.log</string>
+~/Library/LaunchAgents/com.02luka.antigravity.liam_worker.plist:15:	<string>~/0luka/system/antigravity/logs/liam_engine.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.antigravity.liam_worker.plist:17:	<string>~/0luka/system/antigravity/logs/liam_engine.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.mcp.health.plist:18:	<string>~/0luka/logs/mcp_health.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.mcp.health.plist:20:	<string>~/0luka/logs/mcp_health.stdout.log</string>
+~/Library/LaunchAgents/com.0luka.heartbeat.plist:15:    <string>~/0luka/logs/heartbeat.log</string>
+~/Library/LaunchAgents/com.0luka.heartbeat.plist:17:    <string>~/0luka/logs/heartbeat.err</string>
+~/Library/LaunchAgents/backup_250914_041012/com.02luka.agent.dispatcher.plist:25:	<string>~/0luka/logs/agents/dispatcher.err</string>
+~/Library/LaunchAgents/backup_250914_041012/com.02luka.agent.dispatcher.plist:27:	<string>~/0luka/logs/agents/dispatcher.out</string>
+~/Library/LaunchAgents/com.02luka.backup.gdrive.plist:14:	<string>~/0luka/logs/backup_gd.err.log</string>
+~/Library/LaunchAgents/com.02luka.backup.gdrive.plist:16:	<string>~/0luka/logs/backup_gd.out.log</string>
+~/Library/LaunchAgents/com.02luka.rag.api.plist:20:  <string>~/0luka/logs/rag_api.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.rag.api.plist:23:  <string>~/0luka/logs/rag_api.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.rnd.daily_digest.plist:16:	<string>~/02luka/logs/rnd_daily_digest.err.log</string>
+~/Library/LaunchAgents/com.02luka.rnd.daily_digest.plist:18:	<string>~/02luka/logs/rnd_daily_digest.out.log</string>
+~/Library/LaunchAgents/com.02luka.ci-watcher.plist:13:		<string>source ~/02luka/paths.env &amp;&amp; source ~/02luka/g/tools/ci_watcher_config.zsh &amp;&amp; ~/02luka/g/tools/ci_watcher.sh &gt;&gt; ~/02luka/logs/ci_watcher.log 2&gt;&amp;1</string>
+~/Library/LaunchAgents/com.02luka.ci-watcher.plist:18:	<string>~/02luka/logs/ci_watcher.err</string>
+~/Library/LaunchAgents/com.02luka.ci-watcher.plist:20:	<string>~/02luka/logs/ci_watcher.out</string>
+~/Library/LaunchAgents/com.02luka.claude.metrics.collector.plist:16:	<string>~/02luka/logs/claude_metrics.err.log</string>
+~/Library/LaunchAgents/com.02luka.claude.metrics.collector.plist:18:	<string>~/02luka/logs/claude_metrics.out.log</string>
+~/Library/LaunchAgents/com.02luka.mcp.puppeteer.plist:27:	<string>~/0luka/logs/mcp_puppeteer.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.mcp.puppeteer.plist:29:	<string>~/0luka/logs/mcp_puppeteer.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.clc-executor.plist:22:	<string>~/0luka/logs/launchd_clc_executor.err</string>
+~/Library/LaunchAgents/com.02luka.clc-executor.plist:24:	<string>~/0luka/logs/launchd_clc_executor.out</string>
+~/Library/LaunchAgents/com.02luka.memory.hub.plist:30:	<string>~/0luka/logs/memory_hub.err.log</string>
+~/Library/LaunchAgents/com.02luka.memory.hub.plist:32:	<string>~/0luka/logs/memory_hub.out.log</string>
+~/Library/LaunchAgents/com.02luka.nas_backup_daily.plist.backup_20260117_214932:16:	<string>~/02luka/logs/nas_backup.err.log</string>
+~/Library/LaunchAgents/com.02luka.nas_backup_daily.plist.backup_20260117_214932:18:	<string>~/02luka/logs/nas_backup.out.log</string>
+~/Library/LaunchAgents/com.02luka.delegation-watchdog.plist:23:	<string>~/0luka/logs/g/logs/launchd_watchdog.err</string>
+~/Library/LaunchAgents/com.02luka.delegation-watchdog.plist:25:	<string>~/0luka/logs/g/logs/launchd_watchdog.out</string>
+~/Library/LaunchAgents/com.02luka.followup_tracker.plist:17:	<string>~/0luka/logs/followup_tracker.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.followup_tracker.plist:19:	<string>~/0luka/logs/followup_tracker.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.delegation-watchdog.plist.backup_20251207_052438:20:	<string>~/LocalProjects/02luka_local_g/g/logs/launchd_watchdog.err</string>
+~/Library/LaunchAgents/com.02luka.delegation-watchdog.plist.backup_20251207_052438:22:	<string>~/LocalProjects/02luka_local_g/g/logs/launchd_watchdog.out</string>
+~/Library/LaunchAgents/com.02luka.clc-worker.plist:39:    <string>~/0luka/logs/clc_worker.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.clc-worker.plist:42:    <string>~/0luka/logs/clc_worker.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.memory.digest.daily.plist:16:	<string>~/02luka/logs/memory_digest.err.log</string>
+~/Library/LaunchAgents/com.02luka.memory.digest.daily.plist:18:	<string>~/02luka/logs/memory_digest.out.log</string>
+~/Library/LaunchAgents/com.02luka.json_wo_processor.plist:22:	<string>~/0luka/logs/json_wo_processor.err.log</string>
+~/Library/LaunchAgents/com.02luka.json_wo_processor.plist:24:	<string>~/0luka/logs/json_wo_processor.out.log</string>
+~/Library/LaunchAgents/disabled/com.02luka.mls.cursor.watcher.plist:25:	<string>~/0luka/logs/mls_cursor_watcher.err.log</string>
+~/Library/LaunchAgents/disabled/com.02luka.mls.cursor.watcher.plist:27:	<string>~/0luka/logs/mls_cursor_watcher.out.log</string>
+~/Library/LaunchAgents/com.02luka.mcp.fs.plist:27:	<string>~/0luka/logs/mcp_fs.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.mcp.fs.plist:29:	<string>~/0luka/logs/mcp_fs.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.rnd.autopilot.plist:16:	<string>~/02luka/logs/rnd_autopilot.err.log</string>
+~/Library/LaunchAgents/com.02luka.rnd.autopilot.plist:18:	<string>~/02luka/logs/rnd_autopilot.out.log</string>
+~/Library/LaunchAgents/com.02luka.lpe.worker.plist:16:    <string>${HOME}/02luka/logs/lpe_worker.out.log</string>
+~/Library/LaunchAgents/com.02luka.lpe.worker.plist:18:    <string>${HOME}/02luka/logs/lpe_worker.out.log</string>
+~/Library/LaunchAgents/com.02luka.nas_backup_daily.plist:16:	<string>~/02luka/logs/nas_backup.err.log</string>
+~/Library/LaunchAgents/com.02luka.nas_backup_daily.plist:18:	<string>~/02luka/logs/nas_backup.out.log</string>
+~/Library/LaunchAgents/com.02luka.n8n.server.plist:31:	<string>~/0luka/logs/n8n.err.log</string>
+~/Library/LaunchAgents/com.02luka.n8n.server.plist:33:	<string>~/0luka/logs/n8n.out.log</string>
+~/Library/LaunchAgents/com.02luka.mary-coo.plist:20:	<string>~/0luka/logs/launchd_mary_coo.err</string>
+~/Library/LaunchAgents/com.02luka.mary-coo.plist:22:	<string>~/0luka/logs/launchd_mary_coo.out</string>
+~/Library/LaunchAgents/com.02luka.lac-metrics-exporter.daily.plist:21:	<string>~/0luka/logs/lac_metrics_exporter.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.lac-metrics-exporter.daily.plist:23:	<string>~/0luka/logs/lac_metrics_exporter.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.wo_executor.codex.plist.bak:20:	<string>~/LocalProjects/02luka_local_g/logs/codex_wo_executor.err.log</string>
+~/Library/LaunchAgents/com.02luka.wo_executor.codex.plist.bak:22:	<string>~/LocalProjects/02luka_local_g/logs/codex_wo_executor.out.log</string>
+~/Library/LaunchAgents/com.02luka.hub-autoindex.plist.backup_20251207_044815:10:    <string>cd "$HOME/02luka" && ./tools/hub_sync.zsh >> g/logs/hub_autoindex.out 2>> g/logs/hub_autoindex.err</string>
+~/Library/LaunchAgents/com.02luka.hub-autoindex.plist.backup_20251207_044815:19:  <key>StandardOutPath</key><string>${HOME}/02luka/g/logs/hub_autoindex.launchd.out</string>
+~/Library/LaunchAgents/com.02luka.hub-autoindex.plist.backup_20251207_044815:20:  <key>StandardErrorPath</key><string>${HOME}/02luka/g/logs/hub_autoindex.launchd.err</string>
+~/Library/LaunchAgents/com.02luka.adaptive.proposal.gen.plist:34:    <string>~/0luka/logs/adaptive_proposal_gen.out.log</string>
+~/Library/LaunchAgents/com.02luka.adaptive.proposal.gen.plist:36:    <string>~/0luka/logs/adaptive_proposal_gen.err.log</string>
+~/Library/LaunchAgents/com.02luka.pr_score_rnd_dispatcher.plist:16:	<string>~/02luka/logs/pr_score_rnd_dispatcher.err.log</string>
+~/Library/LaunchAgents/com.02luka.pr_score_rnd_dispatcher.plist:18:	<string>~/02luka/logs/pr_score_rnd_dispatcher.out.log</string>
+~/Library/LaunchAgents/com.02luka.rnd.gate.plist:16:	<string>~/02luka/logs/rnd_gate.err.log</string>
+~/Library/LaunchAgents/com.02luka.rnd.gate.plist:18:	<string>~/02luka/logs/rnd_gate.out.log</string>
+~/Library/LaunchAgents/com.02luka.doctor.plist:20:    <string>~/0luka/logs/doctor.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.doctor.plist:22:    <string>~/0luka/logs/doctor.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.mary.metrics.daily.plist:23:	<string>$HOME/02luka/logs/mary_metrics.err.log</string>
+~/Library/LaunchAgents/com.02luka.mary.metrics.daily.plist:25:	<string>$HOME/02luka/logs/mary_metrics.out.log</string>
+~/Library/LaunchAgents/com.02luka.wo_executor.plist:17:	<string>~/0luka/logs/wo_executor.err.log</string>
+~/Library/LaunchAgents/com.02luka.wo_executor.plist:19:	<string>~/0luka/logs/wo_executor.out.log</string>
+~/Library/LaunchAgents/com.02luka.mls.cursor.watcher.plist:29:    <string>~/0luka/logs/mls_cursor_watcher.out.log</string>
+~/Library/LaunchAgents/com.02luka.mls.cursor.watcher.plist:31:    <string>~/0luka/logs/mls_cursor_watcher.err.log</string>
+~/Library/LaunchAgents/com.distributedtask.dispatcher.plist:15:    <string>~/01luka/logs/distributed_task/dispatcher/stdout.log</string>
+~/Library/LaunchAgents/com.distributedtask.dispatcher.plist:17:    <string>~/01luka/logs/distributed_task/dispatcher/stderr.log</string>
+~/Library/LaunchAgents/com.02luka.followup.generator.plist:17:  <string>~/0luka/logs/followup_generator.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.followup.generator.plist:19:  <string>~/0luka/logs/followup_generator.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.mary-gateway-v3.plist:22:    <string>~/0luka/logs/mary-gateway-v3.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.mary-gateway-v3.plist:24:    <string>~/0luka/logs/mary-gateway-v3.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.governance.weekly.plist:36:    <string>~/0luka/logs/governance_weekly.out.log</string>
+~/Library/LaunchAgents/com.02luka.governance.weekly.plist:38:    <string>~/0luka/logs/governance_weekly.err.log</string>
+~/Library/LaunchAgents/com.icmini.mls.auto.plist:21:  <string>~/logs/mls/auto_worker.out.log</string>
+~/Library/LaunchAgents/com.icmini.mls.auto.plist:23:  <string>~/logs/mls/auto_worker.err.log</string>
+~/Library/LaunchAgents/com.02luka.mary.dispatcher.plist.bak:19:  <key>StandardOutPath</key><string>~/02luka/logs/mary_dispatcher.out.log</string>
+~/Library/LaunchAgents/com.02luka.mary.dispatcher.plist.bak:20:  <key>StandardErrorPath</key><string>~/02luka/logs/mary_dispatcher.err.log</string>
+~/Library/LaunchAgents/com.02luka.health_monitor.plist:20:	<string>~/0luka/logs/health_monitor.err.log</string>
+~/Library/LaunchAgents/com.02luka.health_monitor.plist:22:	<string>~/0luka/logs/health_monitor.out.log</string>
+~/Library/LaunchAgents/com.02luka.gmx-clc-orchestrator.plist:34:    <string>~/0luka/logs/gmx_clc_orchestrator.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.gmx-clc-orchestrator.plist:37:    <string>~/0luka/logs/gmx_clc_orchestrator.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.guard-health.daily.plist:26:    <string>~/0luka/logs/guard_health_daily.out</string>
+~/Library/LaunchAgents/com.02luka.guard-health.daily.plist:28:    <string>~/0luka/logs/guard_health_daily.err</string>
+~/Library/LaunchAgents/com.02luka.cloudflared.dashboard.plist:25:  <string>~/0luka/logs/cloudflared/dashboard.out.log</string>
+~/Library/LaunchAgents/com.02luka.cloudflared.dashboard.plist:28:  <string>~/0luka/logs/cloudflared/dashboard.err.log</string>
+~/Library/LaunchAgents/com.02luka.sync.gdrive.4h.plist:22:	<string>~/0luka/logs/backup_to_gdrive_stderr.log</string>
+~/Library/LaunchAgents/com.02luka.sync.gdrive.4h.plist:24:	<string>~/0luka/logs/backup_to_gdrive_stdout.log</string>
+~/Library/LaunchAgents/com.02luka.mls.status.update.plist:29:    <string>~/0luka/logs/mls_status_update.out.log</string>
+~/Library/LaunchAgents/com.02luka.mls.status.update.plist:31:    <string>~/0luka/logs/mls_status_update.err.log</string>
+~/Library/LaunchAgents/com.02luka.gemini-context-sync.plist:26:    <string>~/0luka/logs/gemini_context_sync.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.gemini-context-sync.plist:29:    <string>~/0luka/logs/gemini_context_sync.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.shell-executor.plist:37:    <string>~/0luka/logs/shell_executor.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.shell-executor.plist:40:    <string>~/0luka/logs/shell_executor.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.lac-daemon.plist:37:    <string>~/0luka/logs/lac_daemon.out</string>
+~/Library/LaunchAgents/com.02luka.lac-daemon.plist:40:    <string>~/0luka/logs/lac_daemon.err</string>
+~/Library/LaunchAgents/com.02luka.opal-api.plist:30:	<string>~/0luka/logs/opal_api.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.opal-api.plist:32:	<string>~/0luka/logs/opal_api.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.gh-monitor.plist:25:	<string>~/0luka/logs/gh_monitor_agent.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.gh-monitor.plist:27:	<string>~/0luka/logs/gh_monitor_agent.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.mls.ledger.monitor.plist:17:	<string>~/0luka/logs/mls_ledger_monitor.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.mls.ledger.monitor.plist:19:	<string>~/0luka/logs/mls_ledger_monitor.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.clc_local.plist:26:	<string>~/0luka/logs/clc_local.err</string>
+~/Library/LaunchAgents/com.02luka.clc_local.plist:28:	<string>~/0luka/logs/clc_local.out</string>
+~/Library/LaunchAgents/com.02luka.mary-bridge.plist:37:    <string>~/0luka/logs/mary_bridge.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.mary-bridge.plist:40:    <string>~/0luka/logs/mary_bridge.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.telegram-bridge.plist:32:	<string>~/0luka/logs/com.02luka.telegram-bridge.err.log</string>
+~/Library/LaunchAgents/com.02luka.telegram-bridge.plist:34:	<string>~/0luka/logs/com.02luka.telegram-bridge.out.log</string>
+~/Library/LaunchAgents/com.02luka.clc.local.plist:15:  <key>StandardOutPath</key><string>~/0luka/logs/clc_local.out</string>
+~/Library/LaunchAgents/com.02luka.clc.local.plist:16:  <key>StandardErrorPath</key><string>~/0luka/logs/clc_local.err</string>
+~/Library/LaunchAgents/com.02luka.ram-monitor.plist:21:    <string>~/0luka/logs/ram_monitor.log</string>
+~/Library/LaunchAgents/com.02luka.ram-monitor.plist:24:    <string>~/0luka/logs/ram_monitor.log</string>
+~/Library/LaunchAgents/com.02luka.dashboard.server.plist:25:	<string>~/0luka/logs/dashboard_server.err.log</string>
+~/Library/LaunchAgents/com.02luka.dashboard.server.plist:27:	<string>~/0luka/logs/dashboard_server.out.log</string>
+~/Library/LaunchAgents/com.02luka.adaptive.collector.daily.plist:34:    <string>~/0luka/logs/adaptive_collector.out.log</string>
+~/Library/LaunchAgents/com.02luka.adaptive.collector.daily.plist:36:    <string>~/0luka/logs/adaptive_collector.err.log</string>
+~/Library/LaunchAgents/com.02luka.wo_executor.codex.plist:22:	<string>~/0luka/logs/codex_wo_executor.err.log</string>
+~/Library/LaunchAgents/com.02luka.wo_executor.codex.plist:24:	<string>~/0luka/logs/codex_wo_executor.out.log</string>
+~/Library/LaunchAgents/com.02luka.perf-collect-daily.plist:38:    <string>~/0luka/logs/perf_collect_daily.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.perf-collect-daily.plist:41:    <string>~/0luka/logs/perf_collect_daily.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.notify.worker.plist:25:    <string>~/0luka/logs/notify_worker.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.notify.worker.plist:28:    <string>~/0luka/logs/notify_worker.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.build-latest-status.plist:22:	<string>~/0luka/logs/build_latest_status.error.log</string>
+~/Library/LaunchAgents/com.02luka.build-latest-status.plist:24:	<string>~/0luka/logs/build_latest_status.log</string>
+~/Library/LaunchAgents/com.02luka.auto-commit.plist:28:    <string>~/0luka/logs/auto_commit.log</string>
+~/Library/LaunchAgents/com.02luka.auto-commit.plist:31:    <string>~/0luka/logs/auto_commit.log</string>
+~/Library/LaunchAgents/com.02luka.pr11.healthcheck.plist:26:    <string>~/0luka/logs/pr11_healthcheck.log</string>
+~/Library/LaunchAgents/com.02luka.pr11.healthcheck.plist:29:    <string>~/0luka/logs/pr11_healthcheck.log</string>
+~/Library/LaunchAgents/com.02luka.mcp.health.plist:18:	<string>~/0luka/logs/mcp_health.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.mcp.health.plist:20:	<string>~/0luka/logs/mcp_health.stdout.log</string>
+~/Library/LaunchAgents/com.0luka.heartbeat.plist:15:    <string>~/0luka/logs/heartbeat.log</string>
+~/Library/LaunchAgents/com.0luka.heartbeat.plist:17:    <string>~/0luka/logs/heartbeat.err</string>
+~/Library/LaunchAgents/backup_250914_041012/com.02luka.agent.dispatcher.plist:25:	<string>~/0luka/logs/agents/dispatcher.err</string>
+~/Library/LaunchAgents/backup_250914_041012/com.02luka.agent.dispatcher.plist:27:	<string>~/0luka/logs/agents/dispatcher.out</string>
+~/Library/LaunchAgents/com.02luka.backup.gdrive.plist:14:	<string>~/0luka/logs/backup_gd.err.log</string>
+~/Library/LaunchAgents/com.02luka.backup.gdrive.plist:16:	<string>~/0luka/logs/backup_gd.out.log</string>
+~/Library/LaunchAgents/com.02luka.rag.api.plist:20:  <string>~/0luka/logs/rag_api.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.rag.api.plist:23:  <string>~/0luka/logs/rag_api.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.mcp.puppeteer.plist:27:	<string>~/0luka/logs/mcp_puppeteer.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.mcp.puppeteer.plist:29:	<string>~/0luka/logs/mcp_puppeteer.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.clc-executor.plist:22:	<string>~/0luka/logs/launchd_clc_executor.err</string>
+~/Library/LaunchAgents/com.02luka.clc-executor.plist:24:	<string>~/0luka/logs/launchd_clc_executor.out</string>
+~/Library/LaunchAgents/com.02luka.memory.hub.plist:30:	<string>~/0luka/logs/memory_hub.err.log</string>
+~/Library/LaunchAgents/com.02luka.memory.hub.plist:32:	<string>~/0luka/logs/memory_hub.out.log</string>
+~/Library/LaunchAgents/com.02luka.delegation-watchdog.plist:23:	<string>~/0luka/logs/g/logs/launchd_watchdog.err</string>
+~/Library/LaunchAgents/com.02luka.delegation-watchdog.plist:25:	<string>~/0luka/logs/g/logs/launchd_watchdog.out</string>
+~/Library/LaunchAgents/com.02luka.followup_tracker.plist:17:	<string>~/0luka/logs/followup_tracker.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.followup_tracker.plist:19:	<string>~/0luka/logs/followup_tracker.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.clc-worker.plist:39:    <string>~/0luka/logs/clc_worker.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.clc-worker.plist:42:    <string>~/0luka/logs/clc_worker.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.json_wo_processor.plist:22:	<string>~/0luka/logs/json_wo_processor.err.log</string>
+~/Library/LaunchAgents/com.02luka.json_wo_processor.plist:24:	<string>~/0luka/logs/json_wo_processor.out.log</string>
+~/Library/LaunchAgents/disabled/com.02luka.mls.cursor.watcher.plist:25:	<string>~/0luka/logs/mls_cursor_watcher.err.log</string>
+~/Library/LaunchAgents/disabled/com.02luka.mls.cursor.watcher.plist:27:	<string>~/0luka/logs/mls_cursor_watcher.out.log</string>
+~/Library/LaunchAgents/com.02luka.mcp.fs.plist:27:	<string>~/0luka/logs/mcp_fs.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.mcp.fs.plist:29:	<string>~/0luka/logs/mcp_fs.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.n8n.server.plist:31:	<string>~/0luka/logs/n8n.err.log</string>
+~/Library/LaunchAgents/com.02luka.n8n.server.plist:33:	<string>~/0luka/logs/n8n.out.log</string>
+~/Library/LaunchAgents/com.02luka.mary-coo.plist:20:	<string>~/0luka/logs/launchd_mary_coo.err</string>
+~/Library/LaunchAgents/com.02luka.mary-coo.plist:22:	<string>~/0luka/logs/launchd_mary_coo.out</string>
+~/Library/LaunchAgents/com.02luka.lac-metrics-exporter.daily.plist:21:	<string>~/0luka/logs/lac_metrics_exporter.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.lac-metrics-exporter.daily.plist:23:	<string>~/0luka/logs/lac_metrics_exporter.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.adaptive.proposal.gen.plist:34:    <string>~/0luka/logs/adaptive_proposal_gen.out.log</string>
+~/Library/LaunchAgents/com.02luka.adaptive.proposal.gen.plist:36:    <string>~/0luka/logs/adaptive_proposal_gen.err.log</string>
+~/Library/LaunchAgents/com.02luka.doctor.plist:20:    <string>~/0luka/logs/doctor.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.doctor.plist:22:    <string>~/0luka/logs/doctor.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.wo_executor.plist:17:	<string>~/0luka/logs/wo_executor.err.log</string>
+~/Library/LaunchAgents/com.02luka.wo_executor.plist:19:	<string>~/0luka/logs/wo_executor.out.log</string>
+~/Library/LaunchAgents/com.02luka.mls.cursor.watcher.plist:29:    <string>~/0luka/logs/mls_cursor_watcher.out.log</string>
+~/Library/LaunchAgents/com.02luka.mls.cursor.watcher.plist:31:    <string>~/0luka/logs/mls_cursor_watcher.err.log</string>
+~/Library/LaunchAgents/com.02luka.followup.generator.plist:17:  <string>~/0luka/logs/followup_generator.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.followup.generator.plist:19:  <string>~/0luka/logs/followup_generator.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.mary-gateway-v3.plist:22:    <string>~/0luka/logs/mary-gateway-v3.stdout.log</string>
+~/Library/LaunchAgents/com.02luka.mary-gateway-v3.plist:24:    <string>~/0luka/logs/mary-gateway-v3.stderr.log</string>
+~/Library/LaunchAgents/com.02luka.governance.weekly.plist:36:    <string>~/0luka/logs/governance_weekly.out.log</string>
+~/Library/LaunchAgents/com.02luka.governance.weekly.plist:38:    <string>~/0luka/logs/governance_weekly.err.log</string>
+~/Library/LaunchAgents/com.02luka.health_monitor.plist:20:	<string>~/0luka/logs/health_monitor.err.log</string>
+~/Library/LaunchAgents/com.02luka.health_monitor.plist:22:	<string>~/0luka/logs/health_monitor.out.log</string>
+~/Library/LaunchAgents/com.0luka.heartbeat.plist:10:        <string>~/0luka/.0luka/scripts/atg_multi_snap.zsh</string>
+~/Library/LaunchAgents/com.0luka.heartbeat.plist:6:    <string>com.0luka.heartbeat</string>
+~/Library/LaunchAgents/com.0luka.heartbeat.plist:15:    <string>~/0luka/logs/heartbeat.log</string>
+~/Library/LaunchAgents/com.0luka.heartbeat.plist:17:    <string>~/0luka/logs/heartbeat.err</string>

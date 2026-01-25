@@ -1,0 +1,7 @@
+diff --git a/core/_smoke/README.md b/core/_smoke/README.md
+new file mode 100644
+index 0000000..417b23a
+--- /dev/null
++++ b/core/_smoke/README.md
+@@ -0,0 +1 @@
++Final System Check: PASS

@@ -1,0 +1,7 @@
+{
+  "command_id": "abb5b501-386d-40f7-bf3b-e7afb82725f7",
+  "action": "GET_PROCESSES",
+  "params": {},
+  "reason": "Detected pattern: Fatal Error",
+  "timestamp": 1769198423.2023292
+}

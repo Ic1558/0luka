@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+	</dict>
+	<key>Label</key>
+	<string>com.02luka.json_wo_processor</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/zsh</string>
+		<string>-l</string>
+		<string>-c</string>
+		<string>/Users/icmini/02luka/agents/json_wo_processor/json_wo_processor.zsh</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/icmini/02luka/logs/json_wo_processor.err.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/icmini/02luka/logs/json_wo_processor.out.log</string>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+	<key>WatchPaths</key>
+	<array>
+		<string>/Users/icmini/02luka/bridge/inbox/llm</string>
+	</array>
+</dict>
+</plist>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.02luka.gmx_cli</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/zsh</string>
+      <string>-lc</string>
+      <string>/Users/icmini/02luka/g/tools/gmx_todo_processor.sh</string>
+    </array>
+
+    <!-- WatchPaths ต้องเป็น absolute path -->
+    <key>WatchPaths</key>
+    <array>
+      <string>/Users/icmini/02luka/gmx_todo.txt</string>
+    </array>
+
+    <!-- ให้รันตอน login ด้วย เผื่อมีงานค้างในไฟล์ -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- ไม่ต้อง KeepAlive daemon เพราะเป็น event-driven job -->
+    <key>KeepAlive</key>
+    <false/>
+
+    <!-- กัน spam ถ้าไฟล์ถูกเขียนรัว ๆ -->
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/icmini/02luka/logs/gmx_cli.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/icmini/02luka/logs/gmx_cli.err.log</string>
+  </dict>
+</plist>

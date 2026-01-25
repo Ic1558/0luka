@@ -1,0 +1,14 @@
+actor: module.mls_file_watcher
+intent: action.mls.watch
+meta:
+  ts_utc: "2026-01-25T20:03:34Z"
+  host: "Ittipongs-Mac-mini.local"
+artifacts:
+  outputs:
+    - path: "/Users/icmini/0luka/observability/artifacts/mls/20260125T200334Z_mls_event.json"
+      sha256: "ebe921ba30898fd7eb83eaa645e4f5b6d91bf899a2b4e244e9bde511c5bec4ac"
+verification:
+  gates:
+    - gate.fs.purity
+    - gate.hash.match
+    - gate.proc.clean

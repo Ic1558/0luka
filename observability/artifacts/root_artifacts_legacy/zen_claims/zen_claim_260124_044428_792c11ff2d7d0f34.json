@@ -1,0 +1,37 @@
+{
+  "claim": "TRUE_ZEN",
+  "timestamp": "2026-01-24T04:42:58.087104",
+  "verdict": {
+    "zen": true,
+    "reasons": []
+  },
+  "evidence": {
+    "registry": {
+      "timestamp": "2026-01-24T04:42:58.087104",
+      "total_agents": 106,
+      "healthy_running": 18,
+      "exit_127_126": 0,
+      "broken_agents": [],
+      "raw_output": "-\t78\tcom.02luka.nlp-dispatcher\n-\t78\tcom.02luka.claude.metrics.collector\n-\t78\tcom.02luka.health.dashboard\n-\t78\tcom.02luka.phase15.quickhealth\n-\t78\tcom.02luka.file_protection_monitor\n39197\t0\tcom.02luka.mls_watcher\n-\t0\tcom.02luka.gg.treeindex.daily\n-\t2\tcom.02luka.llm-router\n-\t1\tcom.02luka.daily.verify\n-\t0\tcom.02luka.gemini-context-sync\n38579\t0\tcom.02luka.lac-manager\n39344\t0\tcom.02luka.n8n.server\n-\t2\tcom.02luka.librarian.v2\n-\t0\tcom.02luka.localtruth\n20947\t0\tcom.02luka.mary-coo\n-\t0\tcom.02luka.mcp.fs\n19069\t0\tcom.02luka.cloudflared.nas-archive\n-\t2\tcom.02luka.catalog_lite_30m\n-\t2\tcom.02luka.agent.lisa\n-\t0\tcom.02luka.mls.ledger.monitor\n-\t0\tcom.02luka.followup.generator\n20294\t0\tcom.02luka.rag.api\n-\t0\tcom.02luka.adaptive.collector.daily\n17852\t0\tcom.02luka.mls-symlink-guard\n38327\t0\tcom.02luka.gh-monitor\n-\t78\tcom.02luka.dashboard.daily\n-\t2\tcom.02luka.agent.mary\n-\t0\tcom.02luka.calfs_ingest\n20464\t0\tcom.02luka.clc-executor\n-\t2\tcom.02luka.ollama-bridge\n38213\t0\tcom.02luka.clc_local\n-\t0\tcom.02luka.gg.metaindex.5m\n-\t78\tcom.02luka.memory.metrics\n-\t0\tcom.02luka.bridge.knowledge.sync\n-\t0\tcom.02luka.nightly.selftest\n-\t0\tcom.02luka.memory.digest.daily\n18089\t0\tcom.02luka.atg_runner\n-\t78\tcom.02luka.rnd.consumer\n-\t78\tcom.02luka.health.proxy\n-\t0\tcom.02luka.clc-bridge\n-\t1\tcom.02luka.disk_monitor\n-\t0\tcom.02luka.rnd.daily_digest\n-\t78\tcom.02luka.ci-watcher\n-\t78\tcom.02luka.paula\n-\t1\tcom.02luka.mls.status.update\n17301\t0\tcom.02luka.lac-daemon\n-\t78\tcom.02luka.gci\n-\t1\tcom.02luka.mls.cursor.watcher\n-\t78\tcom.02luka.gc_core\n-\t0\tcom.02luka.discovery.merge.daily\n-\t0\tcom.02luka.governance.weekly\n-\t78\tcom.02luka.mary.metrics.daily\n-\t1\tcom.02luka.fastvlm.logrotate\n-\t0\tcom.02luka.perf-collect-daily\n-\t78\tcom.02luka.gg_session_worker\n39395\t0\tcom.02luka.opal-api\n-\t78\tcom.02luka.dashboard.update\n-\t2\tcom.02luka.context.monitor\n39054\t0\tcom.02luka.memory.hub\n-\t2\tcom.02luka.gg_agent\n-\t0\tcom.02luka.adaptive.proposal.gen\n-\t78\tcom.02luka.ci-coordinator\n-\t78\tcom.02luka.rnd.autopilot\n-\t0\tcom.02luka.atg_gc\n-\t0\tcom.02luka.pr11.healthcheck\n-\t0\tcom.02luka.redis_chain_status\n38243\t0\tcom.02luka.dashboard.server\n-\t1\tcom.02luka.health_monitor\n17023\t0\tcom.02luka.cloudflared.dashboard\n-\t0\tcom.02luka.nas_backup_daily\n-\t0\tcom.02luka.mary.escalation\n-\t0\tcom.02luka.gg.gitwatch.1m\n-\t0\tcom.02luka.lac-metrics-exporter.daily\n-\t78\tcom.02luka.opal-healthv2\n-\t78\tcom.02luka.kim.bot\n-\t0\tcom.02luka.auto-commit\n-\t0\tcom.02luka.telemetry_rotate\n21437\t0\tcom.02luka.mary-gateway-v3\n-\t78\tcom.02luka.agent.dispatcher\n-\t78\tcom.02luka.lac-activity-daily\n-\t2\tcom.02luka.system_runner_v2\n-\t78\tcom.02luka.pr_score_rnd_dispatcher\n-\t78\tcom.02luka.gg.nlp-bridge\n-\t0\tcom.02luka.gg.treeindex.10m\n-\t0\tcom.02luka.ram-monitor\n-\t78\tcom.02luka.rag.probe\n-\t2\tcom.02luka.ollama-commander\n-\t0\tcom.02luka.gg.weekly.integrity\n-\t0\tcom.02luka.gg.memory.15m\n-\t0\tcom.02luka.delegation-watchdog\n-\t78\tcom.02luka.rnd.gate\n-\t78\tcom.02luka.sot_dashboard_sync\n-\t0\tcom.02luka.mcp.puppeteer\n-\t2\tcom.02luka.doctor\n-\t0\tcom.02luka.gmx_cli\n-\t0\tcom.02luka.gg.metaindex.daily\n24768\t2\tcom.02luka.watchdog_v2\n-\t78\tcom.02luka.catalog_sync_probe\n-\t2\tcom.02luka.ollama-desktop-bridge\n-\t78\tcom.02luka.lisa\n-\t78\tcom.02luka.simple.index.updater\n-\t0\tcom.02luka.telegram-bridge\n-\t78\tcom.02luka.backup.gdrive\n-\t78\tcom.02luka.gmirror\n-\t0\tcom.02luka.alerts.lag\n-\t78\tcom.02luka.mary\n"
+    },
+    "network": {
+      "timestamp": "2026-01-24T04:42:58.087104",
+      "port_7001_status": "SINGLE_OWNER",
+      "owner": {
+        "command": "Python",
+        "pid": "39395",
+        "user": "icmini"
+      },
+      "raw_output": "COMMAND   PID   USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\nPython  39395 icmini    6u  IPv4 0x32ae7fea3dd55cea      0t0  TCP *:7001 (LISTEN)\n"
+    },
+    "stability": {
+      "timestamp_start": "2026-01-24T04:42:58.087104",
+      "timestamp_end": "2026-01-24T04:44:28.314104",
+      "log_path": "/Users/icmini/02luka/logs/mary_dispatcher.log",
+      "before": "[2026-01-24T04:26:07+07:00] start mary_dispatcher\n[2026-01-24T04:26:31+07:00] start mary_dispatcher\n[2026-01-24T04:26:52+07:00] start mary_dispatcher\n[2026-01-24T04:27:13+07:00] start mary_dispatcher\n[2026-01-24T04:27:36+07:00] start mary_dispatcher\n",
+      "after": "[2026-01-24T04:26:07+07:00] start mary_dispatcher\n[2026-01-24T04:26:31+07:00] start mary_dispatcher\n[2026-01-24T04:26:52+07:00] start mary_dispatcher\n[2026-01-24T04:27:13+07:00] start mary_dispatcher\n[2026-01-24T04:27:36+07:00] start mary_dispatcher\n",
+      "growing": false
+    }
+  },
+  "hash": "792c11ff2d7d0f34"
+}

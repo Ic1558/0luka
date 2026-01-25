@@ -54,3 +54,18 @@ After migration:
 zsh ops/governance/gates/00_root_allowlist_check
 # Should exit 0
 ```
+
+## Governance Mutation Paths
+
+### Certified path
+- `ops/governance/rpc_client.py` -> `ops/governance/gate_runnerd.py` via `runtime/sock/gate_runner.sock`
+- Only `rpc_client.py` is authorized to submit mutation commands (`run_task`, `execute_action`, `set_alarm`).
+
+### Legacy paths (disabled)
+- `com.02luka.clc-bridge` LaunchAgent (`~/Library/LaunchAgents/com.02luka.clc-bridge.plist`) -> `~/02luka/tools/watchers/clc_bridge.zsh` (disabled + guarded in LaunchAgents/disabled)
+- `com.02luka.auto_wo_bridge_v27` LaunchAgent symlink (legacy WO bridge) -> `LocalProjects/02luka_local_g/...` (disabled + guarded in LaunchAgents/disabled)
+
+### Residual noise (monitor)
+- `g/tools/clc_wo_bridge_daemon.py` (owner: legacy/02luka, status: no active LaunchAgent/cron found; log-only noise)
+- `g/tools/deploy_expense_pages_watch.zsh` (owner: legacy/02luka, status: no active LaunchAgent/cron found; log-only noise)
+- `mcp/servers/mcp-memory/package.json` runner (owner: legacy/02luka, status: no active LaunchAgent/cron found; log-only noise)

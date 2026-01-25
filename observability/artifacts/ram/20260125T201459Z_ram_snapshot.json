@@ -1,0 +1,13 @@
+{
+  "ts": "2026-01-25T20:14:59Z",
+  "module": "ram_monitor",
+  "host": "Ittipongs-Mac-mini.local",
+  "hw_mem_bytes": 17179869184,
+  "free_bytes": 217776128,
+  "active_bytes": 3295002624,
+  "inactive_bytes": 3259252736,
+  "speculative_bytes": 25296896,
+  "wired_bytes": 2434662400,
+  "compressed_bytes": 7393378304,
+  "note": "Computed from vm_stat + hw.memsize"
+}

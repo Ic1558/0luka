@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.02luka.auto-commit</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>/Users/icmini/02luka/tools/auto_commit.zsh</string>
+    </array>
+    
+    <key>StartInterval</key>
+    <integer>1800</integer>  <!-- Auto-commit every 30 minutes -->
+    
+    <key>ThrottleInterval</key>
+    <integer>60</integer>  <!-- Prevent rapid restarts -->
+    
+    <key>RunAtLoad</key>
+    <false/>  <!-- Don't run immediately on boot -->
+    
+    <!-- KeepAlive removed: StartInterval handles periodic execution.
+         Script runs once, exits, then StartInterval restarts it after 1800s (30 minutes).
+         KeepAlive would cause immediate restarts, overriding the intended timing. -->
+    
+    <key>StandardOutPath</key>
+    <string>/Users/icmini/02luka/logs/auto_commit.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>/Users/icmini/02luka/logs/auto_commit.log</string>
+</dict>
+</plist>

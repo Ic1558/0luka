@@ -1,0 +1,25 @@
+{
+  "status": "committed",
+  "results": {
+    "gate.fs.purity": {
+      "ok": true,
+      "meta": {
+        "bad_paths": []
+      }
+    },
+    "gate.hash.match": {
+      "ok": true,
+      "meta": {
+        "mismatched": []
+      }
+    },
+    "gate.proc.clean": {
+      "ok": true,
+      "meta": {
+        "hits": []
+      }
+    }
+  }
+}
+OK: wrote /Users/icmini/0luka/observability/artifacts/followup/20260125T203748Z_followup.json
+OK: committed beacon line -> /Users/icmini/0luka/observability/stl/ledger/global_beacon.jsonl

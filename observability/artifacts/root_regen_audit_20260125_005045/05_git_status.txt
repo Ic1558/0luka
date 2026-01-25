@@ -1,0 +1,20 @@
+== 5) Recent root-level file creations (git status + untracked) ==
+ M .0luka/scripts/promote_artifact.zsh
+ D agents.md
+ D architecture.md
+ D catalog/README.md
+ D index/README.md
+ D prps/boq/boq_standard.md
+ D prps/core_architecture.md
+ D skills/index.md
+ D telemetry/schema.md
+?? .0luka/.DS_Store
+?? .0luka/scripts/atg_multi_snap.zsh
+?? .opencode/
+?? .openwork/
+?? artifacts/
+?? core/architecture.md
+?? core/governance/
+?? observability/
+?? ops/
+?? runtime/
