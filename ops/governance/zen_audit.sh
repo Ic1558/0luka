@@ -2,8 +2,11 @@
 # 0luka-ZEN-AUDIT-v1.0
 # Assignee: Liam (GM)
 
-ROOT="$HOME/0luka"
+ROOT="${ROOT:-$HOME/0luka}"
+ROOT="${ROOT%/}"
+ROOT_REF='${ROOT}'
 AUDIT_LOG="$ROOT/observability/logs/zen_audit_$(date +%Y%m%d_%H%M%S).log"
+normalize_paths() { sed "s|$ROOT|$ROOT_REF|g"; }
 
 {
   echo "=== 🔬 0luka EXECUTIVE AUDIT START: $(date) ==="
@@ -38,6 +41,6 @@ AUDIT_LOG="$ROOT/observability/logs/zen_audit_$(date +%Y%m%d_%H%M%S).log"
   fi
   
   echo "\n=== 🏁 AUDIT COMPLETE ==="
-} | tee "$AUDIT_LOG"
+} | tee "$AUDIT_LOG" | normalize_paths
 
-echo "\n📊 Audit Report saved to: $AUDIT_LOG"
+echo "\n📊 Audit Report saved to: $AUDIT_LOG" | normalize_paths

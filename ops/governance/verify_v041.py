@@ -7,23 +7,35 @@ import socket
 import hashlib
 from pathlib import Path
 
-sys.path.append("/Users/icmini/0luka/ops/governance")
+ROOT = Path(os.environ.get("ROOT", str(Path.home() / "0luka"))).expanduser().resolve()
+ROOT_STR = str(ROOT)
+ROOT_REF = "${ROOT}"
+sys.path.append(str(ROOT / "ops/governance"))
 try:
     from rpc_client import RPCClient
 except ImportError:
     # Fallback if rpc_client not found in path, though PYTHONPATH should handle it
     pass
 
-RPC_SOCK = "/Users/icmini/0luka/runtime/sock/gate_runner.sock"
-BEACON = "/Users/icmini/0luka/observability/stl/ledger/global_beacon.jsonl"
-ONTOLOGY = "/Users/icmini/0luka/core/governance/ontology.yaml"
-HANDLER = "/Users/icmini/0luka/ops/governance/zen_audit.sh"
+RPC_SOCK = str(ROOT / "runtime/sock/gate_runner.sock")
+BEACON = str(ROOT / "observability/stl/ledger/global_beacon.jsonl")
+ONTOLOGY = str(ROOT / "core/governance/ontology.yaml")
+HANDLER = str(ROOT / "ops/governance/zen_audit.sh")
+
+def normalize_paths(obj):
+    if isinstance(obj, dict):
+        return {k: normalize_paths(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [normalize_paths(v) for v in obj]
+    if isinstance(obj, str):
+        return obj.replace(ROOT_STR, ROOT_REF)
+    return obj
 
 def test_beacon_chain():
     print("\n== TEST 1: Global Beacon Chain ==")
     rpc = RPCClient()
     # Find a task
-    tasks = sorted([f for f in os.listdir("/Users/icmini/0luka/observability/stl/tasks/open") if f.endswith(".yaml")])
+    tasks = sorted([f for f in os.listdir(ROOT / "observability/stl/tasks/open") if f.endswith(".yaml")])
     if not tasks:
         print("SKIP: No open tasks")
         return False
@@ -46,7 +58,7 @@ def test_beacon_chain():
             print("FAIL: Beacon empty")
             return False
         last = json.loads(lines[-1])
-        print(f"Last Entry: {last}")
+        print(f"Last Entry: {normalize_paths(last)}")
         if "prev_beacon_hash" not in last or "this_beacon_hash" not in last:
             print("FAIL: Missing hashes in beacon")
             return False

@@ -2,8 +2,10 @@
 # 0luka Canonical Naming Migration v1.0
 # Translates YYYYMMDD -> YYMMDD and adds HASH8 if missing.
 
-TASK_DIR="/Users/icmini/0luka/observability/stl/tasks/open"
-EVID_DIR="/Users/icmini/0luka/observability/stl/evidence"
+ROOT="${ROOT:-$HOME/0luka}"
+ROOT="${ROOT%/}"
+TASK_DIR="$ROOT/observability/stl/tasks/open"
+EVID_DIR="$ROOT/observability/stl/evidence"
 
 function get_hash8() {
     cat "$1" | shasum -a 256 | cut -c1-8

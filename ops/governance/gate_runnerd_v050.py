@@ -9,7 +9,7 @@ from pathlib import Path
 from id_counter import IDCounter
 
 class GateRunnerDaemon:
-    ROOT = Path("/Users/icmini/0luka")
+    ROOT = Path(os.environ.get("ROOT", str(Path.home() / "0luka"))).expanduser().resolve()
     EVID_BASE = ROOT / "observability/stl/evidence"
     BEACON_PATH = ROOT / "observability/stl/ledger/global_beacon.jsonl"
     SOCK_PATH = ROOT / "runtime/sock/gate_runner.sock"

@@ -1,7 +1,9 @@
 #!/bin/zsh
 # 0luka STL Seal Script v1.0
 
-STL_ROOT="/Users/icmini/0luka/observability/stl"
+ROOT="${ROOT:-$HOME/0luka}"
+ROOT="${ROOT%/}"
+STL_ROOT="$ROOT/observability/stl"
 GOV_GROUP="staff" # In a real system, this would be _0luka_gov
 
 echo "[FS SEAL] Hardening STL permissions at $STL_ROOT"

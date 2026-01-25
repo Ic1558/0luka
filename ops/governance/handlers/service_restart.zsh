@@ -2,7 +2,8 @@
 # 0luka Service Restart Handler v1.0
 # Targeted for: opal-api
 
-LUKA_SOT="/Users/icmini/0luka"
+LUKA_SOT="${ROOT:-$HOME/0luka}"
+LUKA_SOT="${LUKA_SOT%/}"
 APP_DIR="$LUKA_SOT/runtime/apps/opal_api"
 VENV_BIN="$LUKA_SOT/runtime/venv/opal/bin"
 LOG_DIR="$LUKA_SOT/observability/logs"

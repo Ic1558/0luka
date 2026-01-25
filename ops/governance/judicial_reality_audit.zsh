@@ -1,7 +1,10 @@
 #!/usr/bin/env zsh
 set -uo pipefail
 
-ROOT="${1:-$HOME/0luka}"
+ROOT="${1:-${ROOT:-$HOME/0luka}}"
+ROOT="${ROOT%/}"
+ROOT_REF='${ROOT}'
+normalize_paths() { sed "s|$ROOT|$ROOT_REF|g"; }
 OUTDIR="$ROOT/observability/audit"
 mkdir -p "$OUTDIR"
 
@@ -63,5 +66,5 @@ OUT="$OUTDIR/${STAMP}_judicial_reality_audit.md"
 } > "$OUT"
 
 echo "✅ Wrote audit report:"
-echo "$OUT"
-cat "$OUT"
+echo "$OUT" | normalize_paths
+cat "$OUT" | normalize_paths

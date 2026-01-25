@@ -5,7 +5,11 @@ import sys
 from pathlib import Path
 from datetime import datetime, timezone
 
-sys.path.append("/Users/icmini/0luka/ops/governance")
+import sys
+from pathlib import Path
+# Auto-detect root (3 levels up from ops/governance/drift_monitor.py)
+ROOT = Path(__file__).parent.parent.parent.resolve()
+sys.path.append(str(ROOT / "ops/governance"))
 from rpc_client import RPCClient
 
 OUT = Path.home() / "0luka/observability/telemetry/drift/baseline.jsonl"

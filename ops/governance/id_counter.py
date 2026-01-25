@@ -3,7 +3,11 @@ import fcntl
 from datetime import datetime
 
 class IDCounter:
-    def __init__(self, base_dir="/Users/icmini/0luka/observability/stl/state/counters"):
+    def __init__(self, base_dir=None):
+        if base_dir is None:
+            root = os.environ.get("ROOT", os.path.expanduser("~/0luka"))
+            root = os.path.expandvars(os.path.expanduser(root)).rstrip("/")
+            base_dir = os.path.join(root, "observability/stl/state/counters")
         self.base_dir = base_dir
         if not os.path.exists(self.base_dir):
             os.makedirs(self.base_dir)

@@ -2,12 +2,17 @@ import socket
 import json
 import os
 import struct
+from pathlib import Path
 
 class RPCClient:
     CLIENT_ID = "rpc_client"
     CLIENT_PATH = os.path.abspath(__file__)
 
-    def __init__(self, sock_path="/Users/icmini/0luka/runtime/sock/gate_runner.sock"):
+    def __init__(self, sock_path=None):
+        if sock_path is None:
+            # Auto-detect relative to this file
+            root = Path(__file__).parent.parent.parent.resolve()
+            sock_path = str(root / "runtime/sock/gate_runner.sock")
         self.sock_path = sock_path
 
     def call(self, cmd, **kwargs):

@@ -13,6 +13,18 @@ RED = "\033[91m"
 GREEN = "\033[92m"
 RESET = "\033[0m"
 
+ROOT = os.environ.get("ROOT", os.path.expanduser("~/0luka")).rstrip("/")
+ROOT_REF = "${ROOT}"
+
+def normalize_paths(obj):
+    if isinstance(obj, dict):
+        return {k: normalize_paths(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [normalize_paths(v) for v in obj]
+    if isinstance(obj, str):
+        return obj.replace(ROOT, ROOT_REF)
+    return obj
+
 def fail(msg):
     print(f"{RED}FAIL: {msg}{RESET}")
     sys.exit(1)
@@ -27,7 +39,7 @@ def test_beacon_chain():
             lines = f.readlines()
             if not lines: fail("Beacon is empty")
             last = json.loads(lines[-1])
-            print(f"Last Entry: {last}")
+            print(f"Last Entry: {normalize_paths(last)}")
             if "this_beacon_hash" not in last: fail("Missing hash chain")
             pass_test("Beacon Chain Verified")
     except Exception as e:

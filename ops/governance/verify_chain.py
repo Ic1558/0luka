@@ -4,7 +4,11 @@ import hashlib
 from pathlib import Path
 
 class LedgerAuditor:
-    def __init__(self, evid_base="/Users/icmini/0luka/observability/stl/evidence"):
+    def __init__(self, evid_base=None):
+        if evid_base is None:
+            root = os.environ.get("ROOT", os.path.expanduser("~/0luka"))
+            root = os.path.expandvars(os.path.expanduser(root)).rstrip("/")
+            evid_base = os.path.join(root, "observability/stl/evidence")
         self.evid_base = Path(evid_base)
 
     def verify_task_chain(self, task_id):
