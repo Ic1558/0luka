@@ -24,3 +24,8 @@ observability/**
 runtime/**
 g/**
 artifacts/**
+
+# 0luka observability volatile artifacts
+observability/artifacts/snapshots/
+observability/artifacts/ram/
+observability/artifacts/followup/
