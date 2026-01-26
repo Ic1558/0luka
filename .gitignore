@@ -32,4 +32,5 @@ observability/artifacts/followup/
 observability/stl/evidence/
 
 # observability artifacts
+observability/telemetry/drift/baseline-jsonl
 observability/telemetry/drift/baseline.jsonl
