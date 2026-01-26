@@ -36,6 +36,11 @@
       "path": "observability/quarantine/tasks",
       "ttl_days": 39,
       "keep_latest": 2000
+    },
+    {
+      "path": "observability/quarantine/nonobs",
+      "ttl_days": 39,
+      "keep_latest": 2000
     }
   ],
   "protected": [
