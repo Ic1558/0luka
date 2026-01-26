@@ -29,12 +29,12 @@
     },
     {
       "path": "observability/audit",
-      "ttl_days": 30,
+      "ttl_days": 39,
       "keep_latest": 5000
     },
     {
       "path": "observability/quarantine/tasks",
-      "ttl_days": 30,
+      "ttl_days": 39,
       "keep_latest": 2000
     }
   ],
