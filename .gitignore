@@ -34,3 +34,6 @@ observability/stl/evidence/
 # observability artifacts
 observability/telemetry/drift/baseline-jsonl
 observability/telemetry/drift/baseline.jsonl
+
+# local workspace
+0luka.code-workspace
