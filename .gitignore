@@ -29,3 +29,4 @@ artifacts/**
 observability/artifacts/snapshots/
 observability/artifacts/ram/
 observability/artifacts/followup/
+observability/stl/evidence/
