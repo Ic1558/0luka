@@ -1,5 +1,5 @@
 # 0luka Skill Manifest
-Generated: 2026-01-26T19:05:41.909491Z
+Generated: 2026-01-26T21:13:45.122502Z
 Base Path: `/Users/icmini/ai-skills`
 Linked Path: `/Users/icmini/0luka/skills/shared`
 
