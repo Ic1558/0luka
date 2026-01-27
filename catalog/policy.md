@@ -78,6 +78,20 @@ Example staging path:
 - Alert payload must include: `request_id`, `score`, `top_candidates`, and `reason`.
 - Suppress repeat alerts for the same `request_id`.
 
+## Policy: Escalation Levels
+- Level 0 (info): dry-run attempt logged, no alert.
+- Level 1 (warn): repeated low score (attempts 3–4), no alert unless configured.
+- Level 2 (error): `catalog.execute.denied` after 5 attempts (alert required).
+
+## Policy: Override Procedure
+- Overrides are **disabled by default**.
+- If an override is allowed, it must be explicit:
+  - `override=true`
+  - `override_reason` (required, non-empty)
+  - `override_actor` (required)
+- Overrides must be logged to the ledger as `catalog.override.used`.
+- Overrides must still write dry-run output to `/tmp` before execution.
+
 ## Scoring Rubric (0–100)
 
 ### 1) Exact Name Match (0–40)
