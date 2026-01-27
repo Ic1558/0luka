@@ -22,6 +22,13 @@
   - registry schema
   - scoring examples
 
+## Change Log
+- 2026-01-27: v1.0 created (dry-run gate, tmp-first, scoring rubric, requirements).
+- 2026-01-27: v1.1 added ledger/retention/alerting, escalation, override, audit format, registry schema, examples.
+
+## Signatures
+- codex: unsigned
+
 ## Purpose
 Define a deterministic catalog gate that **dry-runs every attempt** until a tool match scores **≥ 95/100**, with a hard cap of **5 attempts**, and **tmp-first** output staging.
 
