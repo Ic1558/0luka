@@ -92,6 +92,62 @@ Example staging path:
 - Overrides must be logged to the ledger as `catalog.override.used`.
 - Overrides must still write dry-run output to `/tmp` before execution.
 
+## Auditing Format
+All audit records (dry-run or execution) must be JSON with the following minimum fields:
+- `ts`
+- `event`
+- `request_id`
+- `attempt`
+- `score`
+- `selected_tool` (nullable)
+- `dryrun` (bool)
+- `reason` (nullable)
+- `override` (bool)
+- `override_actor` (nullable)
+- `override_reason` (nullable)
+
+Event names:
+- `catalog.dryrun.attempt`
+- `catalog.execute.allowed`
+- `catalog.execute.denied`
+- `catalog.override.used`
+
+## Registry Schema (Minimal)
+Each tool entry must include:
+- `name` (string)
+- `aliases` (list of strings)
+- `capabilities` (list of strings)
+- `tags` (list of strings)
+- `risk_class` (`low|medium|high`)
+- `deprecated` (bool)
+- `description` (string)
+
+Optional:
+- `examples` (list)
+- `owner` (string)
+- `last_success_ts` (string)
+
+## Scoring Examples
+
+Example A (passes):
+- exact name match: +40
+- full capability: +20
+- tags (2): +10
+- scope ok: +10
+- recent success: +10
+- risk low: +5
+- deprecated: 0
+Total = 95 → execute
+
+Example B (fails):
+- alias match: +25
+- partial capability: +10
+- tags (1): +5
+- scope ok: +10
+- recent success: +5
+- risk medium: 0
+Total = 55 → dry-run only
+
 ## Scoring Rubric (0–100)
 
 ### 1) Exact Name Match (0–40)
