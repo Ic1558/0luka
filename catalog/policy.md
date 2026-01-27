@@ -14,6 +14,29 @@ Define a deterministic catalog gate that **dry-runs every attempt** until a tool
 ## Goal
 Guarantee that no catalog execution occurs without a high-confidence match (≥95), while preserving auditability via tmp-first dry-run reports.
 
+## Requirements
+1) Deterministic scoring with a fixed rubric (no ad-hoc weights).
+2) Maximum 5 dry-run attempts per request.
+3) No execution if score < 95.
+4) Dry-run artifacts must be written to `/tmp` first.
+5) Promotion to final output only on score ≥ 95.
+6) Failure must be explicit, with ranked alternatives and reasons.
+7) All attempts must be traceable (request_id required).
+
+## Inputs
+- request_id (required)
+- requested_tool (string)
+- requested_action (string, optional)
+- tags (list, optional)
+- required_capabilities (list, optional)
+- risk_class (low/medium/high)
+- registry_source (catalog registry path)
+
+## Outputs
+- Dry-run report (JSON) in `/tmp`
+- Final execution output only if score ≥ 95
+- Failure report if attempts exhausted
+
 ## Policy: Dry-Run Gate
 1) Default behavior is **dry-run**.
 2) Score the candidate tool per the rubric below.
@@ -30,6 +53,14 @@ Example staging path:
 ```
 /tmp/catalog_dryrun/<request_id>/attempt_1.json
 ```
+
+## Policy: Traceability
+- Each attempt must include `request_id` and `attempt`.
+- The same `request_id` must be used for all 1–5 attempts.
+
+## Policy: Determinism
+- Given identical inputs and registry state, scoring must be identical.
+- If registry state changes, attempts reset (new request_id).
 
 ## Scoring Rubric (0–100)
 
@@ -69,6 +100,13 @@ Example staging path:
 - **Execute only if score ≥ 95.**
 - Otherwise: **dry-run only** with ranked alternatives.
 
+## Conflict Resolution
+If multiple candidates score ≥ 95:
+1) prefer exact name match
+2) then highest capability match
+3) then highest score
+4) if tie remains, fail and request disambiguation
+
 ## Output Contract (per attempt)
 - attempt (1–5)
 - score
@@ -86,3 +124,7 @@ On success:
 If score remains `< 95` after 5 attempts:
 - fail hard
 - include ranked candidates and reasons
+
+## Non-Goals
+- No auto-execution without passing the threshold.
+- No silent fallback to unregistered tools.
