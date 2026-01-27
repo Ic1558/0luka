@@ -1,12 +1,26 @@
 # Catalog Policy (Touchless Overlay)
 
 ## Metadata
-- version: 1.0
+- version: 1.1
 - owner: codex
+- creator: codex
+- edited_by: [codex]
 - status: active
 - scope: catalog routing + dry-run gate
 - created: 2026-01-27
 - updated: 2026-01-27
+- current_blocks:
+  - dry-run gate (max 5 attempts)
+  - tmp-first output staging
+  - scoring rubric (threshold ≥ 95)
+  - ledger logging
+  - retention
+  - alerting
+  - escalation levels
+  - override procedure
+  - auditing format
+  - registry schema
+  - scoring examples
 
 ## Purpose
 Define a deterministic catalog gate that **dry-runs every attempt** until a tool match scores **≥ 95/100**, with a hard cap of **5 attempts**, and **tmp-first** output staging.
