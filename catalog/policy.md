@@ -1,0 +1,88 @@
+# Catalog Policy (Touchless Overlay)
+
+## Metadata
+- version: 1.0
+- owner: codex
+- status: active
+- scope: catalog routing + dry-run gate
+- created: 2026-01-27
+- updated: 2026-01-27
+
+## Purpose
+Define a deterministic catalog gate that **dry-runs every attempt** until a tool match scores **≥ 95/100**, with a hard cap of **5 attempts**, and **tmp-first** output staging.
+
+## Goal
+Guarantee that no catalog execution occurs without a high-confidence match (≥95), while preserving auditability via tmp-first dry-run reports.
+
+## Policy: Dry-Run Gate
+1) Default behavior is **dry-run**.
+2) Score the candidate tool per the rubric below.
+3) If `score >= 95`, execution may proceed.
+4) If `score < 95`, return a dry-run report + top suggestions.
+5) Retry dry-run scoring up to **5 attempts**.
+6) If still `< 95` after 5 attempts, **fail** with reasons and suggestions.
+
+## Policy: TMP-First Output
+- All dry-run outputs must be written to `/tmp` first.
+- Only when `score >= 95` is output promoted to the final destination.
+
+Example staging path:
+```
+/tmp/catalog_dryrun/<request_id>/attempt_1.json
+```
+
+## Scoring Rubric (0–100)
+
+### 1) Exact Name Match (0–40)
+- +40 exact tool name
+- +25 alias match
+- +10 fuzzy match (same stem)
+
+### 2) Capability Match (0–20)
+- +20 full capability match
+- +10 partial match
+- 0 mismatch
+
+### 3) Tag/Keyword Match (0–15)
+- +5 per tag match (max +15)
+
+### 4) Scope & Policy Safety (0–10)
+- +10 in-scope
+- 0 unknown
+- −20 policy violation
+
+### 5) Recency / Proven Success (0–10)
+- +10 successful use within last N runs
+- +5 seen before
+- 0 unknown
+
+### 6) Risk Class (−15 to +5)
+- +5 low risk
+- 0 medium
+- −15 high risk
+
+### 7) Deprecation / Warnings (−30)
+- −30 deprecated or superseded
+- 0 normal
+
+## Decision Threshold
+- **Execute only if score ≥ 95.**
+- Otherwise: **dry-run only** with ranked alternatives.
+
+## Output Contract (per attempt)
+- attempt (1–5)
+- score
+- dryrun = true
+- top_candidates (ranked list)
+- reason (why below threshold)
+
+On success:
+- dryrun = false
+- score >= 95
+- selected_tool
+- promoted_output_path
+
+## Failure Condition
+If score remains `< 95` after 5 attempts:
+- fail hard
+- include ranked candidates and reasons
