@@ -62,6 +62,22 @@ Example staging path:
 - Given identical inputs and registry state, scoring must be identical.
 - If registry state changes, attempts reset (new request_id).
 
+## Policy: Ledger Logging
+- Log an event for each attempt: `catalog.dryrun.attempt`.
+- Log a success event: `catalog.execute.allowed` when score ≥ 95.
+- Log a failure event: `catalog.execute.denied` after 5 attempts without passing.
+- Each ledger record must include: `request_id`, `attempt`, `score`, `selected_tool` (if any), and `ts`.
+
+## Policy: Retention
+- Keep dry-run reports in `/tmp/catalog_dryrun/` for 24 hours.
+- Keep final reports in their destination per normal retention policy.
+- Do not delete ledger entries.
+
+## Policy: Alerting
+- Alert only on `catalog.execute.denied` (after 5 failed attempts).
+- Alert payload must include: `request_id`, `score`, `top_candidates`, and `reason`.
+- Suppress repeat alerts for the same `request_id`.
+
 ## Scoring Rubric (0–100)
 
 ### 1) Exact Name Match (0–40)
