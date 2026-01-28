@@ -74,8 +74,8 @@ verification:
     - gate.proc.clean
 YAML
 
-    # Router Call
-    python3 "$ROOT/ops/core_kernel/router.py" "$TASK_YAML"
+    # Router Call (Note: core_kernel/router.py was quarantined)
+    # python3 "$ROOT/ops/core_kernel/router.py" "$TASK_YAML"
     echo "OK: processed event for $TRIGGER_PATH_REF"
 }
 

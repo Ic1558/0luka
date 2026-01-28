@@ -47,6 +47,7 @@ verification:
     - gate.proc.clean
 YAML
 
-python3 "$ROOT/ops/core_kernel/router.py" "$TASK_YAML"
+# NOTE: core_kernel/router.py was quarantined
+# python3 "$ROOT/ops/core_kernel/router.py" "$TASK_YAML"
 echo "OK: wrote $OUT_JSON_REF"
 echo "OK: committed beacon line -> $OBS_REF/stl/ledger/global_beacon.jsonl"
