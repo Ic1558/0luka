@@ -6,6 +6,7 @@ import errno
 import json
 import os
 import shutil
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -196,6 +197,20 @@ def write_latest(root: Path, status: str, note: str, last_file: str, last_event:
     write_json(telemetry_path, data)
 
 
+TASK_ARTIFACTS = None
+
+
+def load_task_artifacts(root: Path):
+    if str(root) not in sys.path:
+        sys.path.append(str(root))
+    try:
+        from observability.tools.memory import task_artifacts
+
+        return task_artifacts
+    except Exception:
+        return None
+
+
 def handle_dispatch(root: Path, dispatch_path: Path, original_path: Path) -> bool:
     data, err = load_json(dispatch_path)
     if err:
@@ -227,6 +242,54 @@ def handle_dispatch(root: Path, dispatch_path: Path, original_path: Path) -> boo
         )
         return False
 
+    trace_id = dispatch_task_id
+    payload = data.get("payload") or {}
+    if TASK_ARTIFACTS and executor in {"lisa", "codex"}:
+        trace_id = TASK_ARTIFACTS.ensure_trace_id(dispatch_task_id, data.get("trace_id"))
+        goal = ""
+        if isinstance(payload, dict):
+            goal = str(payload.get("goal") or payload.get("title") or payload.get("summary") or "")
+        plan = {
+            "trace_id": trace_id,
+            "intent": intent,
+            "level": "L3",
+            "goal": goal or f"dispatch {intent}",
+            "executor": executor,
+            "origin": origin,
+            "payload": payload,
+            "subtasks": [
+                {
+                    "id": "execute",
+                    "executor": executor,
+                    "intent": intent,
+                    "description": "Execute dispatched payload",
+                    "success_criteria": ["execution complete"],
+                }
+            ],
+            "success_criteria": ["execution complete"],
+            "created_utc": now_utc_iso(),
+        }
+        try:
+            TASK_ARTIFACTS.write_plan_artifacts(
+                root,
+                trace_id=trace_id,
+                task_id=dispatch_task_id,
+                agent_id=executor,
+                goal=plan.get("goal", ""),
+                plan=plan,
+            )
+        except Exception as exc:
+            record_error(
+                root,
+                stage="plan_artifact",
+                reason="plan_artifact_failed",
+                inbox_path=original_path,
+                inflight_path=dispatch_path,
+                task_id=dispatch_task_id,
+                agent=executor,
+                exc=exc,
+            )
+
     start = time.time()
     try:
         artifact_path = create_exec_artifact(root, executor, dispatch_task_id, original_path)
@@ -246,6 +309,7 @@ def handle_dispatch(root: Path, dispatch_path: Path, original_path: Path) -> boo
     progress_payload = {
         "schema_version": "1.1",
         "task_id": dispatch_task_id,
+        "trace_id": trace_id,
         "status": "running",
         "msg": "exec endpoint queued",
         "pct": 20,
@@ -255,6 +319,7 @@ def handle_dispatch(root: Path, dispatch_path: Path, original_path: Path) -> boo
     progress_payload_final = {
         "schema_version": "1.1",
         "task_id": dispatch_task_id,
+        "trace_id": trace_id,
         "status": "ok",
         "msg": "exec endpoint queued",
         "pct": 100,
@@ -267,6 +332,7 @@ def handle_dispatch(root: Path, dispatch_path: Path, original_path: Path) -> boo
         "executor": executor,
         "dispatch_task_id": dispatch_task_id,
         "task_id": dispatch_task_id,
+        "trace_id": trace_id,
         "status": "ok",
         "summary": "exec endpoint queued",
         "artifacts": [str(artifact_path)],
@@ -299,6 +365,8 @@ def main() -> int:
     args = ap.parse_args()
 
     root = Path(os.environ.get("ROOT", os.path.expanduser("~/0luka"))).resolve()
+    global TASK_ARTIFACTS
+    TASK_ARTIFACTS = load_task_artifacts(root)
     executor = args.executor
     interval = max(args.interval, 1)
     _ = args.loop

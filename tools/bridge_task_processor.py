@@ -6,6 +6,7 @@ import errno
 import json
 import os
 import shutil
+import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -55,6 +56,9 @@ INTENT_MAP: Dict[str, Dict[str, Any]] = {
         "optional": {"links": "dict", "next_actions": "list"},
     },
 }
+
+
+TASK_ARTIFACTS = None
 
 
 def now_utc_iso() -> str:
@@ -404,6 +408,48 @@ def handle_task_result(payload: Dict[str, Any], root: Path) -> Tuple[str, Dict[s
         },
     )
     write_index(index_path, index)
+    if TASK_ARTIFACTS:
+        task_id_value = str(payload.get("task_id") or "").strip() or None
+        trace_id = TASK_ARTIFACTS.ensure_trace_id(task_id_value, payload.get("trace_id"))
+        agent_id = str(payload.get("executor") or "bridge")
+        summary = str(payload.get("summary") or "")
+        result_payload = {
+            "schema_version": payload.get("schema_version"),
+            "executor": payload.get("executor"),
+            "dispatch_task_id": payload.get("dispatch_task_id"),
+            "task_id": payload.get("task_id"),
+            "status": payload.get("status"),
+            "summary": summary,
+            "artifacts": payload.get("artifacts", []),
+            "diff_stat": payload.get("diff_stat"),
+            "verify": payload.get("verify", []),
+            "exit_code": payload.get("exit_code"),
+            "runtime_ms": payload.get("runtime_ms"),
+            "evidence_paths": payload.get("evidence_paths", []),
+            "links": payload.get("links", {}),
+            "ts": now_utc_iso(),
+        }
+        try:
+            TASK_ARTIFACTS.write_result_artifacts(
+                root,
+                trace_id=trace_id,
+                task_id=task_id_value,
+                agent_id=agent_id,
+                goal=None,
+                result_payload=result_payload,
+                dashboard_result_path=str(result_path),
+            )
+            reply_summary = summary or "result recorded"
+            TASK_ARTIFACTS.write_reply_artifacts(
+                root,
+                trace_id=trace_id,
+                task_id=task_id_value,
+                agent_id=agent_id,
+                status=str(payload.get("status") or ""),
+                summary=reply_summary,
+            )
+        except Exception:
+            pass
     return "completed", {"result_path": str(result_path)}, ""
 
 
@@ -424,12 +470,25 @@ def write_dispatch(root: Path, executor: str, task_id: str, payload: Any, meta: 
     return dispatch_path
 
 
+def load_task_artifacts(root: Path):
+    if str(root) not in sys.path:
+        sys.path.append(str(root))
+    try:
+        from observability.tools.memory import task_artifacts
+
+        return task_artifacts
+    except Exception:
+        return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--path", required=True)
     args = ap.parse_args()
 
     root = Path(os.environ.get("ROOT", os.path.expanduser("~/0luka"))).resolve()
+    global TASK_ARTIFACTS
+    TASK_ARTIFACTS = load_task_artifacts(root)
     task_path = Path(args.path).resolve()
     claimed_path, inbox_path = claim_task(root, task_path)
     if claimed_path is None:
