@@ -6,7 +6,7 @@
 - updated: 2026-01-29
 - status: ACTIVE (layout keep)
 - owner: core_brain/governance
-- version: 1.0
+- version: 2.0 (KEEP)
 
 ## Purpose
 Define the **authoritative** layout and schema for save-now v2 outputs while preserving the current flat layout under `observability/artifacts/tasks/<trace_id>/`.
@@ -68,6 +68,12 @@ $ROOT/observability/
 ### handoff_latest.json (atomic pointer)
 - Type: JSON object
 - Meaning: Single latest pointer for consumers; **must** be written atomically
+
+---
+
+## Non-goals
+- This contract does **not** define `sessions/*`, `meta_merged.json`, or `inflight/*` layouts.
+- Any new layout proposals must be explicit version bumps, not implicit extensions.
 
 ---
 
@@ -174,6 +180,7 @@ $ROOT/observability/
 - Do **not** scan `tasks/` to find latest.
 - Always read **only** `observability/artifacts/handoff_latest.json`.
 - If the pointer path is missing → fail closed (report error, do not guess).
+- `observability/reports/handoff_latest.*` is legacy/human-facing and **not** an entrypoint.
 
 ---
 
@@ -182,6 +189,24 @@ $ROOT/observability/
 2. Confirm `observability/artifacts/tasks/<trace_id>/` exists.
 3. Confirm `handoff_latest.json` updated.
 4. Confirm no new `catalog not found` entry in `save_now_failures.log`.
+
+### 6.1 Automated proof (doc-only)
+Run this once to capture evidence without touching git:
+
+```zsh
+ROOT="$HOME/0luka"
+trace_id="trace-v2-proof-$(date -u +%H%M%S)"
+tmp_plan="/tmp/save_now_test_plan.md"
+echo "# Plan\n\nGoal: save-now v2 proof" > "$tmp_plan"
+
+ROOT="$ROOT" zsh "$ROOT/observability/tools/memory/save_now_wrapper.zsh" \
+  --agent-id codex \
+  --trace-id "$trace_id" \
+  --phase plan \
+  --files "$tmp_plan"
+
+test -d "$ROOT/observability/artifacts/tasks/$trace_id"
+```
 
 ---
 
