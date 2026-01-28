@@ -1,6 +1,10 @@
 import json, os, re, subprocess, time
-from pathlib import Path
+import json
+import os
+import re
+import subprocess
 from datetime import datetime, timezone
+from pathlib import Path
 
 ROOT = Path(os.environ.get("ROOT", str(Path.home() / "0luka"))).resolve()
 MODULECTL = ROOT / "core_brain" / "ops" / "modulectl.py"
@@ -60,14 +64,24 @@ def main() -> int:
 
         state = (status.get("state") or "").lower()
         is_running = (state == "running")
-        if not is_running and (m not in IDLE_ALLOWLIST):
-            incidents.append({
-                "ts": ts,
-                "kind": "module_not_running",
-                "module": m,
-                "state": status.get("state"),
-                "pid": status.get("pid"),
-            })
+        if state == "idle":
+            if m not in IDLE_ALLOWLIST:
+                incidents.append({
+                    "ts": ts,
+                    "kind": "module_idle_not_allowlisted",
+                    "module": m,
+                    "state": status.get("state"),
+                    "pid": status.get("pid"),
+                })
+        elif not is_running:
+            if m not in IDLE_ALLOWLIST:
+                incidents.append({
+                    "ts": ts,
+                    "kind": "module_not_running",
+                    "module": m,
+                    "state": status.get("state"),
+                    "pid": status.get("pid"),
+                })
 
         # port ownership sanity (only if declared)
         if status.get("port") is not None and status.get("port_pid") is not None:
