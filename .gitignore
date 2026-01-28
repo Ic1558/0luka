@@ -48,3 +48,6 @@ core/governance/agent_culture.md
 g/knowledge/mls_lessons.jsonl
 g/knowledge/mls_index.json
 g/reports/mls/
+
+# --- E2E test artifacts ---
+interface/inbox/tasks/liam/e2e_*_exec.json

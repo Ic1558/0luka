@@ -12,7 +12,7 @@ ROOT = Path(os.environ.get("ROOT", Path.cwd())).resolve()
 
 # You must set these to match your service.
 # From your logs: opal_api ran on 127.0.0.1:7001 (uvicorn)
-HEALTH_URL = os.environ.get("HEALTH_URL", "http://127.0.0.1:7001/health")
+HEALTH_URL = os.environ.get("HEALTH_URL", "http://127.0.0.1:7001/api/health")
 PROCESS_MATCH = os.environ.get("PROCESS_MATCH", "opal_api|uvicorn|mcp_server|mcp")  # adjust
 TIMEOUT_S = int(os.environ.get("RES_TIMEOUT_S", "45"))
 
