@@ -149,10 +149,10 @@ def run_save_now(
 
 
 def update_handoff(root: Path, meta: Dict[str, Any], summary: str) -> None:
-    reports_dir = root / "observability" / "reports"
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    handoff_json = reports_dir / "handoff_latest.json"
-    handoff_md = reports_dir / "handoff_latest.md"
+    artifacts_dir = root / "observability" / "artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    handoff_json = artifacts_dir / "handoff_latest.json"
+    handoff_md = artifacts_dir / "handoff_latest.md"
 
     payload = {
         "ts": now_utc_iso(),
