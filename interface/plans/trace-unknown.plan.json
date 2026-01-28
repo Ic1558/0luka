@@ -1,0 +1,30 @@
+{
+  "trace_id": "trace-unknown",
+  "intent": "plan",
+  "level": "L2",
+  "goal": "UNSPECIFIED",
+  "source": {
+    "session_json": "/Users/icmini/0luka/g/session/session_state.latest.json",
+    "session_md": "/Users/icmini/0luka/g/session/SESSION_STATE.md"
+  },
+  "assumptions": [],
+  "constraints": [
+    "NO_GIT",
+    "DISPATCH_ONLY"
+  ],
+  "subtasks": [
+    {
+      "id": "exec-1",
+      "executor": "lisa",
+      "intent": "execute",
+      "description": "Execute goal: UNSPECIFIED",
+      "success_criteria": [
+        "execution complete"
+      ]
+    }
+  ],
+  "success_criteria": [
+    "all subtasks dispatched"
+  ],
+  "created_utc": "2026-01-28T11:31:06.495389+00:00"
+}
