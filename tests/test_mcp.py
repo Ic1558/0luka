@@ -92,6 +92,19 @@ def test_power_tools():
         if "Unknown remedy target" in content:
             print("✅ Correctly rejected invalid target.")
     
+    # 5. Call rotate_logs (Dry Run)
+    print("Step 5: Calling 'rotate_logs' (Dry Run)...")
+    call_req = {
+        "jsonrpc": "2.0", "id": 5, "method": "tools/call",
+        "params": {"name": "rotate_logs", "arguments": {"confirm": False}}
+    }
+    resp = send_request(proc, call_req)
+    if resp and "result" in resp:
+        content = resp["result"].get("content", [{"text": ""}])[0].get("text", "")
+        print(f"✅ rotate_logs Output:\n{content[:150]}...") # Truncate
+        if "Retention:" in content:
+            print("✅ Log Rotation logic active.")
+    
     proc.terminate()
 
 if __name__ == "__main__":

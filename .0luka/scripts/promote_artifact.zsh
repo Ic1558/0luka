@@ -48,9 +48,21 @@ arch_patch="artifacts/archive/${ws_id}_${arch_ts}.patch"
 git diff --cached > "$arch_patch" || true
 
 # Promotion commit (bypass pre-commit using env)
-task="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get("task", ""))" "$ws_path/manifest.json")"
-model="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get("model", ""))" "$ws_path/manifest.json")"
-trace_id="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get("trace_id", ""))" "$ws_path/manifest.json")"
+task="$(python3 - <<'PY' "$ws_path/manifest.json"
+import json,sys
+print(json.load(open(sys.argv[1])).get("task",""))
+PY
+)"
+model="$(python3 - <<'PY' "$ws_path/manifest.json"
+import json,sys
+print(json.load(open(sys.argv[1])).get("model",""))
+PY
+)"
+trace_id="$(python3 - <<'PY' "$ws_path/manifest.json"
+import json,sys
+print(json.load(open(sys.argv[1])).get("trace_id",""))
+PY
+)"
 
 export OLUKA_PROMOTION_MODE=1
 msg1="promote(core): ${task:-${ws_id}}"

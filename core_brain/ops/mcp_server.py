@@ -27,6 +27,13 @@ INTERFACE_PLANS = ROOT / "interface/plans"
 INTERFACE_INBOX = ROOT / "interface/inbox"
 INTERFACE_WIP = ROOT / "interface/wip"
 
+# Import Log Rotator
+sys.path.append(str(ROOT / "core_brain/ops"))
+try:
+    from log_rotator import LogRotator
+except ImportError:
+    LogRotator = None
+
 # --- Core Tools ---
 
 @mcp.tool()
@@ -178,6 +185,20 @@ def distill_notebook_context(date: Optional[str] = None) -> str:
 def format_timestamp(iso_str):
     # Basic helper, assumes ISO string "2026-01-29T..."
     return iso_str.split("T")[0]
+
+@mcp.tool()
+def rotate_logs(confirm: bool = False) -> str:
+    """
+    Perform Log Rotation / Correction Hygiene.
+    Args:
+        confirm: Set to True to actually delete files. False (default) is Dry Run.
+    """
+    if not LogRotator:
+        return "❌ LogRotator module not found or failed to load."
+    
+    rotator = LogRotator(str(ROOT))
+    report = rotator.rotate(dry_run=not confirm)
+    return "\n".join(report)
 
 if __name__ == "__main__":
     mcp.run()
