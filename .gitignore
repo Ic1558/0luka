@@ -40,3 +40,6 @@ observability/telemetry/drift/baseline.jsonl
 
 # local workspace
 0luka.code-workspace
+
+# drafts (intentionally untracked)
+core/governance/agent_culture.md
