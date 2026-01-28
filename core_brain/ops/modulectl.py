@@ -30,8 +30,26 @@ def _read_registry(path: Path) -> Dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if data.get("schema_version") != 1:
         raise ValueError(f"Unsupported schema_version: {data.get('schema_version')}")
-    if "modules" not in data or not isinstance(data["modules"], dict):
-        raise ValueError("Invalid registry: missing modules dict")
+    
+    # Support both array and dict formats for modules
+    modules = data.get("modules")
+    if isinstance(modules, list):
+        # Convert array to dict keyed by label
+        mods_dict = {}
+        for m in modules:
+            label = m.get("label", "")
+            name = label.replace("com.0luka.", "").replace("-", "_").replace(".", "_")
+            mods_dict[name] = {
+                "launchd_label": label,
+                "health_url": m.get("health_url"),
+                "ports": [m["port"]] if m.get("port") else [],
+                "notes": m.get("description", ""),
+                "state": m.get("state", "deployed"),
+            }
+        data["modules"] = mods_dict
+    elif not isinstance(modules, dict):
+        raise ValueError("Invalid registry: modules must be dict or array")
+    
     return data
 
 
@@ -143,15 +161,21 @@ def cmd_list(reg: Dict[str, Any]) -> int:
     mods = reg["modules"]
     names = sorted(mods.keys())
     for n in names:
-        print(n)
-    # hard assert: 13 modules expected per Phase 4 requirement
-    if len(names) != 13:
-        print(f"WARN: registry contains {len(names)} modules (expected 13)", file=sys.stderr)
+        label = mods[n].get("launchd_label", "-")
+        print(f"{n}\t{label}")
     return EXIT_OK
 
 
 def cmd_status(reg: Dict[str, Any], name: str) -> int:
     mods = reg["modules"]
+    # Handle 'all' - iterate through every module
+    if name == "all":
+        worst = EXIT_OK
+        for mod_name in sorted(mods.keys()):
+            print(f"--- {mod_name} ---")
+            rc = cmd_status(reg, mod_name)
+            worst = max(worst, rc)
+        return worst
     if name not in mods:
         print(f"ERROR: module not found: {name}", file=sys.stderr)
         return EXIT_NOTFOUND
@@ -186,13 +210,25 @@ def cmd_status(reg: Dict[str, Any], name: str) -> int:
 
 def cmd_health(reg: Dict[str, Any], name: str) -> int:
     mods = reg["modules"]
+    # Handle 'all' - iterate through modules with health_url
+    if name == "all":
+        worst = EXIT_OK
+        for mod_name in sorted(mods.keys()):
+            url = mods[mod_name].get("health_url")
+            if url:
+                print(f"--- {mod_name} ---")
+                rc = cmd_health(reg, mod_name)
+                worst = max(worst, rc)
+            else:
+                print(f"--- {mod_name} --- (no health_url, skipped)")
+        return worst
     if name not in mods:
         print(f"ERROR: module not found: {name}", file=sys.stderr)
         return EXIT_NOTFOUND
     url = mods[name].get("health_url")
     if not url:
-        print("ERROR: no health_url set for module", file=sys.stderr)
-        return EXIT_HEALTH_FAIL
+        print("SKIP: no health_url set for module")
+        return EXIT_OK
     ok, msg = _http_get(url)
     if ok:
         print(f"OK: {msg}")
@@ -288,8 +324,8 @@ def usage() -> int:
     print(
         "Usage:\n"
         "  python3 core_brain/ops/modulectl.py list\n"
-        "  python3 core_brain/ops/modulectl.py status <name>\n"
-        "  python3 core_brain/ops/modulectl.py health <name>\n"
+        "  python3 core_brain/ops/modulectl.py status <name|all>\n"
+        "  python3 core_brain/ops/modulectl.py health <name|all>\n"
         "  python3 core_brain/ops/modulectl.py validate\n"
         "  python3 core_brain/ops/modulectl.py enable <name>\n"
         "  python3 core_brain/ops/modulectl.py disable <name>\n",

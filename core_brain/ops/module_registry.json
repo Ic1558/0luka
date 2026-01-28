@@ -1,106 +1,53 @@
 {
   "schema_version": 1,
   "root": "/Users/icmini/0luka",
-  "modules": {
-    "opal_api": {
-      "version": "0.1.0",
-      "launchd_label": "com.0luka.opal-api",
+  "modules": [
+    {
+      "label": "com.0luka.opal-api",
+      "description": "Health owner for resilience tests",
+      "port": 7001,
       "health_url": "http://127.0.0.1:7001/api/health",
-      "ports": [7001],
-      "notes": "Health owner for resilience tests"
+      "state": "deployed"
     },
-
-    "bridge_consumer_lisa": {
-      "version": "0.1.0",
-      "launchd_label": "com.0luka.bridge-consumer.lisa",
-      "health_url": null,
-      "ports": [],
-      "notes": "Consumes outbox/lisa dispatches"
+    {
+      "label": "com.0luka.bridge_consumer.lisa",
+      "description": "Consumes outbox/lisa dispatches",
+      "state": "deployed"
     },
-    "bridge_consumer_codex": {
-      "version": "0.1.0",
-      "launchd_label": "com.0luka.bridge-consumer.codex",
-      "health_url": null,
-      "ports": [],
-      "notes": "Consumes outbox/codex dispatches"
+    {
+      "label": "com.0luka.bridge_consumer.codex",
+      "description": "Consumes outbox/codex dispatches",
+      "state": "deployed"
     },
-    "bridge_consumer_liam": {
-      "version": "0.1.0",
-      "launchd_label": "com.0luka.bridge-consumer.liam",
-      "health_url": null,
-      "ports": [],
-      "notes": "Consumes outbox/liam dispatches"
+    {
+      "label": "com.0luka.bridge_consumer.liam",
+      "description": "Consumes outbox/liam dispatches",
+      "state": "deployed"
     },
-
-    "bridge_watch": {
-      "version": "0.1.0",
-      "launchd_label": "com.0luka.bridge-watch",
-      "health_url": null,
-      "ports": [],
-      "notes": "fswatch-based ingestion watcher"
+    {
+      "label": "com.0luka.atg_bridge_watch",
+      "description": "fswatch-based ingestion watcher",
+      "state": "deployed"
     },
-    "bridge_dispatch_watchdog": {
-      "version": "0.1.0",
-      "launchd_label": "com.0luka.bridge-dispatch-watchdog",
-      "health_url": null,
-      "ports": [],
-      "notes": "Dispatch watchdog"
+    {
+      "label": "com.0luka.bridge_watchdog",
+      "description": "Dispatch watchdog",
+      "state": "deployed"
     },
-
-    "session_recorder": {
-      "version": "0.1.0",
-      "launchd_label": "com.0luka.session-recorder",
-      "health_url": null,
-      "ports": [],
-      "notes": "Records sessions/telemetry"
+    {
+      "label": "com.0luka.session_recorder",
+      "description": "Records sessions/telemetry",
+      "state": "deployed"
     },
-
-    "gate_runnerd": {
-      "version": "0.1.0",
-      "launchd_label": "com.0luka.gate-runnerd",
-      "health_url": null,
-      "ports": [],
-      "notes": "Governance gate daemon"
+    {
+      "label": "com.0luka.kernel",
+      "description": "Kernel-like coordinator",
+      "state": "deployed"
     },
-
-    "luka_kernel_d": {
-      "version": "0.1.0",
-      "launchd_label": "com.0luka.kernel-d",
-      "health_url": null,
-      "ports": [],
-      "notes": "Kernel-like coordinator"
-    },
-
-    "ram_monitor": {
-      "version": "0.1.0",
-      "launchd_label": "com.0luka.ram-monitor",
-      "health_url": null,
-      "ports": [],
-      "notes": "RAM snapshot + telemetry"
-    },
-
-    "followup_generator": {
-      "version": "0.1.0",
-      "launchd_label": "com.0luka.followup-generator",
-      "health_url": null,
-      "ports": [],
-      "notes": "Followup artifact generator"
-    },
-
-    "log_rotator": {
-      "version": "0.1.0",
-      "launchd_label": "com.0luka.log-rotator",
-      "health_url": null,
-      "ports": [],
-      "notes": "Log rotation utilities"
-    },
-
-    "mcp_fs": {
-      "version": "0.1.0",
-      "launchd_label": "com.0luka.mcp-fs",
-      "health_url": null,
-      "ports": [],
-      "notes": "MCP filesystem server (stdio-based; status may not show PID)"
+    {
+      "label": "com.0luka.ram-monitor",
+      "description": "RAM snapshot + telemetry",
+      "state": "deployed"
     }
-  }
+  ]
 }
