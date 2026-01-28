@@ -1,0 +1,44 @@
+#!/usr/bin/env zsh
+# Gate: 00_root_allowlist_check
+# Purpose: Enforce PRPS root allowlist (hard stop)
+# Exit 0: Pass, Exit 1: Fail
+
+set -euo pipefail
+
+ROOT="$HOME/0luka"
+ALLOWLIST=("core" "runtime" "ops" "observability")
+
+echo "=== Root Allowlist Check ==="
+echo "Root: $ROOT"
+echo "Allowlist: ${ALLOWLIST[@]}"
+echo ""
+
+# Get actual directories at root
+ACTUAL=($(ls -1 "$ROOT" | grep -v '^\.' || true))
+
+# Find violations
+VIOLATIONS=()
+for dir in "${ACTUAL[@]}"; do
+    # Skip files
+    [[ ! -d "$ROOT/$dir" ]] && continue
+    
+    # Check if in allowlist
+    if [[ ! " ${ALLOWLIST[@]} " =~ " ${dir} " ]]; then
+        VIOLATIONS+=("$dir")
+    fi
+done
+
+# Report
+if [[ ${#VIOLATIONS[@]} -eq 0 ]]; then
+    echo "✅ PASS: No violations"
+    exit 0
+else
+    echo "❌ FAIL: ${#VIOLATIONS[@]} violations found:"
+    for v in "${VIOLATIONS[@]}"; do
+        echo "  - $v/"
+    done
+    echo ""
+    echo "Action required: Migrate or remove these directories"
+    echo "See: core/governance/prps.md"
+    exit 1
+fi

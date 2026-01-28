@@ -1,0 +1,497 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import dataclasses
+import datetime as dt
+import hashlib
+import json
+import os
+import sys
+import time
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+
+
+def _utc_now() -> dt.datetime:
+    return dt.datetime.now(dt.timezone.utc)
+
+
+def _parse_ts(x: Any) -> Optional[dt.datetime]:
+    if not x:
+        return None
+    if isinstance(x, (int, float)):
+        # epoch seconds
+        try:
+            return dt.datetime.fromtimestamp(float(x), tz=dt.timezone.utc)
+        except Exception:
+            return None
+    if isinstance(x, str):
+        s = x.strip()
+        # tolerate Z
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        # tolerate naive-ish
+        try:
+            return dt.datetime.fromisoformat(s)
+        except Exception:
+            return None
+    return None
+
+
+def _sha256_file(p: Path) -> str:
+    h = hashlib.sha256()
+    with p.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _is_under(child: Path, parent: Path) -> bool:
+    try:
+        child.resolve().relative_to(parent.resolve())
+        return True
+    except Exception:
+        return False
+
+
+def _norm_path(root: Path, p: Any) -> Optional[Path]:
+    if not p or not isinstance(p, str):
+        return None
+    s = p.strip()
+    if not s:
+        return None
+    # keep as Path; make absolute under root if relative
+    pp = Path(s)
+    if not pp.is_absolute():
+        pp = (root / pp).resolve()
+    else:
+        pp = pp.resolve()
+    return pp
+
+
+def _extract_paths_from_ledger_obj(root: Path, obj: Dict[str, Any]) -> List[Path]:
+    out: List[Path] = []
+
+    # direct fields
+    for key in ("task_path", "audit_out", "audit_err"):
+        p = _norm_path(root, obj.get(key))
+        if p:
+            out.append(p)
+
+    # nested: detail.run.audit_out/err
+    detail = obj.get("detail") or {}
+    if isinstance(detail, dict):
+        run = detail.get("run") or {}
+        if isinstance(run, dict):
+            for key in ("audit_out", "audit_err"):
+                p = _norm_path(root, run.get(key))
+                if p:
+                    out.append(p)
+
+    # outputs: list[{"path": "..."}]
+    outputs = obj.get("outputs")
+    if isinstance(outputs, list):
+        for it in outputs:
+            if isinstance(it, dict):
+                p = _norm_path(root, it.get("path"))
+                if p:
+                    out.append(p)
+
+    return out
+
+
+@dataclasses.dataclass
+class PolicyRule:
+    path: str
+    ttl_days: int
+    keep_latest: int
+
+
+@dataclasses.dataclass
+class Policy:
+    version: int
+    dry_run: bool
+    ledger_window_days: int
+    keep_latest_per_dir: int
+    max_delete_per_run: int
+    rules: List[PolicyRule]
+    protected: List[str]
+
+
+def _load_policy(policy_path: Path) -> Policy:
+    try:
+        import yaml  # type: ignore
+    except Exception as e:
+        raise RuntimeError(
+            "PyYAML not available. Install it in your runtime venv: pip install pyyaml"
+        ) from e
+
+    data = yaml.safe_load(policy_path.read_text("utf-8"))
+    if not isinstance(data, dict):
+        raise RuntimeError("Invalid policy: root must be a mapping")
+
+    version = int(data.get("version", 1))
+    defaults = data.get("defaults") or {}
+    if not isinstance(defaults, dict):
+        defaults = {}
+
+    dry_run = bool(defaults.get("dry_run", True))
+    ledger_window_days = int(defaults.get("ledger_window_days", 30))
+    keep_latest_per_dir = int(defaults.get("keep_latest_per_dir", 200))
+    max_delete_per_run = int(defaults.get("max_delete_per_run", 5000))
+
+    rules_raw = data.get("rules") or []
+    rules: List[PolicyRule] = []
+    if not isinstance(rules_raw, list):
+        raise RuntimeError("Invalid policy: rules must be a list")
+
+    for r in rules_raw:
+        if not isinstance(r, dict):
+            continue
+        path = str(r.get("path", "")).strip()
+        if not path:
+            continue
+        ttl_days = int(r.get("ttl_days", 14))
+        keep_latest = int(r.get("keep_latest", keep_latest_per_dir))
+        rules.append(PolicyRule(path=path, ttl_days=ttl_days, keep_latest=keep_latest))
+
+    protected = data.get("protected") or []
+    if not isinstance(protected, list):
+        protected = []
+    protected = [str(x) for x in protected]
+
+    return Policy(
+        version=version,
+        dry_run=dry_run,
+        ledger_window_days=ledger_window_days,
+        keep_latest_per_dir=keep_latest_per_dir,
+        max_delete_per_run=max_delete_per_run,
+        rules=rules,
+        protected=protected,
+    )
+
+
+@dataclasses.dataclass
+class RetentionState:
+    ledger_offset: int
+    paths: Dict[str, str]  # path -> last_seen_ts (iso)
+
+    @staticmethod
+    def load(p: Path) -> "RetentionState":
+        if not p.exists():
+            return RetentionState(ledger_offset=0, paths={})
+        obj = json.loads(p.read_text("utf-8"))
+        return RetentionState(
+            ledger_offset=int(obj.get("ledger_offset", 0)),
+            paths=dict(obj.get("paths", {})),
+        )
+
+    def save(self, p: Path) -> None:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_suffix(".tmp")
+        tmp.write_text(
+            json.dumps(
+                {"ledger_offset": self.ledger_offset, "paths": self.paths},
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            ),
+            "utf-8",
+        )
+        tmp.replace(p)
+
+
+def _update_protection_map(
+    root: Path,
+    ledger_path: Path,
+    state_path: Path,
+    ledger_window_days: int,
+    logf,
+) -> Tuple[RetentionState, Dict[Path, dt.datetime]]:
+    if not ledger_path.exists():
+        raise RuntimeError(f"Ledger missing: {ledger_path}")
+
+    state = RetentionState.load(state_path)
+    now = _utc_now()
+    cutoff = now - dt.timedelta(days=ledger_window_days)
+
+    # convert saved map
+    prot: Dict[Path, dt.datetime] = {}
+    for spath, sts in list(state.paths.items()):
+        t = _parse_ts(sts)
+        if t is None:
+            continue
+        p = _norm_path(root, spath)
+        if not p:
+            continue
+        if t < cutoff:
+            # drop old
+            continue
+        prot[p] = t
+
+    # read incremental ledger lines from offset
+    with ledger_path.open("rb") as f:
+        f.seek(state.ledger_offset)
+        new_bytes = f.read()
+        new_offset = f.tell()
+
+    if new_bytes:
+        lines = new_bytes.splitlines()
+        for b in lines:
+            b = b.strip()
+            if not b:
+                continue
+            try:
+                obj = json.loads(b.decode("utf-8"))
+            except Exception:
+                # ignore malformed line
+                continue
+            ts = _parse_ts(obj.get("ts")) or _parse_ts(obj.get("time")) or now
+            for p in _extract_paths_from_ledger_obj(root, obj):
+                # store last seen
+                prot[p] = ts
+
+        state.ledger_offset = new_offset
+
+    # persist back into state.paths (only in-window)
+    out_paths: Dict[str, str] = {}
+    for p, t in prot.items():
+        if t >= cutoff:
+            out_paths[str(p)] = t.isoformat().replace("+00:00", "Z")
+    state.paths = out_paths
+    state.save(state_path)
+
+    logf.write(
+        f"[retention] ledger_scan: offset={state.ledger_offset} protected_paths={len(state.paths)} window_days={ledger_window_days}\n"
+    )
+    return state, prot
+
+
+def _list_files(dir_path: Path) -> List[Path]:
+    if not dir_path.exists():
+        return []
+    files: List[Path] = []
+    for root, _, names in os.walk(dir_path):
+        for n in names:
+            p = Path(root) / n
+            if p.is_file():
+                files.append(p)
+    return files
+
+
+def _should_never_delete(p: Path) -> bool:
+    # hard non-goals: never delete *.latest.json
+    if p.name.endswith(".latest.json"):
+        return True
+    return False
+
+
+def _compute_oldest_remaining_ts(files_left: List[Path]) -> Optional[str]:
+    if not files_left:
+        return None
+    oldest = None
+    for p in files_left:
+        try:
+            t = dt.datetime.fromtimestamp(p.stat().st_mtime, tz=dt.timezone.utc)
+        except Exception:
+            continue
+        if oldest is None or t < oldest:
+            oldest = t
+    if oldest is None:
+        return None
+    return oldest.isoformat().replace("+00:00", "Z")
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="0luka Ledger-Aware Retention Daemon")
+    ap.add_argument("--root", default=os.environ.get("ROOT", os.path.expanduser("~/0luka")))
+    ap.add_argument("--policy", default=None)
+    ap.add_argument("--state", default=None)
+    ap.add_argument("--apply", action="store_true", help="Actually delete files")
+    ap.add_argument("--report", action="store_true", help="Write a JSON report to observability/retention/")
+    args = ap.parse_args()
+
+    root = Path(args.root).resolve()
+    policy_path = Path(args.policy).resolve() if args.policy else (root / "ops/governance/retention_policy.yaml")
+    state_path = Path(args.state).resolve() if args.state else (root / "observability/retention/retention_state.json")
+    ledger_path = root / "observability/stl/ledger/global_beacon.jsonl"
+    log_path = root / "observability/logs/retention.log"
+    tel_path = root / "observability/telemetry/retention.latest.json"
+
+    root.mkdir(parents=True, exist_ok=True)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    tel_path.parent.mkdir(parents=True, exist_ok=True)
+
+    started = time.time()
+    notes: List[str] = []
+
+    # policy
+    if not policy_path.exists():
+        raise SystemExit(f"Policy missing: {policy_path}")
+
+    pol = _load_policy(policy_path)
+    policy_hash = _sha256_file(policy_path)
+
+    dry_run = pol.dry_run and (not args.apply)
+    if args.apply and pol.dry_run:
+        notes.append("policy.defaults.dry_run=true but --apply provided; proceeding with apply=true")
+    if args.apply and not pol.dry_run:
+        dry_run = False
+
+    # protect subtrees (policy)
+    protected_subtrees: List[Path] = []
+    for rel in pol.protected:
+        protected_subtrees.append((root / rel).resolve())
+
+    # scan ledger incrementally
+    with log_path.open("a", encoding="utf-8") as logf:
+        try:
+            _, ledger_prot = _update_protection_map(
+                root=root,
+                ledger_path=ledger_path,
+                state_path=state_path,
+                ledger_window_days=pol.ledger_window_days,
+                logf=logf,
+            )
+        except Exception as e:
+            logf.write(f"[retention] ERROR: ledger scan failed: {e}\n")
+            raise
+
+        # convert ledger_prot to a set for quick membership
+        protected_exact: Set[Path] = set(ledger_prot.keys())
+
+        deleted_count = 0
+        bytes_freed = 0
+        would_delete: List[Dict[str, Any]] = []
+        kept_files: List[Path] = []
+
+        now = _utc_now()
+
+        # Deletion loop per rule
+        for rule in pol.rules:
+            rule_dir = (root / rule.path).resolve()
+
+            # skip if rule dir is protected subtree itself
+            if any(_is_under(rule_dir, ps) or _is_under(ps, rule_dir) for ps in protected_subtrees):
+                logf.write(f"[retention] skip rule_dir (protected subtree): {rule_dir}\n")
+                continue
+
+            files = _list_files(rule_dir)
+            # sort by mtime desc
+            files.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
+
+            # keep newest keep_latest
+            keep_n = max(0, int(rule.keep_latest))
+            keep_set = set(files[:keep_n])
+
+            for p in files:
+                kept_files.append(p)
+                if deleted_count >= pol.max_delete_per_run:
+                    notes.append("max_delete_per_run reached; stopping early")
+                    break
+
+                # never delete newest keep_latest
+                if p in keep_set:
+                    continue
+
+                # never delete *.latest.json
+                if _should_never_delete(p):
+                    continue
+
+                # protect if under protected subtree
+                if any(_is_under(p, ps) for ps in protected_subtrees):
+                    continue
+
+                # protect if referenced in ledger window
+                if p in protected_exact:
+                    continue
+
+                # TTL check
+                try:
+                    mtime = dt.datetime.fromtimestamp(p.stat().st_mtime, tz=dt.timezone.utc)
+                except Exception:
+                    continue
+                age_days = (now - mtime).total_seconds() / 86400.0
+                if age_days < float(rule.ttl_days):
+                    continue
+
+                # delete candidate
+                rec = {
+                    "path": str(p),
+                    "bytes": int(p.stat().st_size) if p.exists() else 0,
+                    "mtime": mtime.isoformat().replace("+00:00", "Z"),
+                    "rule": rule.path,
+                }
+
+                if dry_run:
+                    would_delete.append(rec)
+                    logf.write(f"[retention] DRY would_delete: {rec['path']} bytes={rec['bytes']} rule={rule.path}\n")
+                else:
+                    try:
+                        sz = rec["bytes"]
+                        p.unlink(missing_ok=True)
+                        deleted_count += 1
+                        bytes_freed += sz
+                        logf.write(f"[retention] delete: {rec['path']} bytes={sz} rule={rule.path}\n")
+                    except Exception as e:
+                        logf.write(f"[retention] WARN failed_delete: {rec['path']} err={e}\n")
+
+            if deleted_count >= pol.max_delete_per_run:
+                break
+
+        # Oldest remaining timestamp (best effort): compute among rule dirs after deletion
+        remaining_files: List[Path] = []
+        for rule in pol.rules:
+            rule_dir = (root / rule.path).resolve()
+            remaining_files.extend(_list_files(rule_dir))
+        oldest_remaining_ts = _compute_oldest_remaining_ts(remaining_files)
+
+        duration_ms = int((time.time() - started) * 1000)
+
+        tel = {
+            "ts": now.isoformat().replace("+00:00", "Z"),
+            "dry_run": dry_run,
+            "deleted_count": 0 if dry_run else deleted_count,
+            "would_delete_count": len(would_delete) if dry_run else 0,
+            "bytes_freed": 0 if dry_run else bytes_freed,
+            "oldest_remaining_ts": oldest_remaining_ts,
+            "ledger_window_days": pol.ledger_window_days,
+            "max_delete_per_run": pol.max_delete_per_run,
+            "policy_hash": policy_hash,
+            "duration_ms": duration_ms,
+            "notes": notes,
+        }
+
+        tel_tmp = tel_path.with_suffix(".tmp")
+        tel_tmp.write_text(json.dumps(tel, ensure_ascii=False, indent=2, sort_keys=True), "utf-8")
+        tel_tmp.replace(tel_path)
+
+        # optional report
+        if args.report:
+            rep = {
+                "ts": tel["ts"],
+                "dry_run": dry_run,
+                "policy_hash": policy_hash,
+                "ledger_window_days": pol.ledger_window_days,
+                "protected_subtrees": [str(p) for p in protected_subtrees],
+                "protected_exact_count": len(protected_exact),
+                "would_delete": would_delete[: min(len(would_delete), 20000)],
+                "deleted_count": 0 if dry_run else deleted_count,
+                "bytes_freed": 0 if dry_run else bytes_freed,
+                "notes": notes,
+            }
+            out_dir = root / "observability/retention"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            stamp = now.strftime("%Y%m%dT%H%M%SZ")
+            rep_path = out_dir / f"retention_report_{stamp}.json"
+            rep_path.write_text(json.dumps(rep, ensure_ascii=False, indent=2, sort_keys=True), "utf-8")
+            logf.write(f"[retention] report: {rep_path}\n")
+
+        logf.write(f"[retention] done dry_run={dry_run} deleted={0 if dry_run else deleted_count} would_delete={len(would_delete) if dry_run else 0} bytes_freed={0 if dry_run else bytes_freed} duration_ms={duration_ms}\n")
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

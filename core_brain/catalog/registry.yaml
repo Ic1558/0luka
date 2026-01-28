@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Registry
+metadata:
+  name: 0luka-global-registry
+  lastUpdated: 2026-01-28
+tools:
+  - name: bridge-emit
+    path: tools/atg_bridge_emit.zsh
+    tier: core
+    caps: [signal, event]
+  - name: mls-capture
+    path: tools/mls_structure_capture.zsh
+    tier: obs
+    caps: [read-fs]
+  - name: session-preflight
+    path: tools/session_preflight.zsh
+    tier: governance
+    caps: [read-session]
+  - name: catalog-lookup
+    path: core_brain/ops/catalog_lookup.zsh
+    tier: governance
+    caps: [read-registry]
+  - name: skill-sync
+    path: tools/luka_skill_sync.py
+    tier: governance
+    caps: [scan-skills]
+  - name: gate-runner
+    path: core_brain/ops/governance/gate_runnerd.py
+    tier: governance
+    caps: [enforce-policy]
+  - name: liam-planner
+    path: system/planners/liam_planner.py
+    tier: reasoning
+    caps: [plan]
+  - name: bridge-dispatcher
+    path: core_brain/ops/governance/bridge_dispatcher.py
+    tier: core
+    caps: [dispatch]
+  - name: codex
+    path: core_brain/ops/governance/codex_verifier.py
+    tier: verification
+    caps: [verify, read-fs]

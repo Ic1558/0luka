@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "defaults": {
+    "dry_run": true,
+    "ledger_window_days": 39,
+    "keep_latest_per_dir": 200,
+    "max_delete_per_run": 5000
+  },
+  "rules": [
+    {
+      "path": "observability/artifacts/snapshots",
+      "ttl_days": 7,
+      "keep_latest": 200
+    },
+    {
+      "path": "observability/artifacts/ram",
+      "ttl_days": 14,
+      "keep_latest": 1000
+    },
+    {
+      "path": "observability/artifacts/followup",
+      "ttl_days": 14,
+      "keep_latest": 1000
+    },
+    {
+      "path": "observability/artifacts/mls",
+      "ttl_days": 14,
+      "keep_latest": 1000
+    },
+    {
+      "path": "observability/audit",
+      "ttl_days": 39,
+      "keep_latest": 5000
+    },
+    {
+      "path": "observability/quarantine/tasks",
+      "ttl_days": 39,
+      "keep_latest": 2000
+    },
+    {
+      "path": "observability/quarantine/nonobs",
+      "ttl_days": 39,
+      "keep_latest": 2000
+    }
+  ],
+  "protected": [
+    "observability/telemetry",
+    "observability/stl/ledger"
+  ]
+}

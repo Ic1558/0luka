@@ -1,0 +1,4 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+ROOT="${ROOT:-$HOME/0luka}"
+python3 "${ROOT}/ops/governance/retention_daemon.py" --root "${ROOT}"
