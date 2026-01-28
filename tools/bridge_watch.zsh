@@ -40,19 +40,19 @@ if [[ "${effective_mode}" == "fswatch" ]]; then
 fi
 
 write_latest() {
-  local status="$1"
+  local state="$1"
   local note="$2"
   local last_file="$3"
   local last_event="$4"
 
   "${python_bin}" -c 'import json,os,sys,time
 path=sys.argv[1]
-status=sys.argv[2]
+state=sys.argv[2]
 note=sys.argv[3]
 last_file=sys.argv[4]
 watch_mode=sys.argv[5]
 last_event=sys.argv[6]
-data={"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "module": "bridge_watch", "status": status, "note": note, "last_file": last_file}
+data={"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "module": "bridge_watch", "status": state, "note": note, "last_file": last_file}
 if watch_mode:
     data["watch_mode"]=watch_mode
 if last_event:
@@ -62,7 +62,7 @@ if last_event:
         pass
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, "w", encoding="utf-8") as handle:
-    handle.write(json.dumps(data, ensure_ascii=False) + "\n")' "${telemetry_path}" "${status}" "${note}" "${last_file}" "${effective_mode}" "${last_event}"
+    handle.write(json.dumps(data, ensure_ascii=False) + "\n")' "${telemetry_path}" "${state}" "${note}" "${last_file}" "${effective_mode}" "${last_event}"
 }
 
 append_error() {
