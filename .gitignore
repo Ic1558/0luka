@@ -43,3 +43,8 @@ observability/telemetry/drift/baseline.jsonl
 
 # drafts (intentionally untracked)
 core/governance/agent_culture.md
+
+# --- MLS generated artifacts (runtime) ---
+g/knowledge/mls_lessons.jsonl
+g/knowledge/mls_index.json
+g/reports/mls/
