@@ -132,6 +132,17 @@ def list_files(path: Path) -> list[Path]:
     return files
 
 def extract_task_id(path: Path) -> str:
+    def normalize(value: str) -> str:
+        if not value:
+            return ""
+        if len(value) > 120:
+            return ""
+        if any(ch.isspace() for ch in value):
+            return ""
+        if any(ch in value for ch in "{}[]"):
+            return ""
+        return value
+
     try:
         text = path.read_text(encoding="utf-8", errors="ignore")
     except Exception:
@@ -146,6 +157,7 @@ def extract_task_id(path: Path) -> str:
                     try:
                         value = part.split(":", 1)[1].strip().strip(",")
                         value = value.strip('"')
+                        value = normalize(value)
                         if value:
                             return value
                     except Exception:
@@ -158,6 +170,7 @@ def extract_task_id(path: Path) -> str:
                 value = line.split(":", 1)[1].strip().strip('"')
             except Exception:
                 value = ""
+            value = normalize(value)
             if value:
                 return value
     return path.name
@@ -319,4 +332,6 @@ PY
 
 echo "OK: wrote"
 echo " - $LATEST_MD"
+echo " - $LATEST_JSON"
 echo " - $ARCHIVE_MD"
+echo " - $ARCHIVE_JSON"
