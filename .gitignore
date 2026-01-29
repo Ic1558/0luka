@@ -23,6 +23,9 @@ workspaces/
 observability/**
 runtime/**
 g/**
+!g/web/
+!g/web/dashboard/
+!g/web/dashboard/**
 artifacts/**
 
 # 0luka observability volatile artifacts
@@ -51,3 +54,7 @@ g/reports/mls/
 
 # --- E2E test artifacts ---
 interface/inbox/tasks/liam/e2e_*_exec.json
+
+# dashboard runtime data (generated)
+g/web/dashboard/data/*
+!g/web/dashboard/data/.gitkeep

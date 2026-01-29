@@ -241,6 +241,20 @@
         font-size: 0.9rem;
       }
 
+      .error-banner {
+        margin: 16px 0 0;
+        padding: 12px 16px;
+        border-radius: 14px;
+        border: 1px solid #f1b7ae;
+        background: #fff1ee;
+        color: var(--bad);
+        font-size: 0.9rem;
+      }
+
+      .hidden {
+        display: none;
+      }
+
       .floating {
         position: absolute;
         width: 140px;
@@ -287,12 +301,12 @@
             <div class="value" id="last-refresh">--:--</div>
           </div>
           <div class="metric">
-            <h3>Active Trace</h3>
-            <div class="value">handoff_latest</div>
+            <h3>Data Updated</h3>
+            <div class="value" id="data-updated">unknown</div>
           </div>
           <div class="metric">
-            <h3>Modules Online</h3>
-            <div class="value">P0 + Optional</div>
+            <h3>Active Trace</h3>
+            <div class="value">handoff_latest</div>
           </div>
           <div class="metric">
             <h3>Dashboards</h3>
@@ -300,6 +314,8 @@
           </div>
         </div>
       </section>
+
+      <div id="data-error" class="error-banner hidden">Data sources unavailable.</div>
 
       <section class="section">
         <h2 class="section-title">Core Signals</h2>
@@ -321,6 +337,13 @@
             <p>TK guard enforces idle allowlist and emits incidents for non-allowlisted idle modules.</p>
             <span class="tag good">guard: enforced</span>
             <div class="data-path">observability/telemetry/tk_health.latest.json</div>
+          </div>
+          <div class="card">
+            <h4>TK Shield Status</h4>
+            <p id="shield-summary">Loading shield summary...</p>
+            <ul class="list" id="shield-rules">
+              <li>Awaiting tk_shield.json</li>
+            </ul>
           </div>
         </div>
       </section>
@@ -350,22 +373,22 @@
       </section>
 
       <section class="section">
-        <h2 class="section-title">Operational Modules</h2>
+        <h2 class="section-title">Registry</h2>
         <div class="grid">
           <div class="card">
-            <h4>MLS Toolchain</h4>
-            <p>Capture, search, query, and reporting for lessons learned. Manual capture ready.</p>
-            <span class="tag good">system/tools/mls</span>
+            <h4>Registered Services</h4>
+            <p>Loaded from data/registry.json. Each module should register status and endpoints.</p>
+            <ul class="list" id="registry-list">
+              <li>Loading registry...</li>
+            </ul>
           </div>
           <div class="card">
-            <h4>Grafana Dashboards</h4>
-            <p>0luka dashboards staged. Import into Grafana and remap datasource UID if needed.</p>
-            <span class="tag neutral">config/grafana/dashboards</span>
-          </div>
-          <div class="card">
-            <h4>Save Now</h4>
-            <p>Memory save wrapper writes plan/done/reply to artifacts and handoff pointers.</p>
-            <span class="tag neutral">tools/save_now.zsh</span>
+            <h4>Operational Notes</h4>
+            <ul class="list">
+              <li>MLS toolchain: system/tools/mls</li>
+              <li>Grafana dashboards: config/grafana/dashboards</li>
+              <li>Save now: tools/save_now.zsh</li>
+            </ul>
           </div>
         </div>
       </section>
@@ -374,11 +397,10 @@
         <h2 class="section-title">Integration Queue</h2>
         <div class="grid">
           <div class="card">
-            <h4>Next Modules</h4>
-            <ul class="list">
-              <li>System snapshot pack (observability/tools/snapshot)</li>
-              <li>Governance docs migration to core_brain</li>
-              <li>Grafana datasource UID alignment</li>
+            <h4>Queued Work</h4>
+            <p>Loaded from data/queue.json.</p>
+            <ul class="list" id="queue-list">
+              <li>Loading queue...</li>
             </ul>
           </div>
           <div class="card">
@@ -403,8 +425,141 @@
         const target = document.getElementById("last-refresh");
         if (target) target.textContent = text;
       };
-      clock();
-      setInterval(clock, 1000);
+
+      const formatIso = (value) => {
+        if (!value) return "unknown";
+        const dt = new Date(value);
+        if (Number.isNaN(dt.getTime())) return String(value);
+        const pad = (n) => String(n).padStart(2, "0");
+        return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())} ${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}Z`;
+      };
+
+      const showError = (messages) => {
+        const banner = document.getElementById("data-error");
+        if (!banner) return;
+        if (!messages.length) {
+          banner.classList.add("hidden");
+          return;
+        }
+        banner.textContent = `Data sources unavailable: ${messages.join(", ")}`;
+        banner.classList.remove("hidden");
+      };
+
+      const fetchJson = async (path) => {
+        const response = await fetch(path, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`${path} ${response.status}`);
+        }
+        return response.json();
+      };
+
+      const renderRegistry = (data) => {
+        const list = document.getElementById("registry-list");
+        if (!list) return;
+        list.innerHTML = "";
+        if (!data || !Array.isArray(data.services) || data.services.length === 0) {
+          list.innerHTML = "<li>No services registered</li>";
+          return;
+        }
+        data.services.forEach((svc) => {
+          const status = svc.status || "unknown";
+          const note = svc.notes ? ` - ${svc.notes}` : "";
+          const url = svc.url ? ` (${svc.url})` : "";
+          const updated = svc.updated_at ? ` @ ${formatIso(svc.updated_at)}` : "";
+          const li = document.createElement("li");
+          li.textContent = `${svc.name || svc.id || "service"}: ${status}${updated}${note}${url}`;
+          list.appendChild(li);
+        });
+      };
+
+      const renderQueue = (data) => {
+        const list = document.getElementById("queue-list");
+        if (!list) return;
+        list.innerHTML = "";
+        if (!data || !Array.isArray(data.queues) || data.queues.length === 0) {
+          list.innerHTML = "<li>No queued items</li>";
+          return;
+        }
+        data.queues.forEach((item) => {
+          const lag = typeof item.lag_sec === "number" ? `${item.lag_sec}s` : "n/a";
+          const depth = typeof item.depth === "number" ? item.depth : "n/a";
+          const updated = item.updated_at ? ` @ ${formatIso(item.updated_at)}` : "";
+          const li = document.createElement("li");
+          li.textContent = `${item.name || item.id || "queue"}: depth ${depth}, lag ${lag}${updated}`;
+          list.appendChild(li);
+        });
+      };
+
+      const renderShield = (data) => {
+        const summary = document.getElementById("shield-summary");
+        const list = document.getElementById("shield-rules");
+        if (!summary || !list) return;
+        const rules = Array.isArray(data.rules) ? data.rules : [];
+        const flags = data.flags || {};
+        summary.textContent = `Rules: ${rules.length} | Enforced: ${flags.enforced ? "yes" : "no"}`;
+        list.innerHTML = "";
+        if (!rules.length) {
+          list.innerHTML = "<li>No shield rules reported</li>";
+          return;
+        }
+        rules.forEach((rule) => {
+          const li = document.createElement("li");
+          const status = rule.status ? ` (${rule.status})` : "";
+          li.textContent = `${rule.id || "rule"}${status}${rule.notes ? ` - ${rule.notes}` : ""}`;
+          list.appendChild(li);
+        });
+      };
+
+      const updateDataTimestamp = (timestamps) => {
+        const target = document.getElementById("data-updated");
+        if (!target) return;
+        const valid = timestamps
+          .map((t) => new Date(t))
+          .filter((d) => !Number.isNaN(d.getTime()))
+          .sort((a, b) => b - a);
+        if (!valid.length) {
+          target.textContent = "unknown";
+        } else {
+          target.textContent = formatIso(valid[0].toISOString());
+        }
+      };
+
+      const init = async () => {
+        clock();
+        setInterval(clock, 1000);
+
+        const errors = [];
+        const timestamps = [];
+
+        try {
+          const registry = await fetchJson("./data/registry.json");
+          renderRegistry(registry);
+          if (registry.generated_at) timestamps.push(registry.generated_at);
+        } catch (err) {
+          errors.push("registry.json");
+        }
+
+        try {
+          const queue = await fetchJson("./data/queue.json");
+          renderQueue(queue);
+          if (queue.generated_at) timestamps.push(queue.generated_at);
+        } catch (err) {
+          errors.push("queue.json");
+        }
+
+        try {
+          const shield = await fetchJson("./data/tk_shield.json");
+          renderShield(shield);
+          if (shield.generated_at) timestamps.push(shield.generated_at);
+        } catch (err) {
+          errors.push("tk_shield.json");
+        }
+
+        updateDataTimestamp(timestamps);
+        showError(errors);
+      };
+
+      init();
     </script>
   </body>
 </html>
