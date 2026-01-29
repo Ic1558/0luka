@@ -98,6 +98,60 @@ def resolve_launchd_label(module_name: str) -> str:
     return f"com.0luka.{module_name}"
 
 
+def find_plist_for_label(label: str) -> str | None:
+    """Find plist file by matching Label inside the file (not filename)."""
+    candidates = []
+    candidates += list((Path.home() / "Library" / "LaunchAgents").glob("*.plist"))
+    candidates += list(Path("/Library/LaunchAgents").glob("*.plist"))
+    candidates += list(Path("/Library/LaunchDaemons").glob("*.plist"))
+
+    for p in candidates:
+        try:
+            rc, out = run(["plutil", "-extract", "Label", "raw", "-o", "-", str(p)], timeout=2)
+            if rc == 0 and out.strip() == label:
+                return str(p)
+        except Exception:
+            pass
+    return None
+
+
+def service_exists_any_domain(label: str, uid: int) -> tuple[bool, str | None]:
+    """Check if service exists in any launchd domain (gui → user → system)."""
+    domains = [f"gui/{uid}", f"user/{uid}", "system"]
+    for d in domains:
+        rc, _ = run(["launchctl", "print", f"{d}/{label}"], timeout=2)
+        if rc == 0:
+            return True, d
+    return False, None
+
+
+def ensure_loaded(label: str, uid: int) -> tuple[bool, str | None, str | None]:
+    """Ensure service is loaded, bootstrap if needed. Returns (success, domain, reason)."""
+    exists, domain = service_exists_any_domain(label, uid)
+    if exists:
+        return True, domain, None
+
+    plist = find_plist_for_label(label)
+    if not plist:
+        return False, None, "plist_not_found_for_label"
+
+    # Try bootstrap into gui domain first (default for LaunchAgents)
+    rc, out = run(["launchctl", "bootstrap", f"gui/{uid}", plist], timeout=10)
+    if rc == 0:
+        exists2, domain2 = service_exists_any_domain(label, uid)
+        if exists2:
+            return True, domain2, None
+
+    # Fallback: try user domain
+    rc2, out2 = run(["launchctl", "bootstrap", f"user/{uid}", plist], timeout=10)
+    if rc2 == 0:
+        exists2, domain2 = service_exists_any_domain(label, uid)
+        if exists2:
+            return True, domain2, None
+
+    return False, None, f"bootstrap_failed: gui={rc} user={rc2}"
+
+
 def load_playbook() -> dict | None:
     if not PLAYBOOK.exists():
         return None
@@ -181,35 +235,27 @@ def execute_action(playbook: dict, rule: dict, incident: dict) -> dict:
         uid = os.getuid()
         launchd_label = resolve_launchd_label(module)
 
-        # Try multiple domains: gui → user → system
-        targets = [
-            f"gui/{uid}/{launchd_label}",
-            f"user/{uid}/{launchd_label}",
-            f"system/{launchd_label}",
-        ]
+        # Ensure service is loaded (bootstrap if needed)
+        loaded, domain, load_reason = ensure_loaded(launchd_label, uid)
+        if not loaded:
+            result["reason"] = load_reason or "service_not_loaded"
+            result["launchd_label"] = launchd_label
+            return result
 
-        last_rc, last_out, last_cmd = None, "", ""
-        for target in targets:
-            cmd = ["launchctl", "kickstart"] + args + [target]
-            rc, out = run(cmd)
-            last_rc, last_out, last_cmd = rc, out, " ".join(cmd)
-            if rc == 0:
-                result["executed"] = True
-                result["rc"] = rc
-                result["output"] = out.strip()[:500]
-                result["cmd"] = last_cmd
-                result["launchd_label"] = launchd_label
-                result["target"] = target
-                return result
+        # Now kickstart using the known domain
+        target = f"{domain}/{launchd_label}"
+        cmd = ["launchctl", "kickstart"] + args + [target]
+        rc, out = run(cmd)
 
-        # all failed - return last attempt
         result["executed"] = True
-        result["rc"] = last_rc
-        result["output"] = (last_out or "").strip()[:500]
-        result["cmd"] = last_cmd
+        result["rc"] = rc
+        result["output"] = out.strip()[:500]
+        result["cmd"] = " ".join(cmd)
         result["launchd_label"] = launchd_label
-        result["target"] = targets[-1]
+        result["target"] = target
+        result["domain"] = domain
         return result
+
 
 
     elif action_type == "modulectl_enable":
