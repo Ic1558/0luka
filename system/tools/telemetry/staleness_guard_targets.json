@@ -1,0 +1,10 @@
+{
+    "targets": [
+        {
+            "module": "ram_monitor",
+            "path": "observability/telemetry/ram_monitor.latest.json",
+            "threshold": 3,
+            "critical": true
+        }
+    ]
+}

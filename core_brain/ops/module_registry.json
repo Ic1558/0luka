@@ -49,6 +49,12 @@
       "description": "RAM snapshot + telemetry",
       "plist_path": "/Users/icmini/Library/LaunchAgents/com.0luka.ram-monitor.plist",
       "state": "deployed"
+    },
+    {
+      "label": "com.0luka.telemetry_staleness_guard",
+      "description": "Detects frozen telemetry payloads",
+      "plist_path": "/Users/icmini/Library/LaunchAgents/com.0luka.telemetry_staleness_guard.plist",
+      "state": "deployed"
     }
   ]
 }
