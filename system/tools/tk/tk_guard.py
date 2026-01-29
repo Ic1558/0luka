@@ -33,7 +33,12 @@ def parse_status_block(text: str) -> dict:
         out["loaded"] = True
         out["state"] = m.group(1).strip().lower()
         pid = m.group(2).strip()
-        out["pid"] = None if pid in ("N/A", "-", "") else pid
+        if pid in ("N/A", "-", ""):
+            out["pid"] = None
+        elif pid.isdigit():
+            out["pid"] = int(pid)
+        else:
+            out["pid"] = None
 
     em = re.search(r"last_exit=(\d+)", text)
     if em:
@@ -223,7 +228,7 @@ def main() -> int:
 
         # port ownership sanity
         if status.get("port") is not None and status.get("port_pid") is not None:
-            if status.get("pid") not in (None, "N/A") and str(status["port_pid"]) != str(status["pid"]):
+            if status.get("pid") is not None and status["port_pid"] != status.get("pid"):
                 incidents.append({
                     "ts": ts,
                     "kind": "port_owner_mismatch",
@@ -299,4 +304,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

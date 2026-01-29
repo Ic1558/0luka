@@ -10,6 +10,7 @@ Usage:
       --module com.0luka.session_recorder \
       --rc 64
 """
+import hashlib
 import json
 import os
 import subprocess
@@ -121,19 +122,43 @@ def main() -> int:
 
     # 5) log tails (best-effort, if module is known)
     if module:
-        label_clean = module.replace("com.0luka.", "").replace("_", "-")
-        stdout_path = root / "observability" / "logs" / f"{label_clean}.stdout.log"
-        stderr_path = root / "observability" / "logs" / f"{label_clean}.stderr.log"
-        
-        stdout_tail = _tail_file(stdout_path)
-        stderr_tail = _tail_file(stderr_path)
-        
+        label_clean = module.replace("com.0luka.", "")
+        stdout_paths = [
+            root / "observability" / "logs" / f"{label_clean}.stdout.log",
+            root / "observability" / "logs" / f"{label_clean.replace('_', '-')}.stdout.log",
+        ]
+        stderr_paths = [
+            root / "observability" / "logs" / f"{label_clean}.stderr.log",
+            root / "observability" / "logs" / f"{label_clean.replace('_', '-')}.stderr.log",
+        ]
+
+        stdout_tail = ""
+        stdout_path = None
+        for candidate in stdout_paths:
+            stdout_tail = _tail_file(candidate)
+            if stdout_tail:
+                stdout_path = candidate
+                break
+
+        stderr_tail = ""
+        stderr_path = None
+        for candidate in stderr_paths:
+            stderr_tail = _tail_file(candidate)
+            if stderr_tail:
+                stderr_path = candidate
+                break
+
         if stdout_tail:
             _write_text(out_dir / "stdout_tail.log", stdout_tail)
             artifacts["stdout_tail"] = "stdout_tail.log"
+        else:
+            missing.append(str(stdout_paths[0].relative_to(root)))
+
         if stderr_tail:
             _write_text(out_dir / "stderr_tail.log", stderr_tail)
             artifacts["stderr_tail"] = "stderr_tail.log"
+        else:
+            missing.append(str(stderr_paths[0].relative_to(root)))
 
     # 6) incident.json (manifest)
     extra = None
@@ -143,6 +168,42 @@ def main() -> int:
         except Exception:
             extra = {"raw": extra_json}
 
+    severity_map = {
+        "module_not_running": "critical",
+        "module_idle_not_allowlisted": "warn",
+        "port_owner_mismatch": "warn",
+        "health_check_failed": "warn",
+    }
+    severity = None
+    if isinstance(extra, dict) and extra.get("severity"):
+        severity = extra.get("severity")
+    else:
+        severity = severity_map.get(kind, "info")
+
+    rc_value: int | None | str
+    rc_reason = None
+    if rc and rc.isdigit():
+        rc_value = int(rc)
+    elif rc in (None, "", "null"):
+        rc_value = None
+        rc_reason = "not_applicable"
+    else:
+        rc_value = rc
+        rc_reason = "unknown"
+
+    fingerprint = hashlib.sha256(f"{kind}|{module or ''}|{root}".encode("utf-8")).hexdigest()
+
+    sha = hashlib.sha256()
+    for name in sorted(artifacts.values()):
+        if not name:
+            continue
+        path = out_dir / name
+        if not path.exists():
+            continue
+        sha.update(name.encode("utf-8"))
+        sha.update(path.read_bytes())
+    evidence_hash = sha.hexdigest() if artifacts else None
+
     manifest = {
         "schema_version": "tk_evidence_pack.v1",
         "incident_id": incident_id,
@@ -150,9 +211,13 @@ def main() -> int:
         "root": str(root),
         "kind": kind,
         "module": module,
-        "rc": int(rc) if rc and rc.isdigit() else rc,
+        "severity": severity,
+        "fingerprint": fingerprint,
+        "rc": rc_value,
+        "rc_reason": rc_reason,
         "artifacts": {k: v for k, v in artifacts.items() if v},
         "missing": missing,
+        "evidence_pack_sha256": evidence_hash,
         "extra": extra,
     }
     (out_dir / "incident.json").write_text(
