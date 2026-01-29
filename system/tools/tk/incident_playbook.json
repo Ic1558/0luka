@@ -1,0 +1,108 @@
+{
+    "schema_version": "tk.playbook.v1",
+    "generated_at": "2026-01-29T13:26:00Z",
+    "defaults": {
+        "cooldown_sec": 120,
+        "max_attempts": 2,
+        "require_evidence_pack": true
+    },
+    "rules": [
+        {
+            "when": {
+                "kind": "module_not_running",
+                "module_regex": ".*"
+            },
+            "severity": "incident",
+            "action": {
+                "type": "launchd_kickstart",
+                "mode": "gui",
+                "label_from": "incident.module",
+                "args": [
+                    "-k"
+                ]
+            },
+            "verify": {
+                "type": "tk_guard_recheck",
+                "wait_sec": 3,
+                "expect_rc": [
+                    0,
+                    2
+                ]
+            }
+        },
+        {
+            "when": {
+                "kind": "port_not_listening",
+                "module_regex": ".*"
+            },
+            "severity": "incident",
+            "action": {
+                "type": "launchd_kickstart",
+                "mode": "gui",
+                "label_from": "incident.module",
+                "args": [
+                    "-k"
+                ]
+            },
+            "verify": {
+                "type": "port_listen_check",
+                "port_from": "incident.port",
+                "timeout_sec": 3
+            }
+        },
+        {
+            "when": {
+                "kind": "health_check_failed",
+                "module_regex": "^com\\.0luka\\.opal-api$"
+            },
+            "severity": "incident",
+            "action": {
+                "type": "launchd_kickstart",
+                "mode": "gui",
+                "label_from": "incident.module",
+                "args": [
+                    "-k"
+                ]
+            },
+            "verify": {
+                "type": "http_check",
+                "url_from": "registry.health_url",
+                "timeout_sec": 3,
+                "expect_status_2xx": true
+            }
+        },
+        {
+            "when": {
+                "kind": "port_owner_mismatch",
+                "module_regex": ".*"
+            },
+            "severity": "incident",
+            "action": {
+                "type": "no_op",
+                "reason": "Port seizure is ambiguous; requires human review"
+            }
+        },
+        {
+            "when": {
+                "kind": "telemetry_frozen",
+                "module_regex": ".*"
+            },
+            "severity": "warning",
+            "action": {
+                "type": "no_op",
+                "reason": "Staleness is informational; no restart needed"
+            }
+        }
+    ],
+    "allow_actions_for_modules": [
+        "com.0luka.atg_bridge_watch",
+        "com.0luka.bridge_consumer.codex",
+        "com.0luka.bridge_consumer.liam",
+        "com.0luka.bridge_consumer.lisa",
+        "com.0luka.bridge_watchdog",
+        "com.0luka.kernel",
+        "com.0luka.opal-api",
+        "com.0luka.session_recorder",
+        "com.0luka.ram-monitor"
+    ]
+}
