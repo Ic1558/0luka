@@ -83,45 +83,65 @@ def now_utc_iso() -> str:
 
 
 def resolve_launchd_label(module_name: str) -> str:
-    """Convert short module name to full launchd label."""
-    # Load registry to find actual label
-    registry_path = ROOT / "core_brain" / "ops" / "module_registry.json"
-    if registry_path.exists():
-        try:
-            reg = json.loads(registry_path.read_text(encoding="utf-8"))
-            for mod in reg.get("modules", []):
-                if mod.get("name") == module_name:
-                    return mod.get("label", f"com.0luka.{module_name}")
-        except Exception:
-            pass
+    """Convert short module name to full launchd label via modulectl list."""
+    try:
+        rc, out = run(["python3", str(MODULECTL), "list"], timeout=5)
+        if rc == 0:
+            for line in out.splitlines():
+                parts = line.split("\t")
+                if len(parts) >= 2 and parts[0].strip() == module_name:
+                    return parts[1].strip()
+    except Exception:
+        pass
     # Fallback: derive label from name
     return f"com.0luka.{module_name}"
 
 
-def find_plist_for_label(label: str) -> str | None:
-    """Find plist file by matching Label inside the file (not filename)."""
-    candidates = []
-    candidates += list((Path.home() / "Library" / "LaunchAgents").glob("*.plist"))
-    candidates += list(Path("/Library/LaunchAgents").glob("*.plist"))
-    candidates += list(Path("/Library/LaunchDaemons").glob("*.plist"))
+def find_plist_for_label(label: str) -> tuple[str | None, str | None]:
+    """Find plist file by matching Label inside the file. Returns (plist_path, domain_hint)."""
+    uid = os.getuid()
+    search_paths = [
+        (Path.home() / "Library" / "LaunchAgents", f"gui/{uid}"),
+        (Path("/Library/LaunchAgents"), f"gui/{uid}"),
+        (Path("/Library/LaunchDaemons"), "system"),
+    ]
 
-    for p in candidates:
-        try:
-            rc, out = run(["plutil", "-extract", "Label", "raw", "-o", "-", str(p)], timeout=2)
-            if rc == 0 and out.strip() == label:
-                return str(p)
-        except Exception:
-            pass
-    return None
+    for search_dir, domain_hint in search_paths:
+        if not search_dir.exists():
+            continue
+        for p in search_dir.glob("*.plist"):
+            try:
+                rc, out = run(["plutil", "-extract", "Label", "raw", "-o", "-", str(p)], timeout=2)
+                if rc == 0 and out.strip() == label:
+                    return str(p), domain_hint
+            except Exception:
+                pass
+    return None, None
+
+
+def resolve_domain_for_label(label: str, uid: int) -> tuple[str | None, str | None]:
+    """
+    Find which launchd domain the service is loaded in.
+    Returns (domain_prefix, full_target) or (None, None).
+    Order: gui/<uid> → user/<uid> → system
+    """
+    domains = [
+        (f"gui/{uid}", f"gui/{uid}/{label}"),
+        (f"user/{uid}", f"user/{uid}/{label}"),
+        ("system", f"system/{label}"),
+    ]
+    for domain_prefix, target in domains:
+        rc, _ = run(["launchctl", "print", target], timeout=2)
+        if rc == 0:
+            return domain_prefix, target
+    return None, None
 
 
 def service_exists_any_domain(label: str, uid: int) -> tuple[bool, str | None]:
     """Check if service exists in any launchd domain (gui → user → system)."""
-    domains = [f"gui/{uid}", f"user/{uid}", "system"]
-    for d in domains:
-        rc, _ = run(["launchctl", "print", f"{d}/{label}"], timeout=2)
-        if rc == 0:
-            return True, d
+    domain_prefix, _ = resolve_domain_for_label(label, uid)
+    if domain_prefix:
+        return True, domain_prefix
     return False, None
 
 
@@ -131,25 +151,18 @@ def ensure_loaded(label: str, uid: int) -> tuple[bool, str | None, str | None]:
     if exists:
         return True, domain, None
 
-    plist = find_plist_for_label(label)
+    plist, domain_hint = find_plist_for_label(label)
     if not plist:
         return False, None, "plist_not_found_for_label"
 
-    # Try bootstrap into gui domain first (default for LaunchAgents)
-    rc, out = run(["launchctl", "bootstrap", f"gui/{uid}", plist], timeout=10)
+    # Bootstrap into the domain hint from plist location
+    rc, out = run(["launchctl", "bootstrap", domain_hint, plist], timeout=10)
     if rc == 0:
         exists2, domain2 = service_exists_any_domain(label, uid)
         if exists2:
             return True, domain2, None
 
-    # Fallback: try user domain
-    rc2, out2 = run(["launchctl", "bootstrap", f"user/{uid}", plist], timeout=10)
-    if rc2 == 0:
-        exists2, domain2 = service_exists_any_domain(label, uid)
-        if exists2:
-            return True, domain2, None
-
-    return False, None, f"bootstrap_failed: gui={rc} user={rc2}"
+    return False, None, f"bootstrap_failed: domain={domain_hint} rc={rc}"
 
 
 def load_playbook() -> dict | None:
@@ -233,17 +246,29 @@ def execute_action(playbook: dict, rule: dict, incident: dict) -> dict:
     if action_type == "launchd_kickstart":
         args = action.get("args", [])
         uid = os.getuid()
-        launchd_label = resolve_launchd_label(module)
 
-        # Ensure service is loaded (bootstrap if needed)
-        loaded, domain, load_reason = ensure_loaded(launchd_label, uid)
-        if not loaded:
-            result["reason"] = load_reason or "service_not_loaded"
+        # 1. Get label from incident or resolve
+        launchd_label = incident.get("launchd_label") or resolve_launchd_label(module)
+
+        # 2. Check if already loaded in any domain
+        domain_prefix, target = resolve_domain_for_label(launchd_label, uid)
+
+        # 3. If not loaded, try bootstrap from plist
+        if target is None:
+            plist_path, plist_domain = find_plist_for_label(launchd_label)
+            if plist_path and plist_domain:
+                run(["launchctl", "bootstrap", plist_domain, plist_path], timeout=10)
+                # Re-check after bootstrap
+                domain_prefix, target = resolve_domain_for_label(launchd_label, uid)
+
+        # 4. If still not found, fail safely
+        if target is None:
+            result["reason"] = "service_not_found_or_not_bootstrapped"
             result["launchd_label"] = launchd_label
+            result["tried"] = ["resolve_domain", "find_plist", "bootstrap"]
             return result
 
-        # Now kickstart using the known domain
-        target = f"{domain}/{launchd_label}"
+        # 5. Kickstart with verified target
         cmd = ["launchctl", "kickstart"] + args + [target]
         rc, out = run(cmd)
 
@@ -253,7 +278,7 @@ def execute_action(playbook: dict, rule: dict, incident: dict) -> dict:
         result["cmd"] = " ".join(cmd)
         result["launchd_label"] = launchd_label
         result["target"] = target
-        result["domain"] = domain
+        result["domain"] = domain_prefix
         return result
 
 
@@ -280,6 +305,12 @@ def main() -> int:
         return 64
 
     mods = [m.split("\t")[0].strip() for m in mods_txt.splitlines() if m.strip()]
+    # Build module→label map from modulectl list output
+    mod_label_map = {}
+    for line in mods_txt.splitlines():
+        parts = line.split("\t")
+        if len(parts) >= 2:
+            mod_label_map[parts[0].strip()] = parts[1].strip()
     results = []
     incidents = []
     ts = now_utc_iso()
@@ -303,6 +334,7 @@ def main() -> int:
                     "ts": ts,
                     "kind": "module_idle_not_allowlisted",
                     "module": m,
+                    "launchd_label": mod_label_map.get(m, f"com.0luka.{m}"),
                     "state": status.get("state"),
                     "pid": status.get("pid"),
                 })
@@ -318,6 +350,7 @@ def main() -> int:
                         "ts": ts,
                         "kind": "module_not_running",
                         "module": m,
+                        "launchd_label": mod_label_map.get(m, f"com.0luka.{m}"),
                         "state": status.get("state"),
                         "pid": status.get("pid"),
                         "last_exit": status.get("last_exit"),
@@ -331,6 +364,7 @@ def main() -> int:
                     "ts": ts,
                     "kind": "port_owner_mismatch",
                     "module": m,
+                    "launchd_label": mod_label_map.get(m, f"com.0luka.{m}"),
                     "port": status["port"],
                     "expected_pid": status.get("pid"),
                     "actual_pid": status["port_pid"],
