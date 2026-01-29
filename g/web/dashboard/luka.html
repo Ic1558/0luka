@@ -241,6 +241,34 @@
         font-size: 0.9rem;
       }
 
+      .rc-banner {
+        padding: 10px 14px;
+        border-radius: 12px;
+        font-weight: 700;
+        margin-bottom: 12px;
+        letter-spacing: 0.02em;
+      }
+
+      .rc-banner[data-rc="0"] {
+        background: #1f7a1f;
+        color: #fff;
+      }
+
+      .rc-banner[data-rc="2"] {
+        background: #b37b00;
+        color: #fff;
+      }
+
+      .rc-banner[data-rc="64"] {
+        background: #b00020;
+        color: #fff;
+      }
+
+      .rc-banner[data-rc="unknown"] {
+        background: #6b705c;
+        color: #fff;
+      }
+
       .error-banner {
         margin: 16px 0 0;
         padding: 12px 16px;
@@ -253,6 +281,34 @@
 
       .hidden {
         display: none;
+      }
+
+      .refresh-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        font-size: 0.9rem;
+        color: var(--muted);
+        margin-bottom: 20px;
+      }
+
+      .refresh-row button {
+        border: 1px solid var(--edge);
+        background: #fff;
+        padding: 6px 12px;
+        border-radius: 10px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .changed {
+        animation: flash 1.8s ease-out;
+      }
+
+      @keyframes flash {
+        0% { background: rgba(255, 230, 120, 0.7); }
+        100% { background: transparent; }
       }
 
       .floating {
@@ -282,6 +338,12 @@
   <body>
     <div class="frame">
       <div class="floating"></div>
+      <div id="rc-banner" class="rc-banner" data-rc="unknown">Status Unknown</div>
+      <div id="error-banner" class="error-banner hidden">Data sources unavailable.</div>
+      <div class="refresh-row">
+        <div>Data Updated: <span id="data-updated">unknown</span></div>
+        <button id="refresh-btn" type="button">Refresh now</button>
+      </div>
       <section class="hero">
         <div class="hero-card">
           <h1>0luka Core System Dashboard</h1>
@@ -314,8 +376,6 @@
           </div>
         </div>
       </section>
-
-      <div id="data-error" class="error-banner hidden">Data sources unavailable.</div>
 
       <section class="section">
         <h2 class="section-title">Core Signals</h2>
@@ -418,6 +478,25 @@
     </div>
 
     <script>
+      const DATA = {
+        registry: "./data/registry.json",
+        queue: "./data/queue.json",
+        tk: "./data/tk_shield.json",
+      };
+
+      let last = { registry: null, queue: null, tk: null };
+      let timer = null;
+
+      const $ = (sel) => document.querySelector(sel);
+
+      const stableStringify = (obj) => JSON.stringify(obj, Object.keys(obj || {}).sort());
+
+      const applyHighlight = (el) => {
+        if (!el) return;
+        el.classList.add("changed");
+        setTimeout(() => el.classList.remove("changed"), 1800);
+      };
+
       const clock = () => {
         const now = new Date();
         const pad = (n) => String(n).padStart(2, "0");
@@ -434,14 +513,40 @@
         return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())} ${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}Z`;
       };
 
-      const showError = (messages) => {
-        const banner = document.getElementById("data-error");
+      const setUpdated = (value) => {
+        const el = document.getElementById("data-updated");
+        if (!el) return;
+        el.textContent = value || new Date().toISOString();
+      };
+
+      const setBanner = (rc, msg) => {
+        const banner = document.getElementById("rc-banner");
         if (!banner) return;
-        if (!messages.length) {
+        const value = rc ?? "unknown";
+        banner.dataset.rc = String(value);
+        if (msg) {
+          banner.textContent = msg;
+          return;
+        }
+        if (value === 0 || value === "0") {
+          banner.textContent = "OK";
+        } else if (value === 2 || value === "2") {
+          banner.textContent = "DEGRADED";
+        } else if (value === 64 || value === "64") {
+          banner.textContent = "INCIDENT";
+        } else {
+          banner.textContent = "UNKNOWN";
+        }
+      };
+
+      const showError = (message) => {
+        const banner = document.getElementById("error-banner");
+        if (!banner) return;
+        if (!message) {
           banner.classList.add("hidden");
           return;
         }
-        banner.textContent = `Data sources unavailable: ${messages.join(", ")}`;
+        banner.textContent = message;
         banner.classList.remove("hidden");
       };
 
@@ -453,110 +558,153 @@
         return response.json();
       };
 
-      const renderRegistry = (data) => {
+      const renderRegistry = (data, prev) => {
         const list = document.getElementById("registry-list");
         if (!list) return;
         list.innerHTML = "";
-        if (!data || !Array.isArray(data.services) || data.services.length === 0) {
+        const services = Array.isArray(data?.services) ? data.services : [];
+        if (!services.length) {
           list.innerHTML = "<li>No services registered</li>";
           return;
         }
-        data.services.forEach((svc) => {
+        const prevMap = new Map((prev?.services || []).map((svc) => [svc.id || svc.name, svc]));
+        services.forEach((svc) => {
           const status = svc.status || "unknown";
           const note = svc.notes ? ` - ${svc.notes}` : "";
           const url = svc.url ? ` (${svc.url})` : "";
           const updated = svc.updated_at ? ` @ ${formatIso(svc.updated_at)}` : "";
           const li = document.createElement("li");
           li.textContent = `${svc.name || svc.id || "service"}: ${status}${updated}${note}${url}`;
+          const key = svc.id || svc.name;
+          const prevItem = prevMap.get(key);
+          if (!prevItem || stableStringify(prevItem) !== stableStringify(svc)) {
+            applyHighlight(li);
+          }
           list.appendChild(li);
         });
       };
 
-      const renderQueue = (data) => {
+      const renderQueue = (data, prev) => {
         const list = document.getElementById("queue-list");
         if (!list) return;
         list.innerHTML = "";
-        if (!data || !Array.isArray(data.queues) || data.queues.length === 0) {
+        const queues = Array.isArray(data?.queues) ? data.queues : [];
+        if (!queues.length) {
           list.innerHTML = "<li>No queued items</li>";
           return;
         }
-        data.queues.forEach((item) => {
+        const prevMap = new Map((prev?.queues || []).map((item) => [item.id || item.name, item]));
+        queues.forEach((item) => {
           const lag = typeof item.lag_sec === "number" ? `${item.lag_sec}s` : "n/a";
           const depth = typeof item.depth === "number" ? item.depth : "n/a";
           const updated = item.updated_at ? ` @ ${formatIso(item.updated_at)}` : "";
           const li = document.createElement("li");
           li.textContent = `${item.name || item.id || "queue"}: depth ${depth}, lag ${lag}${updated}`;
+          const key = item.id || item.name;
+          const prevItem = prevMap.get(key);
+          if (!prevItem || stableStringify(prevItem) !== stableStringify(item)) {
+            applyHighlight(li);
+          }
           list.appendChild(li);
         });
       };
 
-      const renderShield = (data) => {
+      const renderShield = (data, prev) => {
         const summary = document.getElementById("shield-summary");
         const list = document.getElementById("shield-rules");
         if (!summary || !list) return;
-        const rules = Array.isArray(data.rules) ? data.rules : [];
-        const flags = data.flags || {};
+        const rules = Array.isArray(data?.rules) ? data.rules : [];
+        const flags = data?.flags || {};
+        const rc = data?.rc ?? data?.status_rc ?? data?.exit_code;
+        const incidents = data?.incidents_count ?? 0;
+        setBanner(rc, rc === 64 || rc === "64" ? `INCIDENT (${incidents})` : undefined);
         summary.textContent = `Rules: ${rules.length} | Enforced: ${flags.enforced ? "yes" : "no"}`;
         list.innerHTML = "";
         if (!rules.length) {
           list.innerHTML = "<li>No shield rules reported</li>";
           return;
         }
+        const prevMap = new Map((prev?.rules || []).map((rule) => [rule.id, rule]));
         rules.forEach((rule) => {
           const li = document.createElement("li");
           const status = rule.status ? ` (${rule.status})` : "";
           li.textContent = `${rule.id || "rule"}${status}${rule.notes ? ` - ${rule.notes}` : ""}`;
+          const prevItem = prevMap.get(rule.id);
+          if (!prevItem || stableStringify(prevItem) !== stableStringify(rule)) {
+            applyHighlight(li);
+          }
           list.appendChild(li);
         });
       };
 
       const updateDataTimestamp = (timestamps) => {
-        const target = document.getElementById("data-updated");
-        if (!target) return;
         const valid = timestamps
           .map((t) => new Date(t))
           .filter((d) => !Number.isNaN(d.getTime()))
           .sort((a, b) => b - a);
         if (!valid.length) {
-          target.textContent = "unknown";
+          setUpdated("unknown");
         } else {
-          target.textContent = formatIso(valid[0].toISOString());
+          setUpdated(formatIso(valid[0].toISOString()));
         }
       };
 
-      const init = async () => {
-        clock();
-        setInterval(clock, 1000);
-
+      const tick = async () => {
         const errors = [];
         const timestamps = [];
-
         try {
-          const registry = await fetchJson("./data/registry.json");
-          renderRegistry(registry);
+          const registry = await fetchJson(DATA.registry);
+          renderRegistry(registry, last.registry);
+          last.registry = registry;
           if (registry.generated_at) timestamps.push(registry.generated_at);
         } catch (err) {
           errors.push("registry.json");
         }
 
         try {
-          const queue = await fetchJson("./data/queue.json");
-          renderQueue(queue);
+          const queue = await fetchJson(DATA.queue);
+          renderQueue(queue, last.queue);
+          last.queue = queue;
           if (queue.generated_at) timestamps.push(queue.generated_at);
         } catch (err) {
           errors.push("queue.json");
         }
 
         try {
-          const shield = await fetchJson("./data/tk_shield.json");
-          renderShield(shield);
+          const shield = await fetchJson(DATA.tk);
+          renderShield(shield, last.tk);
+          last.tk = shield;
           if (shield.generated_at) timestamps.push(shield.generated_at);
+          const interval = shield.refresh_interval_sec || shield.ttl_sec;
+          if (interval && Number.isFinite(interval)) {
+            start(interval * 1000);
+          }
         } catch (err) {
           errors.push("tk_shield.json");
         }
 
         updateDataTimestamp(timestamps);
-        showError(errors);
+        if (errors.length) {
+          showError(`DATA FETCH ERROR: ${errors.join(", ")}`);
+        } else {
+          showError("");
+        }
+      };
+
+      const start = (intervalMs) => {
+        if (timer) clearInterval(timer);
+        timer = setInterval(tick, intervalMs);
+      };
+
+      const init = () => {
+        clock();
+        setInterval(clock, 1000);
+        const refreshBtn = document.getElementById("refresh-btn");
+        if (refreshBtn) {
+          refreshBtn.addEventListener("click", () => tick());
+        }
+        tick();
+        start(30000);
       };
 
       init();
