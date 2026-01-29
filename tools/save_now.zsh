@@ -51,10 +51,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "${title}" && -n "${topic}" ]]; then
-  title="${topic}"
-fi
-
 if [[ -z "${phase}" || -z "${agent_id}" || -z "${trace_id}" || -z "${in_path}" ]]; then
   echo "missing required args" >&2
   usage
@@ -76,8 +72,8 @@ if [[ "${trace_id}" == *"/"* || "${trace_id}" == *".."* ]]; then
   exit 2
 fi
 
-if [[ -z "${title}" ]]; then
-  title="trace_id=${trace_id} phase=${phase}"
+if [[ -z "${task_id}" ]]; then
+  task_id="task-$(date -u +%Y%m%d-%H%M%S)-${agent_id}"
 fi
 
 task_dir="${outdir:-${ROOT}/observability/artifacts/tasks/${trace_id}}"
@@ -99,6 +95,14 @@ if [[ "${in_path}" == "-" ]]; then
 elif [[ ! -f "${in_path}" ]]; then
   echo "input file missing: ${in_path}" >&2
   exit 2
+fi
+
+if [[ -z "${title}" && -n "${topic}" ]]; then
+  title="${topic}"
+fi
+
+if [[ -z "${title}" || "${title}" == *"task_id="* ]]; then
+  title="trace_id=${trace_id} phase=${phase} task_id=${task_id} files=${input_file}"
 fi
 
 if [[ -z "${format}" ]]; then
@@ -156,10 +160,12 @@ python3 - <<'PY' \
   "${phase}" \
   "${target_name}" \
   "${tags}" \
+  "${input_file}" \
   "${timeline_path}" \
   "${handoff_path}" \
   "${task_dir}"
 import json, sys, time
+import hashlib
 from pathlib import Path
 
 meta_path = Path(sys.argv[1])
@@ -170,12 +176,16 @@ title = sys.argv[5]
 phase = sys.argv[6]
 rel_path = sys.argv[7]
 tags = sys.argv[8]
-timeline_path = Path(sys.argv[9])
-handoff_path = Path(sys.argv[10])
-task_dir = Path(sys.argv[11])
+input_file = sys.argv[9]
+timeline_path = Path(sys.argv[10])
+handoff_path = Path(sys.argv[11])
+task_dir = Path(sys.argv[12])
 
 def now():
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+def now_compact():
+    return time.strftime("%Y%m%d-%H%M%S", time.gmtime())
 
 def read_json(path):
     if not path.exists():
@@ -185,6 +195,13 @@ def read_json(path):
     except Exception:
         return {}
 
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
 def write_json(path, payload):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
@@ -192,40 +209,80 @@ def write_json(path, payload):
     tmp.replace(path)
 
 meta = read_json(meta_path)
+meta.setdefault("schema_version", "trace-v2-meta-1")
 meta.setdefault("trace_id", trace_id)
-if task_id:
-    meta["task_id"] = task_id
+if not task_id:
+    task_id = f"task-{now_compact()}-{agent_id}"
+meta["task_id"] = task_id
+
+if (not title) or ("task_id=" in title):
+    title = f"trace_id={trace_id} phase={phase} task_id={task_id} files={input_file}"
 meta["title"] = title
 meta["agent_id"] = agent_id
 meta.setdefault("created_at", now())
 meta["updated_at"] = now()
 meta.setdefault("phases", {})
-meta["phases"][phase] = {"path": rel_path, "ts": now()}
 
-status = meta.get("status", "IN_PROGRESS")
-if phase == "done":
-    status = "DONE"
-elif phase == "reply":
-    status = "REPLIED"
+phase_entry = meta["phases"].get(phase, {})
+phase_entry.setdefault("path", rel_path)
+phase_entry.setdefault("ts_start", now())
+phase_entry["ts_end"] = now()
+phase_entry["status"] = "DONE" if phase in {"plan", "done"} else "REPLIED"
+meta["phases"][phase] = phase_entry
+
+status = "DONE" if phase in {"plan", "done"} else "REPLIED"
 meta["status"] = status
+if phase == "plan":
+    meta["status_reason"] = "PLAN_COMPLETE"
 
 if tags:
     meta["tags"] = [t for t in tags.split(",") if t]
+meta.setdefault("inputs", {})
+files = meta["inputs"].get("files", [])
+if input_file and input_file not in files:
+    files.append(input_file)
+meta["inputs"]["files"] = files
 
-write_json(meta_path, meta)
+artifact_path = task_dir / rel_path
+artifacts = phase_entry.get("artifacts", {})
+artifacts[phase] = {"path": rel_path, "sha256": sha256_file(artifact_path)}
+phase_entry["artifacts"] = artifacts
 
 timeline_path.parent.mkdir(parents=True, exist_ok=True)
-entry = {
+entry_start = {
     "ts": now(),
     "trace_id": trace_id,
     "task_id": task_id,
     "agent_id": agent_id,
     "phase": phase,
+    "event": f"{phase.upper()}_START",
     "path": rel_path,
     "title": title,
 }
 with timeline_path.open("a", encoding="utf-8") as handle:
-    handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    handle.write(json.dumps(entry_start, ensure_ascii=False) + "\n")
+
+entry_finalize = {
+    "ts": now(),
+    "trace_id": trace_id,
+    "task_id": task_id,
+    "agent_id": agent_id,
+    "phase": phase,
+    "event": f"{phase.upper()}_FINALIZE",
+    "status": status,
+    "artifacts": {
+        phase: {"path": rel_path, "sha256": artifacts[phase]["sha256"]},
+    },
+}
+with timeline_path.open("a", encoding="utf-8") as handle:
+    handle.write(json.dumps(entry_finalize, ensure_ascii=False) + "\n")
+
+timeline_hash = sha256_file(timeline_path)
+artifacts["timeline"] = {"path": "timeline.jsonl", "sha256": timeline_hash}
+phase_entry["artifacts"] = artifacts
+meta["updated_at"] = now()
+
+write_json(meta_path, meta)
 
 handoff = {
     "ts": now(),
