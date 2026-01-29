@@ -92,6 +92,17 @@
                 "type": "no_op",
                 "reason": "Staleness is informational; no restart needed"
             }
+        },
+        {
+            "when": {
+                "kind": "misconfigured_program_path",
+                "module_regex": ".*"
+            },
+            "severity": "critical",
+            "action": {
+                "type": "no_op",
+                "reason": "ProgramArguments path is invalid; requires plist fix"
+            }
         }
     ],
     "allow_actions_for_modules": [
