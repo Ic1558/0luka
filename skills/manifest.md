@@ -10,6 +10,8 @@ Linked Path: `/Users/icmini/0luka/skills/shared`
 | `document-processing` | Document Processing | NO | `1f1e25000e1e3f057fd022b1e5e42d81405d1c840775d6366be6f3b6f4f298e4` |
 | `enterprise` | Enterprise | NO | `23cb522f7595537e6a925f4c06e523ed42415b7afc60860e2b292d6031a54da2` |
 | `scripts` | Scripts | NO | `244f67d1eb96b9cbfc63d6e1cdcdeacaa6ecc84c828a8df15893009d7a97dfd3` |
+| `context7` | Knowledge Provider (Context7) | NO | `manual-managed` |
+| `theme-factory` | Theme Factory (Normalized) | NO | `manual-managed` |
 
 ## Usage
 - Refer to each skill's SKILL.md for instructions.
