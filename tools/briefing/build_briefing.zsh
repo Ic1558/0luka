@@ -200,10 +200,18 @@ failed_ids = failed_ids_from_reports()
 
 latest_json_path = Path(os.environ.get("LATEST_JSON", ""))
 prev = None
+baseline = "first_run"
+baseline_reason = None
+baseline_prev_generated_at = None
+
 if latest_json_path.exists():
     try:
         prev = json.loads(latest_json_path.read_text(encoding="utf-8"))
-    except Exception:
+        baseline = "rolling"
+        baseline_prev_generated_at = prev.get("generated_at")
+    except Exception as e:
+        baseline = "prev_unreadable"
+        baseline_reason = str(e)[:100]
         prev = None
 
 def prev_set(key: str) -> set[str]:
@@ -219,10 +227,18 @@ cur_inbox = set(inbox_ids)
 cur_inflight = set(inflight_ids)
 cur_quarantine = set(quarantine_ids)
 
-new_tasks = sorted((cur_inbox | cur_inflight) - (prev_inbox | prev_inflight))
-resolved = sorted((prev_inbox | prev_inflight) - (cur_inbox | cur_inflight))
-quarantined = sorted(cur_quarantine - prev_quarantine)
-stuck = sorted(cur_inflight & prev_inflight)
+# Compute diffs only if we have a valid previous baseline
+if baseline == "rolling":
+    new_tasks = sorted((cur_inbox | cur_inflight) - (prev_inbox | prev_inflight))
+    resolved = sorted((prev_inbox | prev_inflight) - (cur_inbox | cur_inflight))
+    quarantined = sorted(cur_quarantine - prev_quarantine)
+    stuck = sorted(cur_inflight & prev_inflight)
+else:
+    # No valid baseline: zero out all diffs
+    new_tasks = []
+    resolved = []
+    quarantined = []
+    stuck = []
 
 diff = {
     "new_tasks": new_tasks,
@@ -231,6 +247,7 @@ diff = {
     "quarantined": quarantined,
 }
 diff_counts = {k: len(v) for k, v in diff.items()}
+
 
 pointers = {
     "inbox": "observability/bridge/inbox",
@@ -260,6 +277,9 @@ for p in list_files(reports_dir):
 doc = {
     "schema_version": "briefing.v1",
     "generated_at": generated_at,
+    "baseline": baseline,
+    "baseline_prev_generated_at": baseline_prev_generated_at,
+    "baseline_reason": baseline_reason,
     "window": {"start": window_start, "end": window_end},
     "root": str(root),
     "counts": {
@@ -277,6 +297,7 @@ doc = {
     "actionable": actionable,
     "pointers": pointers,
     "themes": [],
+
     "sets": {
         "inbox": inbox_ids,
         "inflight": inflight_ids,
