@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(os.environ.get("ROOT", str(Path.home() / "0luka"))).resolve()
 MODULECTL = ROOT / "core_brain" / "ops" / "modulectl.py"
 
-IDLE_ALLOWLIST = set(os.environ.get("TK_IDLE_ALLOWLIST", "ram_monitor").split(",")) if os.environ.get("TK_IDLE_ALLOWLIST") else {"ram_monitor"}
+IDLE_ALLOWLIST = set(os.environ.get("TK_IDLE_ALLOWLIST", "").split(",")) if os.environ.get("TK_IDLE_ALLOWLIST") else set()
 
 TELE = ROOT / "observability" / "telemetry" / "tk_health.latest.json"
 INC = ROOT / "observability" / "incidents" / "tk_incidents.jsonl"
@@ -22,13 +22,18 @@ def parse_status_block(text: str) -> dict:
     # Expected lines (from your output):
     # Launchd: loaded, state=running, PID=1163
     # Port 7001: in use (PID=78667)  OR  Port: (none declared)
-    out = {"loaded": None, "state": None, "pid": None, "port": None, "port_pid": None}
-    m = re.search(r"Launchd:\s+loaded,\s+state=([a-zA-Z_]+),\s+PID=([0-9A-Za-z/]+)", text)
+    out = {"loaded": None, "state": None, "pid": None, "port": None, "port_pid": None, "last_exit": None}
+    m = re.search(r"Launchd:\s+loaded,\s+state=([a-zA-Z0-9_\s]+),\s+PID=([0-9A-Za-z/]+)", text)
     if m:
         out["loaded"] = True
-        out["state"] = m.group(1).strip()
+        out["state"] = m.group(1).strip().lower()
         pid = m.group(2).strip()
         out["pid"] = None if pid in ("N/A", "-", "") else pid
+    
+    em = re.search(r"last_exit=(\d+)", text)
+    if em:
+        out["last_exit"] = int(em.group(1))
+
     pm = re.search(r"Port\s+([0-9]+):\s+in use\s+\(PID=([0-9]+)\)", text)
     if pm:
         out["port"] = int(pm.group(1))
@@ -63,7 +68,10 @@ def main() -> int:
         results.append(status)
 
         state = (status.get("state") or "").lower()
+        # Periodic Success: loaded but not running + last_exit=0
+        is_periodic_ok = (state == "not running" and status.get("last_exit") == 0)
         is_running = (state == "running")
+        
         if state == "idle":
             if m not in IDLE_ALLOWLIST:
                 incidents.append({
@@ -73,7 +81,7 @@ def main() -> int:
                     "state": status.get("state"),
                     "pid": status.get("pid"),
                 })
-        elif not is_running:
+        elif not is_running and not is_periodic_ok:
             if m not in IDLE_ALLOWLIST:
                 incidents.append({
                     "ts": ts,
@@ -81,6 +89,7 @@ def main() -> int:
                     "module": m,
                     "state": status.get("state"),
                     "pid": status.get("pid"),
+                    "last_exit": status.get("last_exit"),
                 })
 
         # port ownership sanity (only if declared)

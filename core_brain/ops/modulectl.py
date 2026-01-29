@@ -129,8 +129,13 @@ def _parse_pid(print_out: str) -> Optional[int]:
 
 
 def _parse_state(print_out: str) -> Optional[str]:
-    m = re.search(r"\bstate\s*=\s*([a-zA-Z_]+)\b", print_out)
-    return m.group(1) if m else None
+    m = re.search(r"\bstate\s*=\s*([a-zA-Z0-9_\s]+)\b", print_out)
+    return m.group(1).strip() if m else None
+
+
+def _parse_exit_code(print_out: str) -> Optional[int]:
+    m = re.search(r"\blast exit code\s*=\s*(\d+)", print_out)
+    return int(m.group(1)) if m else None
 
 
 def _port_listener_pid(port: int) -> Optional[int]:
@@ -193,7 +198,9 @@ def cmd_status(reg: Dict[str, Any], name: str) -> int:
     else:
         pid = _parse_pid(out)
         state = _parse_state(out) or "unknown"
-        print(f"Launchd: loaded, state={state}, PID={pid if pid else 'N/A'}")
+        exit_code = _parse_exit_code(out)
+        exit_str = f", last_exit={exit_code}" if exit_code is not None else ""
+        print(f"Launchd: loaded, state={state}, PID={pid if pid else 'N/A'}{exit_str}")
 
     ports: List[int] = m.get("ports") or []
     if ports:

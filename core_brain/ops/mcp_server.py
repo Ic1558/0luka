@@ -20,6 +20,20 @@ mcp = FastMCP("0luka")
 
 # Paths
 ROOT = Path(__file__).resolve().parent.parent.parent
+REGISTRY_PATH = ROOT / "core_brain/ops/module_registry.json"
+
+def get_root_from_registry():
+    if REGISTRY_PATH.exists():
+        try:
+            reg = json.loads(REGISTRY_PATH.read_text())
+            reg_root = Path(reg.get("root", ""))
+            if reg_root.exists():
+                return reg_root
+        except:
+            pass
+    return ROOT
+
+ROOT = get_root_from_registry()
 SESSION_MD = ROOT / "g/session/SESSION_STATE.md"
 BEACON_LOG = ROOT / "observability/stl/ledger/global_beacon.jsonl"
 BRIDGE_EMIT = ROOT / "system/bin/bridge-emit"
@@ -134,10 +148,20 @@ def remediate_system(target: str) -> str:
                 if int(pid) < 100:
                     _log_remedy(f"SKIP cleanup: PID {pid} is a system process.")
                     continue
-                to_kill.append(pid)
+                
+                # Command line verification: Ensure it relates to 0luka
+                try:
+                    cmd_res = subprocess.run(["ps", "-p", pid, "-o", "command="], capture_output=True, text=True)
+                    cmdline = cmd_res.stdout.strip().lower()
+                    if "0luka" in cmdline or str(ROOT).lower() in cmdline:
+                        to_kill.append(pid)
+                    else:
+                        _log_remedy(f"SKIP cleanup: PID {pid} ('{cmdline}') does not match 0luka signature.")
+                except:
+                    continue
             
             if not to_kill:
-                 return f"⚠️ No safe processes found to kill on port {port}."
+                 return f"⚠️ No safe or matching processes found to kill on port {port}."
 
             for pid in to_kill:
                 subprocess.run(["kill", "-9", pid])
