@@ -1,0 +1,16 @@
+{
+  "version": "tk_shield.v1",
+  "generated_at": "2026-01-29T00:00:00Z",
+  "flags": {
+    "enforced": true,
+    "idle_allowlist": ["ram_monitor"],
+    "incident_stream": "observability/incidents/tk_incidents.jsonl"
+  },
+  "rules": [
+    {
+      "id": "idle_allowlist",
+      "status": "enforced",
+      "notes": "Non-allowlisted idle modules trigger incidents"
+    }
+  ]
+}

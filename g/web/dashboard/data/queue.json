@@ -1,0 +1,20 @@
+{
+  "version": "queue.v1",
+  "generated_at": "2026-01-29T00:00:00Z",
+  "queues": [
+    {
+      "id": "bridge_inbox",
+      "name": "Bridge Inbox",
+      "depth": 0,
+      "lag_sec": 0,
+      "updated_at": "2026-01-29T00:00:00Z"
+    },
+    {
+      "id": "incident_queue",
+      "name": "Incident Queue",
+      "depth": 0,
+      "lag_sec": 0,
+      "updated_at": "2026-01-29T00:00:00Z"
+    }
+  ]
+}

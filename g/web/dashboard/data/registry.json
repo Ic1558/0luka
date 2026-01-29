@@ -1,0 +1,30 @@
+{
+  "version": "registry.v1",
+  "generated_at": "2026-01-29T00:00:00Z",
+  "services": [
+    {
+      "id": "bridge",
+      "name": "Bridge Pipeline",
+      "status": "ok",
+      "url": "observability/telemetry/bridge_watch.latest.json",
+      "notes": "watch + processor + consumers",
+      "updated_at": "2026-01-29T00:00:00Z"
+    },
+    {
+      "id": "opal_api",
+      "name": "Opal API",
+      "status": "ok",
+      "url": "/api/health",
+      "notes": "telemetry + health",
+      "updated_at": "2026-01-29T00:00:00Z"
+    },
+    {
+      "id": "mls",
+      "name": "MLS Toolchain",
+      "status": "ok",
+      "url": "system/tools/mls",
+      "notes": "capture, search, report",
+      "updated_at": "2026-01-29T00:00:00Z"
+    }
+  ]
+}
