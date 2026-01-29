@@ -119,7 +119,7 @@ def _kickstart(label: str) -> Tuple[bool, str]:
 
 def _parse_pid(print_out: str) -> Optional[int]:
     # Works with launchctl print output format: "pid = 77777"
-    m = re.search(r"\bpid\s*=\s*(\d+)\b", print_out)
+    m = re.search(r"\bpid\s*=\s*(\d+)", print_out)
     if not m:
         return None
     try:
@@ -129,7 +129,7 @@ def _parse_pid(print_out: str) -> Optional[int]:
 
 
 def _parse_state(print_out: str) -> Optional[str]:
-    m = re.search(r"\bstate\s*=\s*([a-zA-Z0-9_\s]+)\b", print_out)
+    m = re.search(r"\bstate\s*=\s*([^\n,]+)", print_out)
     return m.group(1).strip() if m else None
 
 

@@ -23,7 +23,7 @@ def parse_status_block(text: str) -> dict:
     # Launchd: loaded, state=running, PID=1163
     # Port 7001: in use (PID=78667)  OR  Port: (none declared)
     out = {"loaded": None, "state": None, "pid": None, "port": None, "port_pid": None, "last_exit": None}
-    m = re.search(r"Launchd:\s+loaded,\s+state=([a-zA-Z0-9_\s]+),\s+PID=([0-9A-Za-z/]+)", text)
+    m = re.search(r"Launchd:\s+loaded,\s+state=([^,]+),\s+PID=([^,\n]+)", text)
     if m:
         out["loaded"] = True
         out["state"] = m.group(1).strip().lower()
