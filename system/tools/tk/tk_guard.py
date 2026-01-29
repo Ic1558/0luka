@@ -50,6 +50,22 @@ def now_utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def resolve_launchd_label(module_name: str) -> str:
+    """Convert short module name to full launchd label."""
+    # Load registry to find actual label
+    registry_path = ROOT / "core_brain" / "ops" / "module_registry.json"
+    if registry_path.exists():
+        try:
+            reg = json.loads(registry_path.read_text(encoding="utf-8"))
+            for mod in reg.get("modules", []):
+                if mod.get("name") == module_name:
+                    return mod.get("label", f"com.0luka.{module_name}")
+        except Exception:
+            pass
+    # Fallback: derive label from name
+    return f"com.0luka.{module_name}"
+
+
 def load_playbook() -> dict | None:
     if not PLAYBOOK.exists():
         return None
@@ -132,16 +148,20 @@ def execute_action(playbook: dict, rule: dict, incident: dict) -> dict:
         mode = action.get("mode", "gui")
         args = action.get("args", [])
         uid = os.getuid()
+        # Resolve short name to full launchd label
+        launchd_label = resolve_launchd_label(module)
         if mode == "gui":
-            target = f"gui/{uid}/{module}"
+            target = f"gui/{uid}/{launchd_label}"
         else:
-            target = f"system/{module}"
+            target = f"system/{launchd_label}"
         cmd = ["launchctl", "kickstart"] + args + [target]
         rc, out = run(cmd)
         result["executed"] = True
         result["rc"] = rc
         result["output"] = out.strip()[:500]
         result["cmd"] = " ".join(cmd)
+        result["launchd_label"] = launchd_label
+
 
     elif action_type == "modulectl_enable":
         cmd = ["python3", str(MODULECTL), "enable", module]

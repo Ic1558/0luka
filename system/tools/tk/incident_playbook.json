@@ -95,14 +95,14 @@
         }
     ],
     "allow_actions_for_modules": [
-        "com.0luka.atg_bridge_watch",
-        "com.0luka.bridge_consumer.codex",
-        "com.0luka.bridge_consumer.liam",
-        "com.0luka.bridge_consumer.lisa",
-        "com.0luka.bridge_watchdog",
-        "com.0luka.kernel",
-        "com.0luka.opal-api",
-        "com.0luka.session_recorder",
-        "com.0luka.ram-monitor"
+        "atg_bridge_watch",
+        "bridge_consumer_codex",
+        "bridge_consumer_liam",
+        "bridge_consumer_lisa",
+        "bridge_watchdog",
+        "kernel",
+        "opal_api",
+        "session_recorder",
+        "ram_monitor"
     ]
 }
