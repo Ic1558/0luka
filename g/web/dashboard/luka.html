@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>0luka Core System Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #f6efe5;
+        --bg-2: #f3e4d3;
+        --surface: #fff8ee;
+        --surface-2: #f9f2e6;
+        --ink: #1f1a14;
+        --muted: #7a6d5f;
+        --edge: #e5d5c5;
+        --accent: #c2562f;
+        --accent-2: #1f6f8b;
+        --accent-3: #6b705c;
+        --good: #1a7f37;
+        --warn: #c2572f;
+        --bad: #b42318;
+        --shadow: 0 20px 40px rgba(60, 40, 20, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: radial-gradient(circle at top, #fff8ee 0%, var(--bg) 45%, var(--bg-2) 100%);
+        min-height: 100vh;
+      }
+
+      .frame {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 32px 24px 80px;
+        position: relative;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 24px;
+        align-items: center;
+        margin-bottom: 28px;
+      }
+
+      .hero-card {
+        background: var(--surface);
+        border: 1px solid var(--edge);
+        border-radius: 24px;
+        padding: 28px;
+        box-shadow: var(--shadow);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .hero-card::after {
+        content: "";
+        position: absolute;
+        top: -120px;
+        right: -120px;
+        width: 240px;
+        height: 240px;
+        background: radial-gradient(circle, rgba(194, 86, 47, 0.22), transparent 70%);
+        filter: blur(2px);
+      }
+
+      h1 {
+        font-family: "Fraunces", serif;
+        font-size: clamp(2.2rem, 3vw, 3rem);
+        margin: 0 0 8px;
+        letter-spacing: 0.01em;
+      }
+
+      .subtitle {
+        color: var(--muted);
+        font-size: 1rem;
+        line-height: 1.6;
+      }
+
+      .status-row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 18px;
+      }
+
+      .pill {
+        padding: 6px 14px;
+        border-radius: 999px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+
+      .pill.good {
+        background: rgba(26, 127, 55, 0.14);
+        color: var(--good);
+      }
+
+      .pill.warn {
+        background: rgba(194, 87, 47, 0.18);
+        color: var(--warn);
+      }
+
+      .pill.neutral {
+        background: rgba(31, 111, 139, 0.15);
+        color: var(--accent-2);
+      }
+
+      .hero-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .metric {
+        background: var(--surface-2);
+        border: 1px solid var(--edge);
+        border-radius: 18px;
+        padding: 18px;
+      }
+
+      .metric h3 {
+        margin: 0 0 6px;
+        font-size: 0.9rem;
+        color: var(--muted);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .metric .value {
+        font-size: 1.6rem;
+        font-weight: 600;
+      }
+
+      .section {
+        margin-top: 32px;
+      }
+
+      .section-title {
+        font-family: "Fraunces", serif;
+        font-size: 1.5rem;
+        margin: 0 0 16px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 16px;
+      }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--edge);
+        border-radius: 18px;
+        padding: 18px;
+        box-shadow: 0 8px 22px rgba(60, 40, 20, 0.08);
+        position: relative;
+      }
+
+      .card h4 {
+        margin: 0 0 8px;
+        font-size: 1.05rem;
+      }
+
+      .card p {
+        margin: 0 0 12px;
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1.5;
+      }
+
+      .card .tag {
+        font-size: 0.75rem;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--edge);
+        display: inline-block;
+      }
+
+      .card .tag.good {
+        background: rgba(26, 127, 55, 0.12);
+        color: var(--good);
+      }
+
+      .card .tag.neutral {
+        background: rgba(31, 111, 139, 0.12);
+        color: var(--accent-2);
+      }
+
+      .card .tag.warn {
+        background: rgba(194, 87, 47, 0.18);
+        color: var(--warn);
+      }
+
+      .list {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .list li {
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid var(--edge);
+        font-size: 0.9rem;
+      }
+
+      .data-path {
+        font-family: "SFMono-Regular", "Menlo", monospace;
+        font-size: 0.85rem;
+        color: #5a4a3a;
+        background: rgba(31, 111, 139, 0.12);
+        padding: 6px 10px;
+        border-radius: 10px;
+        border: 1px dashed rgba(31, 111, 139, 0.3);
+        display: inline-block;
+        margin-top: 8px;
+      }
+
+      .footer {
+        margin-top: 40px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .floating {
+        position: absolute;
+        width: 140px;
+        height: 140px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(31, 111, 139, 0.18), transparent 70%);
+        top: 30px;
+        left: -40px;
+        animation: float 9s ease-in-out infinite;
+      }
+
+      @keyframes float {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(12px); }
+        100% { transform: translateY(0px); }
+      }
+
+      @media (max-width: 900px) {
+        .hero {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="floating"></div>
+      <section class="hero">
+        <div class="hero-card">
+          <h1>0luka Core System Dashboard</h1>
+          <div class="subtitle">
+            Central surface for the 0luka system. Every new function or module should register
+            here with a status, owner, and artifact link.
+          </div>
+          <div class="status-row">
+            <span class="pill good">Bridge: OK</span>
+            <span class="pill neutral">Memory: ACTIVE</span>
+            <span class="pill warn">Incidents: NONE</span>
+          </div>
+        </div>
+        <div class="hero-metrics">
+          <div class="metric">
+            <h3>Last Refresh</h3>
+            <div class="value" id="last-refresh">--:--</div>
+          </div>
+          <div class="metric">
+            <h3>Active Trace</h3>
+            <div class="value">handoff_latest</div>
+          </div>
+          <div class="metric">
+            <h3>Modules Online</h3>
+            <div class="value">P0 + Optional</div>
+          </div>
+          <div class="metric">
+            <h3>Dashboards</h3>
+            <div class="value">Grafana</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2 class="section-title">Core Signals</h2>
+        <div class="grid">
+          <div class="card">
+            <h4>Bridge Pipeline</h4>
+            <p>Watch, processor, and consumers are green. Trace continuity enforced on plan and result artifacts.</p>
+            <span class="tag good">status: ok</span>
+            <div class="data-path">observability/telemetry/bridge_watch.latest.json</div>
+          </div>
+          <div class="card">
+            <h4>Memory Artifacts</h4>
+            <p>Plan, result, reply artifacts written per trace. Handoff pointer updates each terminal phase.</p>
+            <span class="tag neutral">status: active</span>
+            <div class="data-path">observability/reports/handoff_latest.json</div>
+          </div>
+          <div class="card">
+            <h4>Launchd Health</h4>
+            <p>TK guard enforces idle allowlist and emits incidents for non-allowlisted idle modules.</p>
+            <span class="tag good">guard: enforced</span>
+            <div class="data-path">observability/telemetry/tk_health.latest.json</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2 class="section-title">Artifact Registry</h2>
+        <div class="grid">
+          <div class="card">
+            <h4>Plan Artifacts</h4>
+            <p>Planner (Liam) and executors (Lisa, Codex) produce plan artifacts tied to trace_id.</p>
+            <span class="tag neutral">plan.md + plan.json</span>
+            <div class="data-path">observability/artifacts/tasks/&lt;trace_id&gt;/plan.md</div>
+          </div>
+          <div class="card">
+            <h4>Result Artifacts</h4>
+            <p>Execution results are normalized and stored with dashboard result pointers.</p>
+            <span class="tag good">result.json</span>
+            <div class="data-path">observability/artifacts/tasks/&lt;trace_id&gt;/result.json</div>
+          </div>
+          <div class="card">
+            <h4>Reply Artifacts</h4>
+            <p>Reply output and final owner state are captured for session continuity.</p>
+            <span class="tag neutral">reply.md</span>
+            <div class="data-path">observability/artifacts/tasks/&lt;trace_id&gt;/reply.md</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2 class="section-title">Operational Modules</h2>
+        <div class="grid">
+          <div class="card">
+            <h4>MLS Toolchain</h4>
+            <p>Capture, search, query, and reporting for lessons learned. Manual capture ready.</p>
+            <span class="tag good">system/tools/mls</span>
+          </div>
+          <div class="card">
+            <h4>Grafana Dashboards</h4>
+            <p>0luka dashboards staged. Import into Grafana and remap datasource UID if needed.</p>
+            <span class="tag neutral">config/grafana/dashboards</span>
+          </div>
+          <div class="card">
+            <h4>Save Now</h4>
+            <p>Memory save wrapper writes plan/done/reply to artifacts and handoff pointers.</p>
+            <span class="tag neutral">tools/save_now.zsh</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2 class="section-title">Integration Queue</h2>
+        <div class="grid">
+          <div class="card">
+            <h4>Next Modules</h4>
+            <ul class="list">
+              <li>System snapshot pack (observability/tools/snapshot)</li>
+              <li>Governance docs migration to core_brain</li>
+              <li>Grafana datasource UID alignment</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h4>Command Surface</h4>
+            <ul class="list">
+              <li>launchctl kickstart -k gui/$(id -u)/com.0luka.atg_bridge_watch</li>
+              <li>python3 observability/tools/launchd/launchagent_status.py</li>
+              <li>zsh system/tools/mls/mls_capture.zsh improvement "title" "desc"</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <div class="footer">0luka Core Dashboard. Keep this file as the canonical UI entrypoint.</div>
+    </div>
+
+    <script>
+      const clock = () => {
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, "0");
+        const text = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+        const target = document.getElementById("last-refresh");
+        if (target) target.textContent = text;
+      };
+      clock();
+      setInterval(clock, 1000);
+    </script>
+  </body>
+</html>
