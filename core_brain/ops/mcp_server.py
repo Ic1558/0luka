@@ -4,6 +4,7 @@ import json
 import subprocess
 import time
 import datetime
+import re
 from pathlib import Path
 from typing import Optional, List
 
@@ -97,90 +98,157 @@ def list_agents() -> str:
 
 # --- Power Tools (Phase 3.5) ---
 
+# --- Power Tools (Phase 3.5) ---
+
+def _log_remedy(msg: str):
+    ts = datetime.datetime.now().isoformat()
+    log_file = ROOT / "observability/logs/heartbeat.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(log_file, "a") as f:
+        f.write(f"[{ts}] [REMEDY] {msg}\n")
+
 @mcp.tool()
-def system_remedy(target: str) -> str:
+def remediate_system(target: str) -> str:
     """
     Autonomously fix system issues.
     Args:
-        target: The target to fix (e.g., 'port:7001').
+        target: The target to fix (e.g., 'port:7001', 'module:opal_api').
     """
-    if target == "port:7001":
+    _log_remedy(f"Attempting remedy for target: {target}")
+    
+    if target.startswith("port:"):
         try:
+            port = target.split(":")[1]
             # Find PID using lsof
-            lsof_cmd = ["lsof", "-t", "-i:7001"]
+            lsof_cmd = ["lsof", "-t", f"-i:{port}"]
             pid_res = subprocess.run(lsof_cmd, capture_output=True, text=True)
             pids = pid_res.stdout.strip().split('\n')
             pids = [p for p in pids if p]
             
             if not pids:
-                return "✅ Port 7001 is already free."
+                return f"✅ Port {port} is already free."
             
-            # Kill PIDs
-            killed = []
+            # Safety Check: Ensure we aren't killing critical system processes (PID 1 or very low)
+            to_kill = []
             for pid in pids:
-                subprocess.run(["kill", "-9", pid])
-                killed.append(pid)
+                if int(pid) < 100:
+                    _log_remedy(f"SKIP cleanup: PID {pid} is a system process.")
+                    continue
+                to_kill.append(pid)
             
-            return f"✅ Remediation Complete: Killed interfering processes (PIDs: {', '.join(killed)}) on Port 7001."
+            if not to_kill:
+                 return f"⚠️ No safe processes found to kill on port {port}."
+
+            for pid in to_kill:
+                subprocess.run(["kill", "-9", pid])
+                _log_remedy(f"Killed PID {pid} on {target}")
+            
+            return f"✅ Remediation Complete: Killed interfering processes ({', '.join(to_kill)}) on {target}."
         except Exception as e:
+            _log_remedy(f"ERROR on {target}: {e}")
+            return f"❌ Remediation Failed: {e}"
+
+    if target.startswith("module:"):
+        module_name = target.split(":")[1]
+        try:
+            modulectl = ROOT / "core_brain/ops/modulectl.py"
+            # Attempt to enable/kickstart the module
+            cmd = ["python3", str(modulectl), "enable", module_name]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode == 0:
+                _log_remedy(f"Successfully enabled module: {module_name}")
+                return f"✅ Module '{module_name}' remediation successful: {res.stdout.strip()}"
+            else:
+                _log_remedy(f"Failed to enable module {module_name}: {res.stderr}")
+                return f"❌ Module '{module_name}' remediation failed: {res.stderr.strip()}"
+        except Exception as e:
+            _log_remedy(f"ERROR on {target}: {e}")
             return f"❌ Remediation Failed: {e}"
     
-    return f"❌ Unknown remedy target: {target}"
+    return f"❌ Unknown remedy target format: {target}. Use 'port:NNNN' or 'module:NAME'."
 
 @mcp.tool()
-def inspect_interface() -> str:
+def analyze_session_health() -> str:
     """
-    Observer Tool: Inspect the state of Interface folders (Plans, Inbox, WIP).
-    Returns a summary of pending work.
+    Synthesize session context and system health into a status report.
+    Returns: A markdown report of current goals, recent errors, and system drift.
     """
-    summary = ["## Interface Inspector Snapshot"]
+    summary = ["# 0luka Session Health Report", ""]
     
-    def scan(path, name):
-        if not path.exists():
-            summary.append(f"- {name}: [Missing Directory]")
-            return
-        files = list(path.glob("*"))
-        if not files:
-            summary.append(f"- {name}: (Empty)")
+    # 1. State from SESSION_STATE.md
+    if SESSION_MD.exists():
+        state_txt = SESSION_MD.read_text()
+        m = re.search(r"## What changed\n(.*?)\n\n", state_txt, re.S)
+        if m:
+            summary.append("## Active Goals / Context")
+            summary.append(m.group(1).strip())
+            summary.append("")
+
+    # 2. System Drift (modulectl check)
+    try:
+        modulectl = ROOT / "core_brain/ops/modulectl.py"
+        res = subprocess.run(["python3", str(modulectl), "status", "all"], capture_output=True, text=True)
+        # Scan for common failure strings
+        failures = []
+        for line in res.stdout.splitlines():
+            if "NOT LOADED" in line or "not listening" in line:
+                failures.append(line)
+        
+        if failures:
+            summary.append("## ⚠️ System Drift Detected")
+            for f in failures:
+                summary.append(f"- {f}")
         else:
-            summary.append(f"- {name}: {len(files)} items")
-            for f in files[:5]: # Top 5
-                summary.append(f"  - {f.name}")
-    
-    scan(INTERFACE_PLANS, "Plans (Liam)")
-    scan(INTERFACE_INBOX, "Inbox (Bridge)")
-    scan(INTERFACE_WIP, "WIP (Lisa)")
-    
+            summary.append("## ✅ System Normal")
+            summary.append("All core modules are reported running and ports are healthy.")
+    except Exception as e:
+        summary.append(f"## ❌ Health Check Error: {e}")
+
+    summary.append(f"\n*Report generated at {datetime.datetime.now().isoformat()}*")
     return "\n".join(summary)
 
 @mcp.tool()
-def distill_notebook_context(date: Optional[str] = None) -> str:
+def prepare_notebook_bundle() -> str:
     """
-    Knowledge Synthesizer: Summarize logs into a NotebookLM-ready journal entry.
-    Args:
-        date: Optional date filter (YYYY-MM-DD). Defaults to today.
+    Package session state, beacon logs, and remediation logs for external analysis.
+    Returns: Absolute path to the generated bundle.
     """
-    if not date:
-        date = datetime.datetime.now().strftime("%Y-%m-%d")
+    ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
+    bundle_dir = ROOT / "observability/artifacts/bundles"
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    bundle_file = bundle_dir / f"session_bundle_{ts}.md"
     
-    # Simple extraction from Global Beacon
-    entries = read_bridge_logs(lines=200) # Get decent chunk
+    bundle_content = [f"# 0luka Session Bundle: {ts}", ""]
     
-    journal = [f"# Daily Journal: {date}", "## Key Events"]
+    # Add Session State
+    if SESSION_MD.exists():
+        bundle_content.append("## 📄 SESSION_STATE.md")
+        bundle_content.append("```markdown")
+        bundle_content.append(SESSION_MD.read_text())
+        bundle_content.append("```\n")
     
-    count = 0
-    for entry in entries:
-        ts = entry.get("timestamp", "")
-        if format_timestamp(ts).startswith(date):
-            intent = entry.get("intent", "unknown")
-            if intent in ["plan", "verify", "run"]:
-                journal.append(f"- **{intent.upper()}**: {json.dumps(entry.get('payload', {}))}")
-                count += 1
+    # Add Remediation Logs (Heartbeat)
+    hb_log = ROOT / "observability/logs/heartbeat.log"
+    if hb_log.exists():
+        bundle_content.append("## 💓 Heartbeat / Remedy Logs")
+        bundle_content.append("```text")
+        # Tail 100 lines
+        with open(hb_log, "r") as f:
+            lines = f.readlines()[-100:]
+            bundle_content.extend([l.strip() for l in lines])
+        bundle_content.append("```\n")
     
-    if count == 0:
-        journal.append("(No significant events logged for today)")
-    
-    return "\n".join(journal)
+    # Add Recent Beacon Activity
+    if BEACON_LOG.exists():
+        bundle_content.append("## 📡 Recent Activity (Beacon)")
+        bundle_content.append("```jsonl")
+        with open(BEACON_LOG, "r") as f:
+            lines = f.readlines()[-50:]
+            bundle_content.extend([l.strip() for l in lines])
+        bundle_content.append("```\n")
+
+    bundle_file.write_text("\n".join(bundle_content), encoding="utf-8")
+    return f"✅ Bundle created: {bundle_file}"
 
 def format_timestamp(iso_str):
     # Basic helper, assumes ISO string "2026-01-29T..."

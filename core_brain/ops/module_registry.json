@@ -47,6 +47,7 @@
     {
       "label": "com.0luka.ram-monitor",
       "description": "RAM snapshot + telemetry",
+      "plist_path": "/Users/icmini/Library/LaunchAgents/com.0luka.ram-monitor.plist",
       "state": "deployed"
     }
   ]
