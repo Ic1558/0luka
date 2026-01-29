@@ -81,34 +81,37 @@ $ROOT/observability/
 
 ### 3.1 meta.json (v1)
 **Required (currently emitted):**
+- `schema_version` (string)
 - `trace_id` (string)
 - `agent_id` (string)
 - `created_at` (ISO-8601 UTC Z)
 - `updated_at` (ISO-8601 UTC Z)
-- `phases` (object) — keys: `plan|done|reply` with `{path, ts}`
+- `phases` (object) — keys: `plan|done|reply` with `{path, ts_start, ts_end, status, artifacts}`
 - `status` (string) — `IN_PROGRESS|DONE|REPLIED` (at least these)
 - `title` (string)
+- `inputs.files` (array of string)
 
 **Optional (currently emitted when present):**
 - `task_id` (string)
 - `tags` (array of string)
+- `status_reason` (string)
 
 **Reserved (not yet emitted; future-safe):**
-- `schema_version`
-- `inputs`
 - `outputs`
 - `root`
 
 **Example (minimal):**
 ```json
 {
+  "schema_version": "trace-v2-meta-1",
   "trace_id": "trace-xyz",
   "agent_id": "codex",
   "created_at": "2026-01-29T00:00:00Z",
   "updated_at": "2026-01-29T00:00:01Z",
   "title": "trace_id=trace-xyz phase=plan",
-  "phases": {"plan": {"path": "plan.md", "ts": "2026-01-29T00:00:01Z"}},
-  "status": "IN_PROGRESS"
+  "phases": {"plan": {"path": "plan.md", "ts_start": "2026-01-29T00:00:01Z", "ts_end": "2026-01-29T00:00:01Z", "status": "DONE", "artifacts": {"plan": {"path": "plan.md", "sha256": "..."}}}},
+  "status": "DONE",
+  "inputs": {"files": ["/tmp/save_now_test_plan.md"]}
 }
 ```
 
@@ -121,10 +124,11 @@ $ROOT/observability/
 - `phase` (string)
 - `path` (string)
 - `title` (string)
+- `event` (string)
 
 **Example line:**
 ```json
-{"ts":"2026-01-29T00:00:01Z","trace_id":"trace-xyz","task_id":"","agent_id":"codex","phase":"plan","path":"plan.md","title":"trace_id=trace-xyz phase=plan"}
+{"ts":"2026-01-29T00:00:01Z","trace_id":"trace-xyz","task_id":"task-20260129-000001-codex","agent_id":"codex","phase":"plan","event":"PLAN_START","path":"plan.md","title":"trace_id=trace-xyz phase=plan"}
 ```
 
 ### 3.3 handoff_latest.json (v1)
