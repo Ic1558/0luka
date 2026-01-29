@@ -1,0 +1,134 @@
+{
+  "id": null,
+  "uid": "02luka-prom-am-health",
+  "title": "02luka - Prometheus & Alertmanager Health",
+  "timezone": "browser",
+  "editable": true,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Prometheus Up",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "up{job=\"prometheus\"}", "legendFormat": "Prometheus"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto", "colorMode": "background"},
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "red"}, {"value": 1, "color": "green"}]}}}
+    },
+    {
+      "type": "stat",
+      "title": "Alertmanager Up",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "up{job=\"alertmanager\"}", "legendFormat": "Alertmanager"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto", "colorMode": "background"},
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "red"}, {"value": 1, "color": "green"}]}}}
+    },
+    {
+      "type": "stat",
+      "title": "Total Targets",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "count(up)", "legendFormat": "Total"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto"}
+    },
+    {
+      "type": "stat",
+      "title": "Targets Down",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "count(up == 0)", "legendFormat": "Down"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto", "colorMode": "background"},
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "green"}, {"value": 1, "color": "red"}]}}}
+    },
+    {
+      "type": "table",
+      "title": "Target Status",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "targets": [{"expr": "up", "format": "table", "instant": true}],
+      "options": {"showHeader": true},
+      "transformations": [
+        {"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true}}}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Scrape Duration (seconds)",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "targets": [{"expr": "scrape_duration_seconds", "legendFormat": "{{job}} - {{instance}}"}],
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "lineInterpolation": "smooth"}, "unit": "s"}}
+    },
+    {
+      "type": "stat",
+      "title": "Prometheus TSDB Head Series",
+      "gridPos": {"x": 0, "y": 12, "w": 6, "h": 4},
+      "targets": [{"expr": "prometheus_tsdb_head_series"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto"}
+    },
+    {
+      "type": "stat",
+      "title": "TSDB Head Chunks",
+      "gridPos": {"x": 6, "y": 12, "w": 6, "h": 4},
+      "targets": [{"expr": "prometheus_tsdb_head_chunks"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto"}
+    },
+    {
+      "type": "gauge",
+      "title": "Rule Evaluation Duration (ms)",
+      "gridPos": {"x": 12, "y": 12, "w": 6, "h": 4},
+      "targets": [{"expr": "rate(prometheus_rule_evaluation_duration_seconds_sum[5m]) * 1000 / rate(prometheus_rule_evaluation_duration_seconds_count[5m])", "legendFormat": "Avg Duration"}],
+      "options": {"orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true},
+      "fieldConfig": {"defaults": {"unit": "ms", "thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "green"}, {"value": 100, "color": "yellow"}, {"value": 500, "color": "red"}]}}}
+    },
+    {
+      "type": "stat",
+      "title": "Total Alert Rules",
+      "gridPos": {"x": 18, "y": 12, "w": 6, "h": 4},
+      "targets": [{"expr": "count(prometheus_rule_group_rules)"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto"}
+    },
+    {
+      "type": "timeseries",
+      "title": "Prometheus Memory Usage",
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 6},
+      "targets": [
+        {"expr": "process_resident_memory_bytes{job=\"prometheus\"}", "legendFormat": "Resident Memory"},
+        {"expr": "go_memstats_heap_inuse_bytes{job=\"prometheus\"}", "legendFormat": "Heap In Use"},
+        {"expr": "go_memstats_stack_inuse_bytes{job=\"prometheus\"}", "legendFormat": "Stack In Use"}
+      ],
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "lineInterpolation": "smooth"}, "unit": "bytes"}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Alertmanager Notifications (rate/5m)",
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 6},
+      "targets": [
+        {"expr": "rate(alertmanager_notifications_total[5m])", "legendFormat": "{{integration}} - {{status}}"}
+      ],
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "lineInterpolation": "smooth"}, "unit": "ops"}}
+    },
+    {
+      "type": "table",
+      "title": "Alertmanager Cluster Status",
+      "gridPos": {"x": 0, "y": 22, "w": 12, "h": 6},
+      "targets": [{"expr": "alertmanager_cluster_members", "format": "table", "instant": true}],
+      "options": {"showHeader": true}
+    },
+    {
+      "type": "stat",
+      "title": "Active Silences",
+      "gridPos": {"x": 12, "y": 22, "w": 6, "h": 6},
+      "targets": [{"expr": "alertmanager_silences{state=\"active\"}"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto", "colorMode": "background"},
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "green"}, {"value": 1, "color": "yellow"}]}}}
+    },
+    {
+      "type": "stat",
+      "title": "Notification Queue Size",
+      "gridPos": {"x": 18, "y": 22, "w": 6, "h": 6},
+      "targets": [{"expr": "alertmanager_nflog_snapshot_size"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto"}
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s"
+}
