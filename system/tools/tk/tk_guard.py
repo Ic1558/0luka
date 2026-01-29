@@ -14,6 +14,33 @@ IDLE_ALLOWLIST = set(os.environ.get("TK_IDLE_ALLOWLIST", "").split(",")) if os.e
 
 TELE = ROOT / "observability" / "telemetry" / "tk_health.latest.json"
 INC = ROOT / "observability" / "incidents" / "tk_incidents.jsonl"
+STATE_PATH = ROOT / "observability" / "telemetry" / "tk_guard.state.json"
+DEBOUNCE_SEC = int(os.environ.get("TK_DEBOUNCE_SEC", "180"))
+
+
+def load_debounce_state() -> dict:
+    try:
+        return json.loads(STATE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {"last_incident": {}}
+
+
+def save_debounce_state(state: dict) -> None:
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    STATE_PATH.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def should_debounce(state: dict, key: str, now_ts: str, cooldown_sec: int = 180) -> bool:
+    """Return True if we should skip this incident due to recent occurrence."""
+    last = state.get("last_incident", {}).get(key)
+    if not last:
+        return False
+    try:
+        last_dt = datetime.fromisoformat(last.replace("Z", "+00:00"))
+        now_dt = datetime.fromisoformat(now_ts.replace("Z", "+00:00"))
+        return (now_dt - last_dt).total_seconds() < cooldown_sec
+    except Exception:
+        return False
 
 
 def run(cmd: list[str], timeout: int = 30) -> tuple[int, str]:
@@ -150,22 +177,39 @@ def execute_action(playbook: dict, rule: dict, incident: dict) -> dict:
         return result
 
     if action_type == "launchd_kickstart":
-        mode = action.get("mode", "gui")
         args = action.get("args", [])
         uid = os.getuid()
-        # Resolve short name to full launchd label
         launchd_label = resolve_launchd_label(module)
-        if mode == "gui":
-            target = f"gui/{uid}/{launchd_label}"
-        else:
-            target = f"system/{launchd_label}"
-        cmd = ["launchctl", "kickstart"] + args + [target]
-        rc, out = run(cmd)
+
+        # Try multiple domains: gui → user → system
+        targets = [
+            f"gui/{uid}/{launchd_label}",
+            f"user/{uid}/{launchd_label}",
+            f"system/{launchd_label}",
+        ]
+
+        last_rc, last_out, last_cmd = None, "", ""
+        for target in targets:
+            cmd = ["launchctl", "kickstart"] + args + [target]
+            rc, out = run(cmd)
+            last_rc, last_out, last_cmd = rc, out, " ".join(cmd)
+            if rc == 0:
+                result["executed"] = True
+                result["rc"] = rc
+                result["output"] = out.strip()[:500]
+                result["cmd"] = last_cmd
+                result["launchd_label"] = launchd_label
+                result["target"] = target
+                return result
+
+        # all failed - return last attempt
         result["executed"] = True
-        result["rc"] = rc
-        result["output"] = out.strip()[:500]
-        result["cmd"] = " ".join(cmd)
+        result["rc"] = last_rc
+        result["output"] = (last_out or "").strip()[:500]
+        result["cmd"] = last_cmd
         result["launchd_label"] = launchd_label
+        result["target"] = targets[-1]
+        return result
 
 
     elif action_type == "modulectl_enable":
@@ -193,6 +237,7 @@ def main() -> int:
     results = []
     incidents = []
     ts = now_utc_iso()
+    debounce_state = load_debounce_state()
 
     # status per module
     for m in mods:
@@ -217,14 +262,21 @@ def main() -> int:
                 })
         elif not is_running and not is_periodic_ok:
             if m not in IDLE_ALLOWLIST:
-                incidents.append({
-                    "ts": ts,
-                    "kind": "module_not_running",
-                    "module": m,
-                    "state": status.get("state"),
-                    "pid": status.get("pid"),
-                    "last_exit": status.get("last_exit"),
-                })
+                # Debounce during spawn/transient states
+                debounce_key = f"{m}|module_not_running"
+                is_spawn = "spawn" in state
+                if is_spawn and should_debounce(debounce_state, debounce_key, ts, DEBOUNCE_SEC):
+                    pass  # Skip - recently logged, module is recovering
+                else:
+                    incidents.append({
+                        "ts": ts,
+                        "kind": "module_not_running",
+                        "module": m,
+                        "state": status.get("state"),
+                        "pid": status.get("pid"),
+                        "last_exit": status.get("last_exit"),
+                    })
+                    debounce_state.setdefault("last_incident", {})[debounce_key] = ts
 
         # port ownership sanity
         if status.get("port") is not None and status.get("port_pid") is not None:
@@ -287,6 +339,9 @@ def main() -> int:
         with INC.open("a", encoding="utf-8") as f:
             for ev in processed_incidents:
                 f.write(json.dumps(ev, ensure_ascii=False) + "\n")
+
+    # Save debounce state
+    save_debounce_state(debounce_state)
 
     # Exit codes: 0=ok, 2=degraded, 64=incident
     if incidents:
