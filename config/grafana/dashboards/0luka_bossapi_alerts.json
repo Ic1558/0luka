@@ -1,0 +1,39 @@
+{
+  "id": null,
+  "uid": "0luka-bossapi",
+  "title": "0luka - Boss API & Alerts",
+  "timezone": "browser",
+  "editable": true,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Boss API Up",
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 4},
+      "targets": [{"expr": "up{job=\"bossapi\"}"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto"}
+    },
+    {
+      "type": "table",
+      "title": "Active Alerts",
+      "gridPos": {"x": 8, "y": 0, "w": 16, "h": 8},
+      "targets": [{"expr": "ALERTS{alertstate=\"firing\"}"}],
+      "options": {"showHeader": true}
+    },
+    {
+      "type": "table",
+      "title": "Rule Evaluation Duration (ms)",
+      "gridPos": {"x": 0, "y": 4, "w": 8, "h": 4},
+      "targets": [{"expr": "prometheus_rule_evaluation_duration_seconds * 1000"}],
+      "options": {"showHeader": true}
+    },
+    {
+      "type": "stat",
+      "title": "Prometheus TSDB Head Series",
+      "gridPos": {"x": 0, "y": 8, "w": 8, "h": 4},
+      "targets": [{"expr": "prometheus_tsdb_head_series"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}

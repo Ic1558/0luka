@@ -1,0 +1,50 @@
+{
+  "uid": "0luka-prom-am-health",
+  "title": "0luka - Prometheus & Alertmanager Health",
+  "timezone": "browser",
+  "editable": true,
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Prometheus Up",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "up{job=\"prometheus\"}"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "type": "stat",
+      "title": "AM Up",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "up{job=\"alertmanager\"}"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "type": "stat",
+      "title": "TSDB Head Series",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "prometheus_tsdb_head_series"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Rule Evaluation Duration (ms)",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "targets": [{"expr": "prometheus_rule_evaluation_duration_seconds * 1000"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Prometheus Active Queries",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "targets": [{"expr": "prometheus_engine_queries"}]
+    },
+    {
+      "type": "table",
+      "title": "Alertmanager Alerts by State",
+      "gridPos": {"x": 0, "y": 12, "w": 24, "h": 8},
+      "targets": [{"expr": "alertmanager_alerts"}],
+      "options": {"showHeader": true}
+    }
+  ]
+}

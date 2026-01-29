@@ -1,0 +1,49 @@
+{
+  "title": "0luka - Boss API v2",
+  "timezone": "browser",
+  "editable": true,
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Boss API Up",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "up{job=\"bossapi\"}"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "type": "stat",
+      "title": "RSS (bytes)",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "bossapi_rss_bytes"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "type": "stat",
+      "title": "Uptime (s)",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "bossapi_uptime_seconds"}],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Scrape Duration (bossapi)",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "targets": [{"expr": "scrape_duration_seconds{job=\"bossapi\"}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Scrape Samples (bossapi)",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "targets": [{"expr": "scrape_samples_post_metric_relabeling{job=\"bossapi\"}"}]
+    },
+    {
+      "type": "table",
+      "title": "Firing Alerts (All)",
+      "gridPos": {"x": 0, "y": 12, "w": 24, "h": 8},
+      "targets": [{"expr": "ALERTS{alertstate=\"firing\"}"}],
+      "options": {"showHeader": true}
+    }
+  ]
+}
