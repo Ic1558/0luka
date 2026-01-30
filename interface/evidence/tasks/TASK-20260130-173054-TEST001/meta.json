@@ -1,0 +1,40 @@
+{
+  "task_id": "task-20260130-173054-test_runner",
+  "trace_id": "trace-TASK-20260130-173054-TEST001",
+  "created_at": "2026-01-30T17:30:54Z",
+  "status": "DONE",
+  "origin": "test_runner",
+  "executor": {
+    "type": "test_lane",
+    "target": "echo hello"
+  },
+  "intent": "Verify Task Lane V1 End-to-End",
+  "schema_version": "trace-v2-meta-1",
+  "title": "Verify Task Lane V1 End-to-End",
+  "agent_id": "test_runner",
+  "updated_at": "2026-01-30T17:30:55Z",
+  "phases": {
+    "plan": {
+      "path": "plan.md",
+      "ts_start": "2026-01-30T17:30:55Z",
+      "ts_end": "2026-01-30T17:30:55Z",
+      "status": "DONE",
+      "artifacts": {
+        "plan": {
+          "path": "plan.md",
+          "sha256": "1521f51d81ecb2c904642cc11f5d82f06365fdc59efd3a916857f01fc12c2851"
+        },
+        "timeline": {
+          "path": "timeline.jsonl",
+          "sha256": "406ff8bdfd87483f3a23b742b448c86bd8c92425c14f7574a22d1736d039fd52"
+        }
+      }
+    }
+  },
+  "status_reason": "PLAN_COMPLETE",
+  "inputs": {
+    "files": [
+      "/Users/icmini/0luka/observability/bridge/inflight/TASK-20260130-173054-TEST001_dispatch/TASK-20260130-173054-TEST001_dispatch_claim_1769794254436_98649.json"
+    ]
+  }
+}

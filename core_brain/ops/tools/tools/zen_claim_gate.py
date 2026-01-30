@@ -19,6 +19,17 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 import hashlib
 
+def _repo_root():
+    import os, subprocess
+    env = os.environ.get("LUKA_ROOT")
+    if env:
+        return env
+    try:
+        return subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
+    except Exception:
+        return os.getcwd()
+
+
 
 class ZenClaimGate:
     """Gatekeeper for Zen state claims - Evidence-based verification only"""
@@ -161,7 +172,7 @@ class ZenClaimGate:
         print(f"  ℹ️  Total LISTEN ports: {len(all_ports)}")
         return True
     
-    def verify_stability_truth(self, log_path: str = "~/02luka/logs/mary_dispatcher.log") -> bool:
+    def verify_stability_truth(self, log_path: str = "${_repo_root()}/logs/mary_dispatcher.log") -> bool:
         """Verification 3: Log Growth Test (90 seconds)"""
         print("🔍 [3/3] Verifying Log Stability (90-second test)...")
         
@@ -224,7 +235,7 @@ class ZenClaimGate:
                 print(f"  ⚠️  Failed to load manifest: {e}")
         
         # Dynamic discovery: Find top 10 most recently modified error logs
-        base_path = Path("~/02luka").expanduser()
+        base_path = Path("${_repo_root()}").expanduser()
         
         if not base_path.exists():
             print("  ⚠️  Base path not found")

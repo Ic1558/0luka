@@ -1,0 +1,17 @@
+{
+  "ts": "2026-01-30T19:10:07Z",
+  "system_mode": "pre-proving",
+  "canonical_machine": "Ittipongs-Mac-mini.local",
+  "core_status": {
+    "core_contract": "closed",
+    "core_operability": "in_progress"
+  },
+  "pointers": {
+    "human_dashboard": "luka.md",
+    "state_dir": "state/",
+    "observability_telemetry": "observability/telemetry/",
+    "observability_logs": "observability/logs/",
+    "component_logs": "logs/components/",
+    "summary_latest": "reports/summary/latest.md"
+  }
+}

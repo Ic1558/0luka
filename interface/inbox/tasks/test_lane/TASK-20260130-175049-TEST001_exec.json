@@ -1,0 +1,11 @@
+{
+  "ts": "2026-01-30T17:50:50Z",
+  "task_id": "TASK-20260130-175049-TEST001",
+  "trace_id": "trace-TASK-20260130-175049-TEST001",
+  "status": "queued",
+  "dispatch_path": "/Users/icmini/0luka/observability/bridge/inflight/TASK-20260130-175049-TEST001_dispatch/TASK-20260130-175049-TEST001_dispatch_claim_1769795450016_3171.json",
+  "evidence_dir": "/Users/icmini/0luka/interface/evidence/tasks/TASK-20260130-175049-TEST001",
+  "payload": {
+    "foo": "bar"
+  }
+}

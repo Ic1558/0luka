@@ -12,8 +12,19 @@ import re
 from pathlib import Path
 from datetime import datetime, timedelta
 
+def _repo_root():
+    import os, subprocess
+    env = os.environ.get("LUKA_ROOT")
+    if env:
+        return env
+    try:
+        return subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
+    except Exception:
+        return os.getcwd()
+
+
 # Paths
-INBOX = Path("~/02luka/interface/inbox").expanduser()
+INBOX = Path("${_repo_root()}/interface/inbox").expanduser()
 SECRET_FILE = Path("~/.0luka/.mary_key").expanduser()
 REMEDIATION_DIR = Path("~/0luka/artifacts/remediation").expanduser()
 COOLDOWN_STATE = REMEDIATION_DIR / "cooldown_state.json"

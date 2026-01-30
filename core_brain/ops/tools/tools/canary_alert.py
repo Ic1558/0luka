@@ -22,10 +22,21 @@ import shutil
 from pathlib import Path
 from datetime import datetime
 
+def _repo_root():
+    import os, subprocess
+    env = os.environ.get("LUKA_ROOT")
+    if env:
+        return env
+    try:
+        return subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
+    except Exception:
+        return os.getcwd()
+
+
 # Paths
 ROOT = Path(os.environ.get("ROOT", str(Path.home() / "0luka"))).expanduser().resolve()
 REMEDIATION_DIR = ROOT / "artifacts/remediation"
-OUTBOX_DIR = Path("/Users/icmini/02luka/interface/outbox/results")
+OUTBOX_DIR = Path(os.path.join(_repo_root(), "interface", "outbox", "results"))
 STATE_FILE = REMEDIATION_DIR / "canary_state.json"
 
 # Thresholds
@@ -39,7 +50,10 @@ def load_state():
     if STATE_FILE.exists():
         try:
             return json.loads(STATE_FILE.read_text())
-        except:
+        except Exception as e:
+            logger.exception("canary_alert error")
+            raise
+
             return {}
     return {}
 
