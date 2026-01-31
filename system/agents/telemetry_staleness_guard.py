@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 # 0luka Root
 ROOT = Path(os.environ.get("ROOT", str(Path.home() / "0luka"))).resolve()
-CONFIG_PATH = ROOT / "system/tools/telemetry/staleness_guard_targets.json"
+CONFIG_PATH = ROOT / "observability/telemetry/staleness_guard_targets.json"
 INCIDENT_LOG = ROOT / "observability/incidents/tk_incidents.jsonl"
 STATE_DIR = ROOT / "observability/artifacts/staleness"
 

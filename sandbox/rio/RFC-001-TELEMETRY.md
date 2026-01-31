@@ -1,7 +1,7 @@
 # RFC-001: Telemetry Topology Consolidation
 
 ## Status
-**DRAFT** | REVIEW | ACCEPTED | REJECTED
+DRAFT | REVIEW | **ACCEPTED** | REJECTED
 
 > **Policy**: Only `ACCEPTED` RFCs can be converted to `TaskSpec` by `[Liam]`.
 
