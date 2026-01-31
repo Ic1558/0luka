@@ -1,0 +1,16 @@
+{
+    "system": "0luka",
+    "version": "1.0",
+    "locked_at": "2026-02-01T03:07:00Z",
+    "authority": "[GMX]",
+    "manifest": {
+        "system/agents/_base_agent.py": "8bc251fa228c44c9b41a1750c3ee51a781a8c9b10e3931d3ab7b59fc61c9ff76",
+        "system/agents/liam_planner.py": "7fdacc48410e8a97b4a32636bd179e34f24877dd3ffb4d56aa7ee912c86175e7",
+        "system/agents/lisa_executor.py": "f25f0933679e2bef9ff510005db204b0a7dd0040b2dce37f35b1383c89525b39",
+        "core_brain/governance/agents.md": "473bd60a103ba3879ac4b2479fd3a4dbdd664b4e422700f4f390f5b8f15248d9",
+        "skills/vera/SKILL.md": "93c80b1eb7df185780d0633eae248b60a7b4b30d4c26e271f3f4d2d47f1365f0",
+        "skills/rio/SKILL.md": "4105d551ce1fab5f6cc51d73fb4a7e85c051c4442bcc002c875e1db096a2a83e",
+        "skills/vera-qs/SKILL.md": "a183a197ab7630c96efe5505067fb2366c27ead03f1f014e16e4ddeee82ba9c2"
+    },
+    "declaration": "Sovereign Core v1.0 Locked. No unauthorized modifications permitted."
+}

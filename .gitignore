@@ -22,6 +22,7 @@ session-ses_*.md
 bridge.log
 *.tmp
 .DS_Store
+.env.local
 
 # --- [TRACKED: Source of Truth (SOT) - Un-ignore overrides] ---
 !interface/schemas/

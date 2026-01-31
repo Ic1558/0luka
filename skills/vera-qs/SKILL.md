@@ -30,13 +30,16 @@ Vera-QS focuses on "Data Completeness" and "Spec Alignment".
 ### 2.2 Quantity Presence
 - **IfcElementQuantity**: Check for existence of Area, Volume, and Length.
 - **Consistency**: Verify `NetArea` and `GrossArea` fields are populated.
-- **Classification**: Verify UniClass/OmniClass codes match target spec.
+
+### 2.3 Classification Validation (v0.2)
+- **IfcClassification**: Verify elements (IfcWall, IfcSlab) have `UniClass-2015` or authorized local codes.
+- **Reference**: Cross-check against classification artifacts in SOT.
 
 ---
 
 ## 3. Checklist (Deterministic)
 - [ ] **Material Match**: `IfcMaterial.Name` exists in `material_registry.md`.
-- [ ] **Classification Check**: Elements have `IfcClassificationReference` assigned.
+- [ ] **Classification Check**: Elements have `IfcClassificationReference` (UniClass) assigned.
 - [ ] **Quantity Existence**: `Qto_*_BaseQuantities` set is present on all structural elements.
 - [ ] **GlobalId Integrity**: No duplicates found in the evidence set.
 
@@ -54,7 +57,7 @@ trace_id: <TRC-XXXX>
 validator: Vera-QS
 call_sign: [Vera]
 ```
-> **Note**: `NEEDS_FIX` is considered a **FAIL** until new evidence is provided.
+> **Note**: `NEEDS_FIX` is strictly considered a **FAIL** for GMX until evidence is remediated.
 
 ---
 
