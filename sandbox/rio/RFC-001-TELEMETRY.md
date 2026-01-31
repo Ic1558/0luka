@@ -2,12 +2,12 @@
 
 ## Status
 DRAFT | REVIEW | **ACCEPTED** | REJECTED
-
-> **Policy**: Only `ACCEPTED` RFCs can be converted to `TaskSpec` by `[Liam]`.
+**Implemented At**: Commit `3273dbc`
 
 ---
 *Proposed by*: `[Rio]`
-*Decided by*: `[Liam]`
+*Reviewed by*: `[Liam]`
+*Decided by*: `[GMX]`
 
 ## 1. Problem Statement
 The 0luka system currently has multiple telemetry roots emerging from different development phases:
@@ -43,3 +43,12 @@ observability/
 ## 4. Risks
 - Broken paths in legacy scripts (mitigated by symlinks).
 - Log rotation script updates required.
+
+## 5. Verification
+- **Log Routing**: Verify that `[Vera]` or `[Lisa]` logs successfully append to `observability/telemetry/*.jsonl`.
+- **Symlink Check**: `ls -l g/telemetry` must point to `observability/telemetry`.
+- **Real Dir Guard**: Verify `g/telemetry` is not a physical directory.
+
+## 6. Rollback
+- **Procedure**: If symlink failure occurs, remove symlinks and restore physical directories.
+- **Data Integrity**: Sync `observability/telemetry/*.jsonl` back to old roots before restoration.

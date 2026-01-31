@@ -29,7 +29,7 @@ ROOT_ENV = os.environ.get("ROOT")
 ROOT = Path(ROOT_ENV).resolve() if ROOT_ENV else HERE.parent.parent
 
 # Canonical Paths
-TARGETS_FILE = ROOT / "system/tools/telemetry/staleness_guard_targets.json"
+TARGETS_FILE = ROOT / "observability/telemetry/staleness_guard_targets.json"
 OUTPUT_FILE = ROOT / "reports/summary/latest.md"
 SIDECAR_FILE = ROOT / "reports/summary/latest.monitoring.json"
 LOCK_DIR = ROOT / "observability/locks/monitoring_postproc.lock"

@@ -8,8 +8,8 @@ from typing import List
 
 # Use environment variable for root or default to ~/0luka
 ROOT = Path(os.environ.get("OLUKA_ROOT", Path.home() / "0luka")).resolve()
-TELEMETRY_DIR = ROOT / "observability" / "telemetry"
-TELEMETRY_DIR.mkdir(parents=True, exist_ok=True)
+OLUKA_TELEMETRY_ROOT = ROOT / "observability" / "telemetry"
+OLUKA_TELEMETRY_ROOT.mkdir(parents=True, exist_ok=True)
 
 class PanicAbort(RuntimeError):
     pass
@@ -82,9 +82,9 @@ class BaseAgent:
         })
         line = json.dumps(payload, ensure_ascii=False)
         print(line)
-        # Ensure telemetry dir exists before writing
-        TELEMETRY_DIR.mkdir(parents=True, exist_ok=True)
-        with open(TELEMETRY_DIR / f"{self.AGENT_NAME}.jsonl", "a", encoding="utf-8") as f:
+        # Always use the canonical root defined in the Base class
+        target_log = OLUKA_TELEMETRY_ROOT / f"{self.AGENT_NAME}.jsonl"
+        with open(target_log, "a", encoding="utf-8") as f:
             f.write(line + "\n")
 
     # ---------- Utilities ----------
