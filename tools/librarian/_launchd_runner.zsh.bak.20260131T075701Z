@@ -1,0 +1,112 @@
+#!/usr/bin/env zsh
+# tools/librarian/_launchd_runner.zsh
+# Librarian Production Runner (Approved v1.1 Hardened + Core Seal v1.2)
+
+set -euo pipefail
+umask 022
+
+ROOT="$HOME/0luka"
+cd "$ROOT"
+
+# CORE_SEAL_FAILURE_MARKER
+FAIL_MARKER="$ROOT/state/librarian/last_error.json"
+FAIL_COUNT_FILE="$ROOT/state/librarian/fail_count.txt"
+FAIL_MAX="${FAIL_MAX:-3}"
+
+# CORE_SEAL_PAUSE
+if [[ -f "$ROOT/state/librarian/PAUSE" ]]; then
+  TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  echo "[$TS] librarian paused (PAUSE switch present)"
+  exit 0
+fi
+
+# Optional: allow dry-run via launchd env var
+: "${LIBRARIAN_DRY_RUN:=0}"
+
+if [[ -f "$ROOT/.venv/bin/activate" ]]; then
+  source "$ROOT/.venv/bin/activate"
+fi
+
+PENDING="state/librarian/pending.yaml"
+if [[ "${1:-}" != "" ]]; then
+  PENDING="$1"
+fi
+
+# Pre-execution metadata
+TS_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+P_COUNT="0"
+if [[ -f "$PENDING" ]]; then
+    # grep -c prints 0 then exits 1 if no matches; we capture only stdout
+    P_COUNT=$(grep -c "src_path:" "$PENDING" || true)
+    P_COUNT="${P_COUNT//[[:space:]]/}"
+fi
+
+# Snapshot current_system.json before apply
+SNAPSHOT_TS="$(date -u +"%Y%m%dT%H%M%SZ")"
+CS="state/current_system.json"
+if [[ -f "$CS" ]]; then
+  mkdir -p state/librarian/snapshots
+  cp "$CS" "state/librarian/snapshots/${SNAPSHOT_TS}_current_system.json"
+  ls -1t state/librarian/snapshots/*_current_system.json 2>/dev/null | tail -n +11 | xargs -I{} rm -f "{}" || true
+fi
+
+# Execute apply
+echo "[$TS_UTC] librarian heart-beat"
+
+# CORE_SEAL_WRAP_APPLY
+set +e
+APPLY_EXIT=0
+python3 -m tools.librarian.apply "$PENDING" --dry-run="$LIBRARIAN_DRY_RUN" 2>&1
+APPLY_EXIT=$?
+set -e
+
+TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+if [[ $APPLY_EXIT -ne 0 ]]; then
+  # increment fail count
+  FC=0
+  if [[ -f "$FAIL_COUNT_FILE" ]]; then
+    FC="$(cat "$FAIL_COUNT_FILE" 2>/dev/null || echo 0)"
+  fi
+  # numeric guard
+  if ! [[ "$FC" =~ '^[0-9]+$' ]]; then FC=0; fi
+  FC=$((FC+1))
+  echo "$FC" > "$FAIL_COUNT_FILE"
+
+  python3 - <<PY2
+import json, pathlib
+p = pathlib.Path("$FAIL_MARKER")
+p.parent.mkdir(parents=True, exist_ok=True)
+obj = {
+  "ts_utc": "$TS",
+  "exit_code": int("$APPLY_EXIT"),
+  "reason": "librarian_apply_failed",
+  "fail_count": int("$FC"),
+}
+p.write_text(json.dumps(obj, indent=2) + "\n", encoding="utf-8")
+print("[core] wrote failure marker", p)
+PY2
+
+  echo "[$TS] librarian failed | exit=$APPLY_EXIT fail_count=$FC"
+
+  if [[ $FC -ge $FAIL_MAX ]]; then
+    # circuit breaker: pause future runs until manual clear
+    : > "$ROOT/state/librarian/PAUSE"
+    echo "[$TS] librarian circuit_breaker engaged (PAUSE created) | fail_count=$FC"
+  fi
+  exit $APPLY_EXIT
+else
+  # success: reset fail count + remove failure marker
+  echo "0" > "$FAIL_COUNT_FILE" 2>/dev/null || true
+  rm -f "$FAIL_MARKER" 2>/dev/null || true
+fi
+
+# Summary line (Approved v1.1 Standard)
+FIN_TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+IS_NOOP="false"
+# Arithmetic comparison handles strings like "0" correctly
+if (( P_COUNT == 0 )); then
+  IS_NOOP="true"
+fi
+
+echo "[$FIN_TS] librarian finished | ts_utc=$TS_UTC exit=0 pending_count=$P_COUNT noop=$IS_NOOP"
+exit 0

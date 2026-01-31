@@ -114,7 +114,7 @@ cmd_dispatch() {
   local target=""
   case "${module}" in
     codex) target="${OLUKA_ROOT}/skills/codex/codex.zsh" ;;
-    antigravity) target="${OLUKA_ROOT}/skills/antigravity/antigravity.zsh" ;;
+    antigravity) target="${OLUKA_ROOT}/skills/antigravity/scripts/antigravity.zsh" ;;
     *) log_err "unknown module: ${module}"; exit 2 ;;
   esac
 

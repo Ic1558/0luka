@@ -6,10 +6,16 @@ export PATH="/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin"
 ROOT="${LUKA_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 OBS="$ROOT/observability"
 
+# --- GUARD CHECK: Validate Root ---
+if [[ ! -f "$ROOT/luka.md" ]]; then
+  echo "❌ FATAL: Root validation failed. $ROOT/luka.md not found."
+  exit 1
+fi
+
 # Inputs (adjust if your actual folders differ)
-TASKS_DIR="$OBS/tasks"
-BRIDGE_INBOX="$OBS/bridge/inbox"
-BRIDGE_INFLIGHT="$OBS/bridge/inflight"
+TASKS_DIR="$ROOT/artifacts/tasks/pending"
+BRIDGE_INBOX="$ROOT/artifacts/tasks/pending"
+BRIDGE_INFLIGHT="$ROOT/interface/processing/tasks"
 DASH_PROGRESS="$OBS/dashboard/progress"
 DASH_RESULTS="$OBS/dashboard/results"
 REPORTS_DIR="$OBS/reports"
@@ -26,8 +32,23 @@ WINDOW_START="$(/bin/date -u -v -"${BRIEFING_WINDOW_HRS}"H +"%Y-%m-%dT%H:%M:%SZ"
 WINDOW_END="$NOW_UTC"
 LATEST_MD="$DASH_PROGRESS/latest.md"
 LATEST_JSON="$DASH_PROGRESS/latest.json"
+
+# --- GUARD CHECK: Fail hard if target is not the canonical progress dashboard ---
+if [[ "${LATEST_MD:t}" != "latest.md" ]] || [[ "${LATEST_MD:h:t}" != "progress" ]]; then
+  echo "❌ FATAL: Safety lock. $0 must write to .../progress/latest.md"
+  exit 1
+fi
+
 ARCHIVE_MD="$RETENTION_DIR/briefing_${STAMP}.md"
 ARCHIVE_JSON="$RETENTION_DIR/briefing_${STAMP}.json"
+
+# --- POINT 3: Advisory Locking (Advisory Lock) ---
+LOCKDIR="$DASH_PROGRESS/.build_lock"
+if ! mkdir "$LOCKDIR" 2>/dev/null; then
+  echo "❌ FATAL: Another build is running: $LOCKDIR"
+  exit 1
+fi
+trap 'rmdir "$LOCKDIR" 2>/dev/null || true' EXIT
 
 # Helper: count files safely (0 if missing)
 count_files() {
@@ -55,10 +76,11 @@ latest_list() {
 # Build markdown (simple + deterministic)
 render_md() {
   cat <<MD
+<!-- built_by=tools/briefing/build_briefing.zsh timestamp=${NOW_UTC} -->
 # 0luka Situation Briefing
 - Generated: ${NOW_UTC}
 - Root: ${ROOT}
- - Window: ${WINDOW_START} → ${WINDOW_END}
+- Window: ${WINDOW_START} → ${WINDOW_END}
 
 Counts
 - tasks: ${TASK_JSON}
@@ -95,9 +117,17 @@ MD
 
 TMP="$(mktemp)"
 render_md > "$TMP"
-/bin/cp "$TMP" "$LATEST_MD"
-/bin/cp "$TMP" "$ARCHIVE_MD"
-/bin/rm -f "$TMP"
+
+# --- POINT 1: Atomic Move ---
+/bin/cp "$TMP" "${ARCHIVE_MD}.tmp"
+/bin/mv -f "${ARCHIVE_MD}.tmp" "$ARCHIVE_MD"
+/bin/mv -f "$TMP" "$LATEST_MD"
+
+# --- POINT 2 & 3: Self-Check after mv ---
+if [[ ! -s "$LATEST_MD" ]] || ! /usr/bin/grep -q "Window:" "$LATEST_MD"; then
+  echo "❌ FATAL: Self-check failed for $LATEST_MD (empty or corrupt)" >&2
+  exit 1
+fi
 
 # JSON sidecar (briefing.v1)
 PYTHON_BIN="/opt/homebrew/bin/python3"
@@ -176,15 +206,24 @@ def extract_task_id(path: Path) -> str:
     return path.name
 
 def ids_from_dir(path: Path) -> list[str]:
-    return sorted({extract_task_id(p) for p in list_files(path)})
+    if not path.exists():
+        return []
+    ids = set()
+    # If path is pending/open tasks dir, it might have subdirs named by task_id
+    for item in path.iterdir():
+        if item.is_dir():
+            ids.add(item.name)
+        elif item.is_file():
+            ids.add(extract_task_id(item))
+    return sorted(ids)
 
 obs = root / "observability"
-inbox_dir = obs / "bridge" / "inbox"
-inflight_dir = obs / "bridge" / "inflight"
+inbox_dir = root / "artifacts" / "tasks" / "pending"
+inflight_dir = root / "interface" / "processing" / "tasks"
 results_dir = obs / "dashboard" / "results"
 reports_dir = obs / "reports"
 quarantine_dir = obs / "quarantine"
-tasks_dir = obs / "tasks"
+tasks_dir = root / "artifacts" / "tasks" / "pending"
 retention_dir = obs / "retention" / "briefings"
 followup_dir = obs / "retention" / "tasks"
 
@@ -263,14 +302,14 @@ diff_counts = {k: len(v) for k, v in diff.items()}
 
 
 pointers = {
-    "inbox": "observability/bridge/inbox",
-    "inflight": "observability/bridge/inflight",
+    "pending": "artifacts/tasks/pending",
+    "inflight": "interface/processing/tasks",
     "results": "observability/dashboard/results",
     "reports": "observability/reports",
     "progress": "observability/dashboard/progress",
     "retention": "observability/retention/briefings",
     "quarantine": "observability/quarantine",
-    "tasks": "observability/tasks",
+    "tasks": "artifacts/tasks/pending",
 }
 
 actionable = {
@@ -330,8 +369,12 @@ latest_json_path.write_text(json.dumps(doc, ensure_ascii=False, indent=2, sort_k
 archive_json_path.write_text(json.dumps(doc, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
 
+# --- POINT 4: Health Marker (Success) ---
+HEALTH_MARKER="$DASH_PROGRESS/briefing_last_ok.json"
+"${PYTHON_BIN}" -c 'import json,sys,time; print(json.dumps({"ts":sys.argv[1],"window_end":sys.argv[2],"status":"ok"}))' "${NOW_UTC}" "${WINDOW_END}" > "${HEALTH_MARKER}"
+
 echo "OK: wrote"
-echo " - $LATEST_MD"
+echo " - $LATEST_MD ($(wc -c < "$LATEST_MD" | xargs) bytes)"
 echo " - $LATEST_JSON"
+echo " - $HEALTH_MARKER"
 echo " - $ARCHIVE_MD"
-echo " - $ARCHIVE_JSON"

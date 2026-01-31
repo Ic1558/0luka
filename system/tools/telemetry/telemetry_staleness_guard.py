@@ -85,9 +85,22 @@ def main():
                 pass
 
         # Logic
+        is_idle = False
+        status_val = str(data.get("status", "")).lower()
+        if module == "bridge_consumer":
+            if "idle" in status_val or "no_new_files" in str(data.get("note", "")):
+                is_idle = True
+        elif module == "executor_lisa":
+            if "idle" in status_val or data.get("processed", 0) == 0:
+                is_idle = True
+        
         if current_hash == state["last_hash"]:
-            state["same_count"] += 1
-            print(f"MATCH: {module} hash unchanged (count={state['same_count']})")
+            if is_idle:
+                state["same_count"] = 0
+                print(f"IDLE: {module} unchanged hash but idle (reset count)")
+            else:
+                state["same_count"] += 1
+                print(f"MATCH: {module} hash unchanged (count={state['same_count']})")
         else:
             state["same_count"] = 0
             print(f"RESET: {module} hash changed.")

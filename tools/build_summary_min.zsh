@@ -1,53 +1,69 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-ROOT="${1:-$PWD}"
-cd "$ROOT"
+# 0luka Summary Generator (SOT)
+# Builds: reports/summary/latest.md
 
-OUT="reports/summary/latest.md"
-mkdir -p "$(dirname "$OUT")"
+ROOT="${LUKA_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+TARGET="$ROOT/reports/summary/latest.md"
+GENERATOR="tools/build_summary_min.zsh"
+NOW_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+NOW_LOCAL="$(date)"
 
-ts_local="$(date +'%Y-%m-%d %H:%M:%S %z')"
-ts_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+# --- GUARD CHECK: Fail hard if target is not the canonical summary ---
+if [[ "${TARGET:t}" != "latest.md" ]] || [[ "${TARGET:h:t}" != "summary" ]] || [[ "${TARGET:h:h:t}" != "reports" ]]; then
+  echo "❌ FATAL: Safety lock. $0 must write to .../reports/summary/latest.md"
+  echo "   Attempted: $TARGET"
+  exit 1
+fi
+
+# Ensure directory exists
+mkdir -p "$(dirname "$TARGET")"
 
 {
+  echo "<!-- built_by=$GENERATOR timestamp=$NOW_UTC -->"
   echo "# 0luka — Summary"
-  echo
-  echo "- generated_local: ${ts_local}"
-  echo "- generated_utc: ${ts_utc}"
-  echo "- cwd: $(pwd)"
-  echo
-  echo "## Signals"
-  echo
-  echo "### Recent incidents (if any)"
-  if [[ -d "observability/incidents" ]]; then
-    ls -1 "observability/incidents" 2>/dev/null | tail -n 10 | sed 's/^/- /' || true
-  elif [[ -d "artifacts/incidents" ]]; then
-    ls -1 "artifacts/incidents" 2>/dev/null | tail -n 10 | sed 's/^/- /' || true
-  else
-    echo "- (no incident directory found)"
-  fi
-  echo
-  echo "### Latest open tasks"
-  if [[ -d "artifacts/tasks/open" ]]; then
-    ls -1 "artifacts/tasks/open" 2>/dev/null | tail -n 20 | sed 's/^/- /' || true
-  else
-    echo "- (no artifacts/tasks/open)"
-  fi
-  echo
-  echo "## Log tails (current.log)"
-  for d in logs/components/*; do
-    [[ -d "$d" ]] || continue
-    comp="$(basename "$d")"
-    cur="$d/current.log"
-    echo
-    echo "### ${comp}"
-    if [[ -f "$cur" ]]; then
-      tail -n 30 "$cur" 2>/dev/null | sed 's/^/    /' || true
-    else
-      echo "    (missing current.log)"
-    fi
-  done
-} > "$OUT"
+  echo ""
+  echo "- generated_local: $NOW_LOCAL"
+  echo "- generated_utc: $NOW_UTC"
+  echo "- generator: $GENERATOR"
+  echo "- root: $ROOT"
+  echo ""
 
-echo "OK: wrote $OUT"
+  echo "## Signals"
+
+  echo "### Recent incidents (if any)"
+  INCIDENTS_DIR="$ROOT/observability/incidents"
+  if [[ -d "$INCIDENTS_DIR" ]]; then
+    ls -1t "$INCIDENTS_DIR" 2>/dev/null | head -n 5 | sed 's/^/- /' || echo "- (none)"
+  else
+    echo "- (dir missing: observability/incidents)"
+  fi
+  echo ""
+
+  echo "### Latest open tasks"
+  TASKS_DIR="$ROOT/artifacts/tasks/open"
+  if [[ -d "$TASKS_DIR" ]]; then
+    ls -1t "$TASKS_DIR" 2>/dev/null | head -n 5 | sed 's/^/- /' || echo "- (none)"
+  else
+    echo "- (dir missing: artifacts/tasks/open)"
+  fi
+  echo ""
+
+  echo "## Log tails (current.log)"
+  found_any=0
+  for log_file in "$ROOT"/logs/components/*/current.log; do
+    [[ -e "$log_file" ]] || continue
+    found_any=1
+    comp_name=$(basename "$(dirname "$log_file")")
+    echo ""
+    echo "### $comp_name"
+    tail -n 30 "$log_file" | sed 's/^/    /'
+  done
+  if [[ "$found_any" -eq 0 ]]; then
+    echo "- (no logs found under logs/components/*/current.log)"
+  fi
+
+} > "$TARGET"
+
+echo "✅ Wrote SOT Summary: $TARGET"

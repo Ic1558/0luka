@@ -47,4 +47,9 @@ for d in "$COMP_DIR"/*; do
   find "$d" -type f \( -name "*.log" -o -name "*.log.gz" \) -mtime "+$RETENTION_DAYS" -print -delete 2>/dev/null || true
 done
 
+# --- [ADDITIONAL CLEANUP: Quarantine & RAM Artifcats] ---
+echo "Cleaning up quarantine and RAM artifacts older than 7 days..."
+find "observability/quarantine/tasks" -type f -mtime +7 -print -delete 2>/dev/null || true
+find "observability/artifacts/ram" -type f -mtime +7 -print -delete 2>/dev/null || true
+
 echo "OK: rotation done (retention=${RETENTION_DAYS}d)"

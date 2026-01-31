@@ -1,60 +1,40 @@
-# secrets
-vault/.env
-.env
-# temp
-.tmp/
-__pycache__/
-*.pyc
+# 0luka - Standard Git Hygiene Policy
+
+# --- [IGNORED: Ephemeral & Noise] ---
+interface/
+observability/
+logs/
+reports/
+artifacts/
+g/
+runtime/
+workspaces/
+state/
+**/__pycache__/
+.claude/
+.gemini/
+.n8n/
 .opencode/
 .openwork/
-.n8n/
-# logs
-logs/
-telemetry/raw/
-# backups
-*.bak.*
-# 0luka safety
-workspaces/
 .0luka/
-.claude
+gmx-session-ses_*.md
+session-ses_*.md
+bridge.log
+*.tmp
 .DS_Store
 
-# Strict Hygiene (Rule 1 & 2)
-observability/**
-runtime/**
-g/**
-!g/web/
-!g/web/dashboard/
-!g/web/dashboard/**
-artifacts/**
-
-# 0luka observability volatile artifacts
-observability/artifacts/snapshots/
-observability/artifacts/ram/
-observability/artifacts/followup/
-observability/stl/evidence/
-
-# observability artifacts
-observability/telemetry/drift/baseline-jsonl
-observability/telemetry/drift/baseline.jsonl
-
-# local workspace
-0luka.code-workspace
-
-# local workspace
-0luka.code-workspace
-
-# drafts (intentionally untracked)
-core/governance/agent_culture.md
-
-# --- MLS generated artifacts (runtime) ---
-g/knowledge/mls_lessons.jsonl
-g/knowledge/mls_index.json
-g/reports/mls/
-
-# --- E2E test artifacts ---
-interface/inbox/tasks/liam/e2e_*_exec.json
-
-# dashboard runtime data (generated)
-g/web/dashboard/data/*
-!g/web/dashboard/data/.gitkeep
+# --- [TRACKED: Source of Truth (SOT) - Un-ignore overrides] ---
+!interface/schemas/
+!interface/state/task_counter.json.template
+!core_brain/governance/
+!tools/
+!system/
+!modules/
+!skills/
+!luka.md
+!README.md
+!**/*.py
+!**/*.zsh
+!**/*.yaml
+!**/*.yml
+!**/*.md

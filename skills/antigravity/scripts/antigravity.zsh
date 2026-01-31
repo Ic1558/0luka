@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-source "${0:A:h:h}/_shared/header_contract.zsh"
+source "${0:A:h:h:h}/_shared/header_contract.zsh"
 
 AGENT="antigravity"
 VERSION="0.1.0"

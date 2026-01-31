@@ -77,6 +77,11 @@ def write_yaml(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
+def write_json(path: Path, data: dict) -> None:
+    """Write JSON deterministically (Approved v1)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
 def read_yaml(path: Path) -> dict:
     """Read YAML deterministically (Approved v1)."""
     if not path.exists():

@@ -5,6 +5,18 @@
             "path": "observability/telemetry/ram_monitor.latest.json",
             "threshold": 3,
             "critical": true
+        },
+        {
+            "module": "bridge_consumer",
+            "path": "observability/telemetry/bridge_consumer.latest.json",
+            "threshold": 3,
+            "critical": true
+        },
+        {
+            "module": "executor_lisa",
+            "path": "observability/telemetry/executor_lisa.latest.json",
+            "threshold": 3,
+            "critical": true
         }
     ]
 }
