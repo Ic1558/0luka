@@ -72,6 +72,7 @@ validator: Vera
 call_sign: [Vera]
 timestamp: <ISO8601>
 ```
+> **Note**: `NEEDS_FIX` is considered a **FAIL** for GMX until new evidence is provided.
 
 ---
 

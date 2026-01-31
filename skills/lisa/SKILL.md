@@ -34,6 +34,7 @@ denied_paths:
 - **No Daemonization**: I do not start long-running servers or background services.
 - **No Root Privileges**: I never use `sudo`.
 - **No Interactive Choice**: If a task is ambiguous or risky, I fail-closed or move it to Approval Gate.
+- **No Skill Invocation**: I do NOT invoke agents/skills (Vera, Rio, Liam).
 
 ## 3. MODEL A EXECUTION POLICY
 - **Auto-Apply (Low-Risk)**: `tools/**`, `system/**`, `interface/**`, `modules/**`.

@@ -22,6 +22,8 @@
 ## Status
 **DRAFT** | REVIEW | ACCEPTED | REJECTED
 
+> **Policy**: Only `ACCEPTED` RFCs can be converted to `TaskSpec` by `[Liam]`.
+
 ---
 *Proposed by*: `[Rio]`
 *Decided by*: `[Liam]`
