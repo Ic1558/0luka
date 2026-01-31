@@ -1,0 +1,71 @@
+# PatchPlan Schema v1.0
+# Description: Structure for proposing code/config changes without direct execution.
+# Used by: Liam (Proposer) -> Executor (Apply)
+
+type: object
+required:
+  - version
+  - intent
+  - author
+  - changes
+properties:
+  version:
+    type: string
+    pattern: "^1\\.[0-9]+$"
+    description: "Schema version (e.g. 1.0)"
+    
+  intent:
+    type: string
+    description: "The 'Why'. Brief explanation of what this patch fixes or improves."
+    
+  author:
+    type: string
+    description: "Agent or User who designed this patch (e.g. Liam, GMX)."
+
+  target_files:
+    type: array
+    items:
+      type: string
+    description: "List of all files touched by this plan (for quick safety checks)."
+
+  changes:
+    type: array
+    items:
+      type: object
+      required:
+        - type
+        - file
+      properties:
+        type:
+          type: string
+          enum: ["modify", "create", "delete"]
+        file:
+          type: string
+          description: "Relative path to target file."
+        diff:
+          type: string
+          description: "Unified diff content (required for 'modify')."
+        content:
+          type: string
+          description: "Full file content (required for 'create')."
+        hash_check:
+          type: string
+          description: "(Optional) SHA256 of the original file to ensure we are patching the right version."
+
+  verification:
+    type: array
+    items:
+      type: object
+      properties:
+        run:
+          type: string
+          description: "Command to execute for verification (e.g. --dry-run)."
+        description:
+          type: string
+    description: "Steps to verify the patch after application."
+
+  expected_effect:
+    type: array
+    items:
+      type: string
+    description: "Human-readable outcomes to look for."

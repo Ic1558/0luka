@@ -14,7 +14,9 @@
 - **GM (Gemini Web)**: Secondary Reasoning/Research (supporting analysis when needed)
 
 ### 2.2 Execution Agents (Antigravity Lane)
-- **Liam**: Orchestrator + Light Executor (L0/L1/L2 only)
+- **Liam**: Lightweight Core Orchestrator.
+  - **Rule**: MUST adhere strictly to `skills/liam/skill.md`.
+  - **Modes**: Planning (Default) vs Interactive Ops (Antigravity-bounded).
 - **Lisa (openwork)**: Code Implementer (L3+ implementation; code-writing lane)
 - **Codex IDE**: Reviewer + Docs + Git/PR Manager (reads long context, review, docs, git ops)
 

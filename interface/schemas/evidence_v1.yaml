@@ -1,0 +1,57 @@
+# Evidence v1.1 Schema (Forensic-Grade)
+version: 1.1
+
+title: "Evidence v1.1"
+description: "High-integrity, performance-aware audit trail"
+
+type: object
+required:
+  - schema_version
+  - task_id
+  - trace_seq
+  - ts_utc
+  - executor
+  - duration_ms
+  - results
+properties:
+  schema_version:
+    type: string
+    const: "evidence.v1.1"
+  task_id:
+    type: string
+  trace_seq:
+    type: string
+    description: "TK-xxxxxx sequential ID"
+  ts_utc:
+    type: string
+    format: date-time
+  executor:
+    type: string
+  root:
+    type: string
+  duration_ms:
+    type: integer
+  results:
+    type: array
+    items:
+      type: object
+      required: [op_id, status, exit_code]
+      properties:
+        op_id: { type: string }
+        status: { type: string }
+        exit_code: { type: integer }
+        target_path: { type: string }
+  artifacts:
+    type: array
+    items:
+      type: object
+      properties:
+        path: { type: string }
+        sha256_before: { type: string }
+        sha256_after: { type: string }
+        stdout_path: { type: string }
+  verification:
+    type: object
+    properties:
+      checks: { type: array, items: { type: string } }
+      status: { type: string, enum: [pass, fail, partial] }

@@ -1,0 +1,31 @@
+# core/schema/task_spec_v1.yaml
+# Task Lane SOT (v1) - strict minimal contract
+
+version: 1
+required:
+  - task_id
+  - ts_utc
+  - lane
+  - intent
+  - executor
+  - payload
+
+rules:
+  lane:
+    allowed: ["task"]
+  ts_utc:
+    format: "iso8601_z"   # must end with 'Z'
+  paths:
+    repo_relative_only: true   # no /, ~, .. traversal
+  evidence_policy:
+    allowed: ["minimal", "full"]
+  reply_policy:
+    allowed: ["silent", "summary", "full"]
+
+defaults:
+  lane: "task"
+  evidence_policy: "minimal"
+  reply_policy: "summary"
+
+executor:
+  allowed: ["shell", "lisa", "liam", "gc", "gmx"]  # expand later
