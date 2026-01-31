@@ -1,7 +1,6 @@
-# Skill: Liam (The Proposer)
-
 ---
 name: liam
+description: The Architect and Proposer. Use when you need high-level reasoning, system design, implementation planning (TaskSpec), or maintenance diagnostics (PatchPlan).
 version: 1.4
 category: governance
 owner: liam

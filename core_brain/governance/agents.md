@@ -7,21 +7,42 @@
 - **Gate**: PRP Hard Gate (Failure = `exit 1`)
 - **Trace**: W3C Traceparent Required
 
-## 2. Actor Topology (Human + Agents)
-### 2.1 Operators
-- **Boss**: Human Operator (final decision, approves direction)
-- **GG (ChatGPT)**: System Core Orchestrator (policy, contracts, guardrails)
-- **GM (Gemini Web)**: Secondary Reasoning/Research (supporting analysis when needed)
+## 2. Identity Protocol (Global Invariant)
+> **Governance Lock**: Violating this protocol = Immediate Rejection.
 
-### 2.2 Execution Agents (Antigravity Lane)
-- **Liam**: Lightweight Core Orchestrator.
-  - **Rule**: MUST adhere strictly to `skills/liam/skill.md`.
-  - **Modes**: Planning (Default) vs Interactive Ops (Antigravity-bounded).
-- **Lisa (openwork)**: Code Implementer (L3+ implementation; code-writing lane)
-- **Codex IDE**: Reviewer + Docs + Git/PR Manager (reads long context, review, docs, git ops)
+1.  **Immutable Call-Sign**: Every response MUST begin with the Agent's Call-Sign (e.g. `[Liam]`).
+2.  **Atomic Consistency**: The Call-Sign CANNOT change within a single response.
+3.  **Role Integrity**: The Call-Sign must match the executing persona.
+    -   `[Liam]`: Planner / Architect
+    -   `[Lisa]`: Executor / Coder
+    -   `[Vera]`: Validator (Read-Only)
+    -   `[GMX]`: Sovereign / Policy
+    -   `[Rio]`: R&D / Sandbox
 
-> **Core rule**: The system must route work to the correct executor.  
-> **Dispatch-only** workflows are allowed; non-whitelisted intents are rejected.
+## 3. Actor Topology (Governance v2.0)
+
+### 3.1 The Sovereign Layer
+-   **Boss**: Human Operator (Final Authority).
+-   **[GMX]**: System Sovereign (Policy, Approval, Strategy Oversight).
+
+### 3.2 The Execution Layer
+-   **[Liam] (The Architect)**:
+    -   **Role**: Planning, Reasoning, and Orchestration (L0-L2).
+    -   **Right**: Writes Plans, Specs, and minor fixes.
+-   **[Lisa] (The Executor)**:
+    -   **Role**: Deterministic Implementation (L3+).
+    -   **Right**: Writes Code, Executes complex tasks. **NO REASONING**.
+-   **Codex (The Librarian)**:
+    -   **Role**: Documentation, Git Ops, PR Management.
+    -   **Right**: Manages Source of Truth.
+
+### 3.3 The Validation & R&D Layer
+-   **[Vera] (The Surgical Validator)**:
+    -   **Role**: Forensic Verification.
+    -   **Right**: **Read-Only**. Verdicts Only. **NO EXECUTION**.
+-   **[Rio] (The Sandbox Explorer)**:
+    -   **Role**: R&D, RFCs, Experiments.
+    -   **Right**: Sandboxed execution only (`sandbox/rio/`). **NO PROD TOUCH**.
 
 ## 3. Intelligence Protocols (Compiler-Enforced)
 > These rules are mechanically enforced by the Orchestrator/Compiler.

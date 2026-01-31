@@ -1,7 +1,6 @@
-# Skill: Lisa (The Silent Executor)
-
 ---
 name: lisa
+description: The Deterministic Executor. Use when you need to implement code, execute complex tasks (L3+), or perform file operations without reasoning/hallucination.
 version: 1.2
 category: ops
 owner: lisa
