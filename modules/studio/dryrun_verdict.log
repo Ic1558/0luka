@@ -1,0 +1,11 @@
+[INFO] Starting Dry-Run for Studio Spec Compliance...
+[TEST] Path Policy Verification:
+[PASS] Denied system runtime: /Users/icmini/0luka/0luka/runtime/core.db
+[PASS] Allowed module runtime: /Users/icmini/0luka/modules/studio/runtime/executor.py
+[PASS] Denied .env: /Users/icmini/0luka/modules/studio/.env
+[TEST] Secret Pattern Verification:
+[PASS] Detected Bearer Token
+[PASS] Detected RSA Key
+[INFO] Enforcing Contract Names: REQ=prompt_spec_v1, RES=output_bundle_v1
+[PASS] Promotion Policy is SYSTEM_GATED
+[INFO] Dry-Run Complete. Check /Users/icmini/0luka/modules/studio/dryrun_verdict.log for details.

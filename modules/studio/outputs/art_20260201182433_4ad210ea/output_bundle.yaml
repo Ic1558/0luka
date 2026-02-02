@@ -1,0 +1,16 @@
+schema: output_bundle_v1
+artifact_id: art_20260201182433_4ad210ea
+request_id: mrq_20260201182431_ed3f9db0
+module: studio
+status: SUCCESS
+created_at_utc: '2026-02-01T18:24:33.015259Z'
+outputs:
+- path: modules/studio/outputs/art_20260201182433_4ad210ea/artifact.txt
+  label: stub_artifact
+safety:
+  verified: true
+  detail: 'Vera_Lite: path+secret+output ok'
+provenance:
+  lane: studio
+  author: gmx
+  call_sign: '[GMX]'

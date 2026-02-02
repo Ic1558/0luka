@@ -1,0 +1,16 @@
+name: opal_lane
+version: 1.0.0
+type: hybrid_connector
+trust_level: high
+purpose: |
+  Authorized bridge between Google Opal (Cloud) and Local Studio.
+  Operates with "System Delegate" authority to perform browser automation.
+
+policies:
+  - fast_track_to_studio: true (Bypasses manual review for artifact handoff)
+  - auth_scope: browser_control (Can drive browser sessions)
+  - no_core_write: true (Cannot write to core/system directly)
+
+contracts:
+  inbound: opal_task_v1 (From User/Studio)
+  outbound: studio_artifact_v1 (To Studio Lane)

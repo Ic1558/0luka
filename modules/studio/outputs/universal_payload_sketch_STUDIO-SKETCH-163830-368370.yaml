@@ -1,0 +1,14 @@
+fidelity_goal: 0.85
+metadata:
+  engine: 0luka_distiller_v2_vision_enhanced
+  timestamp: '2026-02-02T16:38:30.368662'
+  zero_waste: VERIFIED_LOCAL
+mode: sketch
+perfect_prompt: 'Photorealistic Architectural Masterstroke: Transform this hand-drawn
+  sketch into a tangible reality. Intent: A high-end Japandi living room with wooden
+  textures and soft lighting.. Maintain the original stroke-work as the structural
+  foundation. Interpret line-weight as spatial depth. Aesthetic: 8k, Octane Render,
+  highly detailed textures, soft global illumination. Camera: 24mm Wide Angle, Eye-level
+  (1.6m).'
+trace_id: STUDIO-SKETCH-163830-368370
+vision_context: Analyzed pilot_sketch.png as sketch source.

@@ -1,0 +1,12 @@
+artifact_id: art_render_002
+detected_elements:
+  - wall_east
+  - wall_west
+  - door_south
+  # Missing: wall_north, window_north
+detected_materials:
+  - white plaster
+  - glass
+  - red carpet # Wrong material
+  # Missing: oak floor
+detected_mood: Industrial

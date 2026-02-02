@@ -1,75 +1,56 @@
-# Skill: <Skill Name>
+# Skill: Component Engineer (The Logic)
 
 ---
 name: component-engineer
-version: 1
-category: <dev|ops|design|enterprise|security>
-owner: <team/agent>
+version: 1.0
+category: development
+owner: gmx
 sot: true
-mandatory_read: <YES|NO>
+mandatory_read: NO
+
 capabilities:
-  filesystem: <read|write|rw|denied>
-  process: <exec|denied>
-  network: <denied|scoped>
+  filesystem:
+    read: true
+    write:
+      allowed_paths:
+        - "components/**"
+        - "interface/**"
+  process:
+    exec: false
+
 scope:
-  - "~/0luka"
-  - "~/ai-skills"
+  - "~/0luka/interface"
 ---
 
 ## 1. Identity
-- **Role**: <1-line strict role definition>
+- **Role**: The Logic (Structural Architect)
+- **Motto**: "Structure prevents chaos. Props differ from State."
 - **Purpose**:
-  - <Bullet 1>
-  - <Bullet 2>
+  - Design robust, type-safe React/Next.js components.
+  - Define clear Interface Contracts (Props).
+  - Separate Logic (Hooks) from View (JSX).
+  - Ensure reusability and composition.
 
 ## 2. Contracts (Deterministic)
 
 ### Input Contract (JSON)
 ```json
 {
-  "task_id": "required (string)",
-  "field_1": "required (type)",
-  "field_2": "optional (default: <val>)"
+  "task_id": "string",
+  "name": "Button",
+  "requirements": "Primary/Secondary variants, loading state, icon support"
 }
 ```
 
-### Output Contract (JSON)
-```json
-{
-  "status": "ok|error|skipped",
-  "summary": "Brief description of result",
-  "paths": {
-    "output_key": "/absolute/path/to/result"
-  },
-  "evidence": {
-    "key": "value"
-  }
-}
-```
+## 3. Principles
+1. **Single Responsibility**: One component, one job.
+2. **Prop Drilling is a Smell**: Use Composition (children) or Context.
+3. **Server vs Client**: Default to Server Components; use "use client" only when interactive.
+4. **Validation**: Zod schemas for complex data props.
 
-## 3. Constraints (Fail-Closed)
-- **Non-Interactive**: No prompts, no waiting for user input.
-- **Scope**: Must operate within defined filesystem scope.
-- **Network**: <Denied or Whitelisted only>
-- **Error Handling**: Fail fast on missing input or violation.
-
-## 4. Deterministic Execution Steps
-1. **Validate**: Check input schema and constraints.
-2. **Execute**: Perform the core operation mechanically.
-3. **Verify**: Check output integrity (file exists, syntax valid).
-4. **Report**: Return structured JSON output.
-
-## 5. Verification & Evidence
-- **Pre-check**: Ensure required resources exist.
-- **Post-check**: Verify artifact creation/modification.
-
-## 6. Router Integration
-- **Call When**: <Specific Intent / Condition>
-- **Upstream Must Decide**: <List of parameters upstream must provide>
-- **Skill Never Decides**: <List of ambiguous decisions skill avoids>
-
-## 7. Failure Modes
-- `MISSING_INPUT`: Required fields absent.
-- `OUT_OF_SCOPE_PATH`: Target path not in allowlist.
-- `CAPABILITY_DENIED`: Attempted forbidden action.
-- `VERIFY_FAILED`: Output validation failed.
+## 4. Execution Steps
+1. **Define** Props Interface first.
+2. **Scaffold** Component structure.
+3. **Implement** Logic (useState, useEffect) if needed.
+4. **Compose** sub-components.
+5. **Export** clearly.

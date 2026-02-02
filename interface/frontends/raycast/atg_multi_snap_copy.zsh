@@ -11,4 +11,4 @@
 set -euo pipefail
 export LC_ALL=en_US.UTF-8
 
-exec "$HOME/0luka/interface/frontends/raycast/atg_multi_snap.zsh" --copy "$@"
+exec "/Users/icmini/0luka/interface/frontends/raycast/atg_multi_snap.zsh" --copy "$@"

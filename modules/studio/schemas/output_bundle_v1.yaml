@@ -1,0 +1,12 @@
+schema: output_bundle_v1
+description: |
+  Studio output contract. Written to modules/studio/outputs/<artifact_id>/output_bundle.yaml
+required:
+  - schema
+  - artifact_id
+  - request_id
+  - module
+  - status
+  - created_at_utc
+  - outputs
+  - safety

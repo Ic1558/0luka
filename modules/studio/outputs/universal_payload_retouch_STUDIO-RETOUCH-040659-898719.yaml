@@ -1,0 +1,13 @@
+fidelity_goal: 0.85
+metadata:
+  engine: 0luka_distiller_v2_vision_enhanced
+  timestamp: '2026-02-02T04:06:59.898843'
+  zero_waste: VERIFIED_LOCAL
+mode: retouch
+perfect_prompt: 'Expert Visual Retouch: Modify the existing photographic context with
+  surgical precision. Intent: Minimalist Japandi with warm oak and soft linen textures.
+  Preserve 100% of the non-modified structure, perspective, and lighting identity.
+  Implement material delta-changes. Aesthetic: Seamless inpainting, matching original
+  grain and exposure. Camera: 24mm Wide Angle, Eye-level (1.6m).'
+trace_id: STUDIO-RETOUCH-040659-898719
+vision_context: Analyzed pilot_photo.png as retouch source.

@@ -12,6 +12,8 @@ Linked Path: `/Users/icmini/0luka/skills/shared`
 | `scripts` | Scripts | NO | `244f67d1eb96b9cbfc63d6e1cdcdeacaa6ecc84c828a8df15893009d7a97dfd3` |
 | `context7` | Knowledge Provider (Context7) | NO | `manual-managed` |
 | `theme-factory` | Theme Factory (Normalized) | NO | `manual-managed` |
+| `tailwind-css-expert` | Tailwind CSS Expert (The Speed) | NO | `4d0f592694e057290db1f133ee185f347c46f4767bd50d66f3cca8bafecc6f07` |
+| `component-engineer` | Component Engineer (The Logic) | NO | `a72d0bf840b2bbb19e19b0f2284d24c5dc279c7a2407ee7b81489b308f8744a3` |
 
 ## Usage
 - Refer to each skill's SKILL.md for instructions.

@@ -1,0 +1,17 @@
+{
+  "job_id": "OPAL-260202-163838",
+  "template_id": "0luka-aec-sketch-v1",
+  "parameters": {
+    "prompt": "Photorealistic Architectural Masterstroke: Transform this hand-drawn sketch into a tangible reality. Intent: A high-end Japandi living room with wooden textures and soft lighting.. Maintain the original stroke-work as the structural foundation. Interpret line-weight as spatial depth. Aesthetic: 8k, Octane Render, highly detailed textures, soft global illumination. Camera: 24mm Wide Angle, Eye-level (1.6m).",
+    "negative_prompt": "hallucination, distorted walls, extra windows, blurry textures, altered perspective",
+    "controlnet_model": "scribble_hed_aec",
+    "control_weight": 1.5,
+    "denoising_strength": 0.45,
+    "guidance_scale": 7.5
+  },
+  "system_audit": {
+    "source_payload": "modules/studio/outputs/universal_payload_sketch_STUDIO-SKETCH-163830-368370.yaml",
+    "fidelity_target": "85%+",
+    "zero_waste_verdict": "ENFORCED"
+  }
+}

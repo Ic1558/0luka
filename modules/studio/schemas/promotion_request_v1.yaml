@@ -1,0 +1,12 @@
+schema: promotion_request_v1
+description: |
+  Promotion request: move an approved artifact from Studio to System/Hybrid lane via standard gate.
+required:
+  - schema
+  - promotion_id
+  - from_module
+  - artifact_id
+  - to_lane
+  - author
+  - call_sign
+  - created_at_utc

@@ -1,0 +1,16 @@
+distilled_payload:
+  engine_directive: Turn strokes into materials while maintaining silhouette. Interpret
+    pressure and line weight as depth.
+  fidelity_goal: '0.85'
+  lighting_logic: Global illumination, balanced exposure, preservation of source perspective.
+  primary_prompt: High-fidelity AEC visualization, Minimalist Japandi Living Room
+    with Oak Floor and Sage accents, architectural photography style, 8k resolution.
+  technical_strategy: Edge-Preserving Photorealism
+intent: Minimalist Japandi Living Room with Oak Floor and Sage accents
+mode: sketch
+source_file: projects/test/sketch_v1.png
+system_meta:
+  algorithm_hint: Canny/HED-based ControlNet Guidance
+  engine_version: 1.0.0
+  timestamp: '2026-02-02T03:59:43.047385'
+trace_id: STUDIO-260202-035943

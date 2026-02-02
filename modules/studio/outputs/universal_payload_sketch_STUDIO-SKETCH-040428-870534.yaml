@@ -1,0 +1,13 @@
+fidelity_goal: 0.85
+metadata:
+  engine: 0luka_distiller_v2_vision_enhanced
+  timestamp: '2026-02-02T04:04:28.870873'
+  zero_waste: VERIFIED_LOCAL
+mode: sketch
+perfect_prompt: 'Photorealistic Architectural Masterstroke: Transform this hand-drawn
+  sketch into a tangible reality. Intent: Minimalist Japandi with warm oak and soft
+  linen textures. Maintain the original stroke-work as the structural foundation.
+  Interpret line-weight as spatial depth. Aesthetic: 8k, Octane Render, highly detailed
+  textures, soft global illumination. Camera: 24mm Wide Angle, Eye-level (1.6m).'
+trace_id: STUDIO-SKETCH-040428-870534
+vision_context: Analyzed pilot_sketch.png as sketch source.

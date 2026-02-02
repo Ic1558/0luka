@@ -1,0 +1,14 @@
+schema: output_bundle_v1
+artifact_id: art_20260201185319_57cc6a99
+request_id: mrq_20260201185319_944989b5
+module: studio
+status: FAILED
+created_at_utc: '2026-02-01T18:53:19.540510Z'
+outputs: []
+safety:
+  verified: false
+  detail: 'Denied paths: [''https://opal.google/edit/1vS88OIW-psB9IBfgBPIeG6BbivlfTs9h'']'
+provenance:
+  lane: studio
+  author: gmx
+  call_sign: '[GMX]'

@@ -1,0 +1,37 @@
+module: nlp_control_plane
+version: "1.0"
+purpose: Natural language interface for task submission (translate & forward only)
+entrypoint: modules.nlp_control_plane.app.main:app
+
+contracts:
+  request: chat_preview_request_v1
+  response: chat_preview_response_v1
+  event: gateway_telemetry_v1
+
+safety:
+  allow_roots:
+    - interface/inbox
+    - interface/pending_approval
+    - observability/telemetry
+  hard_deny_globs:
+    - "core/**"
+    - "core_brain/**"
+    - "system/**"
+    - "governance/**"
+    - "runtime/**"
+    - ".env*"
+    - "*.key"
+    - "*.pem"
+  forbidden_patterns:
+    - subprocess
+    - os.system
+    - os.exec
+    - eval
+    - exec
+    - __import__
+
+notes:
+  - "Gateway MUST NOT execute tools/scripts/subprocess"
+  - "All tasks authored as 'gmx' (server-injected)"
+  - "Single-shot confirm: preview_id valid only once"
+  - "Session TTL: 600s, Preview TTL: 300s"

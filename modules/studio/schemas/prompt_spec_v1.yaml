@@ -1,0 +1,17 @@
+schema: prompt_spec_v1
+description: |
+  Studio request contract. Drop into interface/inbox as module_request_<id>.yaml
+required:
+  - schema
+  - request_id
+  - lane
+  - module
+  - author
+  - call_sign
+  - created_at_utc
+  - kind
+  - input_paths
+  - goal
+optional:
+  - constraints
+  - safety

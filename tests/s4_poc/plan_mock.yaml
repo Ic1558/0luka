@@ -1,0 +1,7 @@
+elements:
+  - wall_north
+  - wall_east
+  - wall_west
+  - window_north
+  - door_south
+area_sqm: 24

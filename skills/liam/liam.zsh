@@ -53,7 +53,7 @@ parse_global_flags() {
       *) rest+=("$1"); shift ;;
     esac
   done
-  print -r -- "${rest[@]}"
+  print -l -- "${rest[@]}"
 }
 
 emit_json() {

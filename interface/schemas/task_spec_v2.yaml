@@ -5,13 +5,27 @@ version: 2
 
 required:
   - task_id
-  - created_at_utc
-  - actor
-  - lane
+  - author
   - intent
-  - inputs
-  - outputs_expected
-  - reply_to
+  - operations
+properties:
+  task_id:
+    type: string
+  author:
+    type: string
+    enum: [liam, gmx, boss]
+  intent:
+    type: string
+  operations:
+    type: array
+    items:
+      type: object
+      required: [id, tool, params]
+      properties:
+        id: {type: string}
+        tool: {type: string}
+        params: {type: object}
+        risk_hint: {type: string, enum: [low, high]}
 
 optional:
   - hash

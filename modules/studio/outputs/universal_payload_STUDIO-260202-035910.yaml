@@ -1,0 +1,16 @@
+distilled_payload:
+  engine_directive: Extract zoning and scale. Lock walls, window offsets, and structural
+    members based on vector/line geometry.
+  fidelity_goal: '0.85'
+  lighting_logic: Global illumination, balanced exposure, preservation of source perspective.
+  primary_prompt: High-fidelity AEC visualization, Minimalist Japandi Living Room
+    with Oak Floor and Sage accents, architectural photography style, 8k resolution.
+  technical_strategy: Architectural Precision
+intent: Minimalist Japandi Living Room with Oak Floor and Sage accents
+mode: drawing
+source_file: projects/test/plan_v1.pdf
+system_meta:
+  algorithm_hint: Segment-Anything (SAM) + Geometric Constraint Engine
+  engine_version: 1.0.0
+  timestamp: '2026-02-02T03:59:10.646366'
+trace_id: STUDIO-260202-035910

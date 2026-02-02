@@ -1,0 +1,4 @@
+[STUB ARTIFACT]
+kind=pdf
+goal=extract clean line art
+created=2026-02-01T19:29:12.674996Z

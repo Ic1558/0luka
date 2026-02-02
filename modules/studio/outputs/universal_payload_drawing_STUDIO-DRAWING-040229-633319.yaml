@@ -1,0 +1,13 @@
+fidelity_goal: 0.85
+metadata:
+  engine: 0luka_distiller_v2_vision_enhanced
+  timestamp: '2026-02-02T04:02:29.633669'
+  zero_waste: VERIFIED_LOCAL
+mode: drawing
+perfect_prompt: 'Precision Engineering Visualization: Render based on technical vector
+  geometry. Intent: Minimalist Japandi Living Room with Oak Floor and Sage accents.
+  Strict structural lock on wall intersections and window apertures. Zero drift from
+  2D coordinates. Aesthetic: Clean architectural photography, hyper-realistic materials,
+  neutral lighting. Camera: 24mm Wide Angle, Eye-level (1.6m).'
+trace_id: STUDIO-DRAWING-040229-633319
+vision_context: Analyzed plan_v1.pdf as drawing source.

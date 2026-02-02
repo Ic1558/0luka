@@ -1,0 +1,33 @@
+name: scene_brief_v1
+version: 1.0.0
+description: "Structured design intent for AEC rendering tasks."
+
+sections:
+  interior:
+    type: object
+    properties:
+      room_type: { type: string, enum: [living, kitchen, bedroom, main_hall, office] }
+      mood: { type: string, examples: [modern_minimal, tropical_luxury, industrial] }
+      materials: { type: list, items: string }
+      lighting: { type: string, enum: [morning, noon, evening, artificial] }
+
+  exterior:
+    type: object
+    properties:
+      massing: { type: string, description: "Shape description (e.g., L-shape, 2-storey)" }
+      facade_style: { type: string }
+      context: { type: string, enum: [urban, suburban, nature_forest, water_front] }
+
+  technical:
+    properties:
+      aspect_ratio: { type: string, default: "16:9" }
+      base_model: { type: string, default: "opal_v1" }
+
+example:
+  interior:
+    room_type: "main_hall"
+    mood: "modern_minimal"
+    materials: ["oak floor", "white concrete", "glass"]
+    lighting: "morning_soft"
+  technical:
+    aspect_ratio: "16:9"

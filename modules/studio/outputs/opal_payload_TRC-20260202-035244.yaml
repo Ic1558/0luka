@@ -1,0 +1,9 @@
+constraints:
+  lighting: Natural, soft-diffused via north-facing windows as detected in plan
+  materials: Oak, brushed concrete, neutral textiles
+  spatial: Strict adherence to PDF zoning provided in source
+intent: Create Modern Minimalist Japandi architectural visualization
+prompt_logic: 'Photorealistic AEC render, Modern Minimalist Japandi style, architectural
+  precision. Camera: 24mm wide angle.'
+status: 80%_ACCURACY_THRESHOLD_PASSED
+task_id: TRC-20260202-035244

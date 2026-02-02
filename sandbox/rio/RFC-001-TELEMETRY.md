@@ -15,6 +15,9 @@ The 0luka system currently has multiple telemetry roots emerging from different 
 2. `0luka/observability/telemetry` (Governance v2.0)
 3. `0luka/system/tools/telemetry` (Internal Tools)
 
+> [!NOTE]
+> The directory `./telemetry/` is **documentation-only** (contains `schema.md`). All telemetry outputs are strictly consolidated into `observability/telemetry/`.
+
 This fragmentation complicates forensic audits and cross-agent log correlation.
 
 ## 2. Proposed Solution

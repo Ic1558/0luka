@@ -1,0 +1,16 @@
+schema: output_bundle_v1
+artifact_id: art_20260201193355_434db755
+request_id: mrq_20260201193354_5f885c5c
+module: studio
+status: SUCCESS
+created_at_utc: '2026-02-01T19:33:55.782909Z'
+outputs:
+- path: modules/studio/outputs/art_20260201193355_434db755/briefs/scene_brief.yaml
+  label: scene_brief
+safety:
+  verified: true
+  detail: 'Vera_Lite: path+secret+output ok'
+provenance:
+  lane: studio
+  author: gmx
+  call_sign: '[GMX]'

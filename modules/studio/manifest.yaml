@@ -1,0 +1,28 @@
+module: studio
+version: 1.0
+purpose: Creative / AEC Studio Lane (fast iteration, safety-only validation)
+contracts:
+  request: prompt_spec_v1
+  output: output_bundle_v1
+  event: module_event_v1
+  promotion: promotion_request_v1
+safety:
+  allow_roots:
+    - projects
+    - assets
+    - renders
+    - exports
+    - sandbox
+    - modules/studio/outputs
+  hard_deny_globs:
+    - "core/**"
+    - "system/**"
+    - "tools/**"
+    - "governance/**"
+    - "runtime/**"
+    - ".env*"
+    - "*.key"
+    - "*.pem"
+notes:
+  - "STUDIO lane must never modify core/system/tools/governance."
+  - "Verification is Vera_Lite: path boundary + secret scan + output presence."

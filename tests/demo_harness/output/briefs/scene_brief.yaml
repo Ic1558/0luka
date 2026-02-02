@@ -1,0 +1,22 @@
+schema: scene_brief_v1
+timestamp: '2026-02-02T00:00:00Z'
+source: plan_clean_001.png
+analysis:
+  model: FastVLM-8b-AEC-Quant
+  confidence: 0.98
+interior:
+  room_type: living_room
+  detected_zones:
+  - foyer
+  - main_lounge
+  - kitchen_connection
+  mood: modern_minimal_warm
+  materials:
+  - oak_wood_flooring_matte
+  - white_plaster_walls
+  - black_aluminum_window_frames
+  - linen_curtains_beige
+  lighting: natural_morning_light_from_east
+technical:
+  aspect_ratio: '16:9'
+  notes: Large floor-to-ceiling windows detected on North wall. Open plan layout.

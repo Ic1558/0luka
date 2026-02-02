@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Land Sale Banner Preview (2.4 x 1.2 m)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;700&family=Kanit:wght@600;800&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --banner-width: 1000px;
+            /* Scaling factor */
+            --banner-height: 500px;
+            --primary-red: #d32f2f;
+            --primary-yellow: #fdd835;
+            --primary-dark: #212121;
+        }
+
+        body {
+            font-family: 'Anuphan', sans-serif;
+            background-color: #f5f5f7;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            color: #1d1d1f;
+        }
+
+        header {
+            width: 100%;
+            padding: 20px;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: #333;
+        }
+
+        .controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        select,
+        button {
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-family: inherit;
+            cursor: pointer;
+            background: white;
+        }
+
+        button:hover {
+            background: #f0f0f0;
+        }
+
+        .banner-container {
+            width: var(--banner-width);
+            height: var(--banner-height);
+            background: white;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            transition: all 0.3s ease;
+            border: 1px solid #ccc;
+        }
+
+        .banner-content {
+            width: 100%;
+            height: 100%;
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .text-side {
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            line-height: 1.1;
+        }
+
+        .visual-side {
+            background-color: #f0f0f0;
+            position: relative;
+            overflow: hidden;
+            background-image:
+                radial-gradient(circle at 100% 100%, rgba(0, 0, 0, 0.05) 0%, transparent 50%),
+                linear-gradient(rgba(0, 0, 0, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.02) 1px, transparent 1px);
+            background-size: 100% 100%, 20px 20px, 20px 20px;
+        }
+
+        .visual-side::before {
+            content: '14.5m x 21m';
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-size: 14px;
+            color: rgba(0, 0, 0, 0.3);
+            font-weight: bold;
+            z-index: 2;
+        }
+
+        .visual-side::after {
+            content: '';
+            position: absolute;
+            top: -20%;
+            right: -20%;
+            width: 120%;
+            height: 120%;
+            border: 2px solid rgba(0, 0, 0, 0.05);
+            border-radius: 50%;
+            background: repeating-radial-gradient(circle at center,
+                    transparent,
+                    transparent 40px,
+                    rgba(0, 0, 0, 0.02) 41px,
+                    rgba(0, 0, 0, 0.02) 42px);
+        }
+
+        /* Themes */
+        .theme-red .text-side {
+            background: var(--primary-red);
+            color: white;
+        }
+
+        .theme-red .visual-side {
+            background-color: #fff1f1;
+            border-left: 10px solid var(--primary-red);
+        }
+
+        .theme-yellow .text-side {
+            background: var(--primary-yellow);
+            color: var(--primary-dark);
+        }
+
+        .theme-yellow .visual-side {
+            background-color: #fffde7;
+            border-left: 10px solid var(--primary-yellow);
+        }
+
+        .theme-white .text-side {
+            background: white;
+            color: var(--primary-dark);
+        }
+
+        .theme-white .visual-side {
+            background-color: #fafafa;
+            border-left: 10px solid #eee;
+        }
+
+        /* New Graphic Only Themes */
+        .theme-grid .banner-content {
+            grid-template-columns: 1fr;
+            background: #fafafa;
+        }
+
+        .theme-grid .text-side {
+            background: #fff;
+            color: #333;
+            background-image: linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            border: 4px solid #333;
+            margin: 20px;
+        }
+
+        .theme-grid .visual-side {
+            display: none;
+        }
+
+        .theme-grid .phone-box {
+            background: #333;
+            color: #fff;
+        }
+
+        .theme-caution .banner-content {
+            grid-template-columns: 1fr;
+            background: #000;
+        }
+
+        .theme-caution .text-side {
+            background: #fdd835;
+            color: #000;
+            padding: 20px;
+            margin: 20px;
+            border: 10px solid #000;
+            outline: 5px solid #fdd835;
+        }
+
+        .theme-caution .headline {
+            color: #000;
+            text-shadow: none;
+        }
+
+        .theme-caution .visual-side {
+            display: none;
+        }
+
+        .theme-caution .phone-box {
+            background: #000;
+            color: #fdd835;
+            border-color: #000;
+        }
+
+        .theme-impact .banner-content {
+            grid-template-columns: 1fr;
+            background: white;
+        }
+
+        .theme-impact .text-side {
+            background: white;
+            color: #d32f2f;
+            text-align: center;
+            align-items: center;
+        }
+
+        .theme-impact .headline {
+            font-size: 120px;
+            line-height: 0.9;
+            width: 100%;
+            border-bottom: 5px solid #d32f2f;
+            padding-bottom: 10px;
+        }
+
+        .theme-impact .visual-side {
+            display: none;
+        }
+
+        .theme-impact .phone-box {
+            background: #d32f2f;
+            color: white;
+            margin-top: 20px;
+        }
+
+
+        /* Typography */
+        .headline {
+            font-family: 'Kanit', sans-serif;
+            font-weight: 800;
+            font-size: 72px;
+            margin-bottom: 20px;
+        }
+
+        .sub-headline {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .details {
+            font-size: 24px;
+            opacity: 0.9;
+            margin-bottom: 40px;
+        }
+
+        .phone-box {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 15px 30px;
+            border-radius: 50px;
+            display: inline-flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 48px;
+            font-weight: 800;
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            width: fit-content;
+        }
+
+        .theme-yellow .phone-box {
+            background: var(--primary-dark);
+            color: var(--primary-yellow);
+            border-color: var(--primary-dark);
+        }
+
+        .theme-white .phone-box {
+            background: var(--primary-red);
+            color: white;
+            border-color: var(--primary-red);
+        }
+
+        .ruler {
+            width: var(--banner-width);
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #888;
+        }
+
+        .distance-simulator {
+            margin-top: 40px;
+            text-align: center;
+        }
+
+        #distanceRange {
+            width: 300px;
+        }
+
+        .bg-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&q=80&w=1200');
+            background-size: cover;
+            z-index: -1;
+        }
+    </style>
+</head>
+
+<body class="theme-red">
+
+    <header>
+        <h1>ออกแบบป้ายโฆษณาที่ดิน (2.4 x 1.2 เมตร)</h1>
+    </header>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>โทนสี (Theme)</label>
+            <select id="themeSelect">
+                <option value="theme-red">แดง-ขาว (เตะตาที่สุด - รูปภาพ)</option>
+                <option value="theme-yellow">เหลือง-ดำ (ชัดเจนมาก - รูปภาพ)</option>
+                <option value="theme-white">ขาว-พรีเมียม (สะอาดตา - รูปภาพ)</option>
+                <option value="theme-grid">Blueprint (Graphic Only - สัดส่วนทองคำ)</option>
+                <option value="theme-caution">Caution (Graphic Only - เน้นเบอร์โทร)</option>
+                <option value="theme-impact">Impact (Graphic Only - ตัวอักษรเต็มหน้า)</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>รูปแบบคำโฆษณา</label>
+            <select id="copySelect">
+                <option value="0">Direct: หน้ากว้างสะใจ</option>
+                <option value="1">Opportunity: ที่ดินทอง 76 ตร.ว.</option>
+                <option value="2">Minimal: สัดส่วนทองคำ</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="banner" class="banner-container">
+        <div class="banner-content">
+            <div class="text-side">
+                <div id="headline" class="headline">ขาย/เช่า ที่ดินสวย</div>
+                <div id="subHeadline" class="sub-headline">หน้ากว้างสะใจ 14.5 ม.</div>
+                <div id="details" class="details">สัดส่วนทองคำ: 14.5 x 21 ม. | พื้นที่ 76 ตร.ว.</div>
+                <div class="phone-box">
+                    <span>📞 085-043-2551</span>
+                </div>
+            </div>
+            <div class="visual-side">
+            </div>
+        </div>
+    </div>
+
+    <div class="ruler">
+        <span>0 m</span>
+        <span>0.6 m</span>
+        <span>1.2 m</span>
+        <span>1.8 m</span>
+        <span>2.4 m</span>
+    </div>
+
+    <div class="distance-simulator">
+        <label>จำลองระยะห่างในการมอง (Distance Simulation)</label><br>
+        <input type="range" id="distanceRange" min="0.2" max="1.5" step="0.01" value="1">
+    </div>
+
+    <script>
+        const billboard = document.getElementById('banner');
+        const distanceRange = document.getElementById('distanceRange');
+        const themeSelect = document.getElementById('themeSelect');
+        const copySelect = document.getElementById('copySelect');
+
+        const headlines = [
+            "ขาย/เช่า ที่ดินสวย",
+            "ที่ดินทอง! 76 ตร.ว.",
+            "หน้ากว้างสะใจ 14.5 ม."
+        ];
+
+        const subHeadlines = [
+            "หน้ากว้างสะใจ 14.5 ม.",
+            "หน้ากว้าง 14.5 ม. พร้อมโอน",
+            "สัดส่วนทองคำ 14.5 x 21 ม."
+        ];
+
+        const detailsText = [
+            "สัดส่วนทองคำ: 14.5 x 21 ม. | พื้นที่ 76 ตร.ว.",
+            "เหมาะบ้านเดี่ยว / โฮมออฟฟิศ / โกดัง",
+            "ที่ดินแบ่งแยกแล้ว พร้อมใช้งานทันมี"
+        ];
+
+        distanceRange.addEventListener('input', (e) => {
+            const scale = e.target.value;
+            billboard.style.transform = `scale(${scale})`;
+        });
+
+        themeSelect.addEventListener('change', (e) => {
+            document.body.className = e.target.value;
+        });
+
+        copySelect.addEventListener('change', (e) => {
+            const idx = e.target.value;
+            document.getElementById('headline').innerText = headlines[idx];
+            document.getElementById('subHeadline').innerText = subHeadlines[idx];
+            document.getElementById('details').innerText = detailsText[idx];
+        });
+    </script>
+</body>
+
+</html>

@@ -20,6 +20,9 @@ fi
 # Ensure directory exists
 mkdir -p "$(dirname "$TARGET")"
 
+TMP_TARGET="$TARGET.tmp"
+STATUS_FILE="$ROOT/state/summary_last_status.json"
+
 {
   echo "<!-- built_by=$GENERATOR timestamp=$NOW_UTC -->"
   echo "# 0luka — Summary"
@@ -29,9 +32,9 @@ mkdir -p "$(dirname "$TARGET")"
   echo "- generator: $GENERATOR"
   echo "- root: $ROOT"
   echo ""
-
+  # ... [Existing signals and tails logic omitted for brevity in replace call, but included in final content] ...
+  # (I will include the full block here to be safe as per tool rules)
   echo "## Signals"
-
   echo "### Recent incidents (if any)"
   INCIDENTS_DIR="$ROOT/observability/incidents"
   if [[ -d "$INCIDENTS_DIR" ]]; then
@@ -40,7 +43,6 @@ mkdir -p "$(dirname "$TARGET")"
     echo "- (dir missing: observability/incidents)"
   fi
   echo ""
-
   echo "### Latest open tasks"
   TASKS_DIR="$ROOT/artifacts/tasks/open"
   if [[ -d "$TASKS_DIR" ]]; then
@@ -49,7 +51,6 @@ mkdir -p "$(dirname "$TARGET")"
     echo "- (dir missing: artifacts/tasks/open)"
   fi
   echo ""
-
   echo "## Log tails (current.log)"
   found_any=0
   for log_file in "$ROOT"/logs/components/*/current.log; do
@@ -63,7 +64,34 @@ mkdir -p "$(dirname "$TARGET")"
   if [[ "$found_any" -eq 0 ]]; then
     echo "- (no logs found under logs/components/*/current.log)"
   fi
+} > "$TMP_TARGET"
 
-} > "$TARGET"
+# --- GUARD VALIDATION ---
+FILE_SIZE=$(stat -f%z "$TMP_TARGET" 2>/dev/null || echo 0)
+MIN_SIZE=1024 # 1KB
 
-echo "✅ Wrote SOT Summary: $TARGET"
+write_status() {
+    local v_status=$1
+    local detail=$2
+    cat <<EOF > "$STATUS_FILE"
+{
+  "last_run_utc": "$NOW_UTC",
+  "status": "$v_status",
+  "detail": "$detail",
+  "size_bytes": $FILE_SIZE
+}
+EOF
+}
+
+if [[ $FILE_SIZE -lt $MIN_SIZE ]]; then
+  echo "❌ FATAL: Summary size check failed ($FILE_SIZE bytes < $MIN_SIZE bytes)"
+  write_status "error" "size_too_small"
+  exit 4
+fi
+
+# Atomic Move
+mv "$TMP_TARGET" "$TARGET"
+chmod 644 "$TARGET"
+write_status "ok" "verified"
+
+echo "✅ Wrote SOT Summary: $TARGET (Size: $FILE_SIZE)"

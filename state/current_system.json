@@ -8,7 +8,7 @@
   },
   "librarian": {
     "last_score": 100,
-    "last_run_ts_utc": "2026-01-30T21:12:30Z",
+    "last_run_ts_utc": "2026-02-02T09:39:26Z",
     "last_gate": "OK"
   },
   "pointers": {
@@ -18,5 +18,23 @@
     "observability_logs": "observability/logs/",
     "component_logs": "logs/components/",
     "summary_latest": "reports/summary/latest.md"
-  }
+  },
+  "librarian_version": "1.1",
+  "scheduler_interval_sec": 300,
+  "core_contract": {
+    "pending_yaml": "state/librarian/pending.yaml",
+    "current_system_json": "state/current_system.json",
+    "snapshots_dir": "state/librarian/snapshots/",
+    "launchd_out_log": "observability/logs/librarian_apply.launchd.out.log",
+    "failure_marker": "state/librarian/last_error.json",
+    "pause_switch": "state/librarian/PAUSE",
+    "root": "/Users/icmini/0luka",
+    "inbox_base": "state/inbox",
+    "inbox_new": "state/inbox/new",
+    "inbox_done": "state/inbox/done",
+    "inbox_rejected": "state/inbox/rejected",
+    "librarian_pending": "state/librarian/pending.yaml"
+  },
+  "bridge_version": "0.1",
+  "bridge_last_run_ts_utc": "2026-01-31T08:03:18Z"
 }

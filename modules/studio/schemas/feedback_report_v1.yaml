@@ -1,0 +1,12 @@
+schema: feedback_report_v1
+target_artifact: string
+structural_score: float    # 0.0 - 1.0 (Align with Plan)
+semantic_score: float      # 0.0 - 1.0 (Align with Brief)
+issues:
+  - type: string           # structural | semantic | artifact
+    severity: string       # low | medium | high | critical
+    description: string
+    zone: string           # e.g. "North Wall"
+suggestions: [string]      # List of actionable advice for the next iteration
+created_at_utc: string
+model_version: string

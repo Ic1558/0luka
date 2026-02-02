@@ -1,0 +1,4 @@
+[STUB ARTIFACT]
+kind=analyze
+goal=extract semantics
+created=2026-02-01T19:32:11.631092Z

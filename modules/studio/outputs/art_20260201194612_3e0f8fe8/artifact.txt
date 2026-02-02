@@ -1,0 +1,4 @@
+[STUB ARTIFACT]
+kind=opal
+goal=Generate a modern living room interior based on the brief
+created=2026-02-01T19:46:16.730580Z

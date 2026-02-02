@@ -1,7 +1,0 @@
-{
-  "ts": "2026-01-28T10:45:45Z",
-  "executor": "lisa",
-  "task_id": "8db73f7fb92645579b87d45b9a00287a",
-  "status": "queued",
-  "dispatch_path": "/Users/icmini/0luka/observability/bridge/outbox/lisa/8db73f7fb92645579b87d45b9a00287a_dispatch.json"
-}

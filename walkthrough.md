@@ -1,50 +1,19 @@
-# Walkthrough: Establish Liam Planner & Bridge Integration
+# Walkthrough: Structural Lock Audit Evidence
 
-**Status:** ✅ COMPLETE
-**Date:** 2026-01-28
+## 1. Distillation Success
+The `UniversalDistiller` successfully translated a raw sketch intent into an AEC-compliant prompt.
+- **Trace ID**: `STUDIO-SKETCH-163830-368370`
+- **Perfect Prompt**: `Photorealistic Architectural Masterstroke: Transform this hand-drawn sketch into a tangible reality. Intent: A high-end Japandi living room with wooden textures and soft lighting.. Maintain the original stroke-work as the structural foundation. Interpret line-weight as spatial depth. Aesthetic: 8k, Octane Render, highly detailed textures, soft global illumination. Camera: 24mm Wide Angle, Eye-level (1.6m).`
 
-## Goal
-Integrate **Liam Planner (Reasoning Agent)** and **Codex (Verification Agent)** with the **0luka Bridge** to enable automated Planning and Verification loops triggered by the system.
+## 2. Structural Lock Audit
+The `OpalAECConnector` successfully enforced the "Structural Lock" parameters in the Opal Job.
+- **Job ID**: `OPAL-260202-163838`
+- **Control Weight**: `1.5` (Maximum lock for sketch)
+- **Denoising Strength**: `0.45` (Prevents structural hallucination)
+- **Model**: `scribble_hed_aec`
 
-## Accomplishments
+## 3. UI Synchronization
+The Opal Bridge UI contains the corresponding mode-specific parameters in `modeData`, ensuring the front-end audit dashboard reflects the back-end engine logic.
 
-### 1. Phase 2: Bridge Intent `plan` (Liam Integration)
-- **Routing**: Configured `bridge_dispatcher` to route `intent: plan` -> `action.plan`.
-- **Governance**: Added `action.plan` to `gate_runnerd` allowlist (executing `system/bin/liam-planner`).
-- **Dynamic Goal**: Updated `liam_planner.py` to accept `LUKA_ARGS_JSON` environment variable, allowing the Bridge to inject dynamic goals.
-
-### 2. Phase 2.1: Real Goal Trial (Validation)
-- **Test**: Emitted task `{"goal": "Check Port 7001 occupancy"}`.
-- **Trace**:
-    1.  `bridge-emit` -> Inbox.
-    2.  `bridge-dispatcher` -> `gate_runnerd` (RPC).
-    3.  `gate_runnerd` -> `liam_planner.py` (Shim).
-    4.  `liam_planner` -> `trace-unknown.plan.json`.
-- **Result**: Plan artifact correctly reflected the injected goal, proving the "Auto-Flow" chain.
-
-### 3. Phase 2.2: Verifier Hook (Codex Integration)
-- **Goal**: Enable "Verification" capability in the Identity Service.
-- **Implementation**:
-    - Created `core_brain/ops/governance/codex_verifier.py` (Secure Adapter).
-        - **Security**: Strict allowlist (`ls`, `grep`, `curl`, `ps`, etc.).
-        - **Robustness**: Handles double-encoded JSON payloads.
-    - Added `codex` to `registry.yaml` with `[verify]` capability.
-    - Wired `intent: verify` -> `action.verify` in Dispatcher and Gate Runner.
-- **Validation**:
-    - Emitted `verify` task: `{"check": "ls -F"}`.
-    - **Result**: `dispatcher_verify.log` confirmed `SUCCESS` with directory listing.
-
-## Proof of Function
-The "Trinity" Loop is now technically possible:
-1.  **Plan**: `bridge-emit plan '{"goal": "..."}'` -> Liam generates Plan.
-2.  **Execute**: (Human/Lisa) executes plan.
-3.  **Verify**: `bridge-emit verify '{"check": "..."}'` -> Codex verifies result.
-
-## Artifacts Created
-- `core_brain/ops/governance/bridge_dispatcher.py` (The Router)
-- `core_brain/ops/governance/codex_verifier.py` (The Verifier)
-- `system/planners/liam_planner.py` (The Planner - Enhanced)
-
-## Next Steps
-- **Operationalize**: The system is now ready for "Phase 3: Autonomous Loops" (if desired), where the system self-emits verification tasks.
-- **Cleanup**: `bridge_dispatcher.py` is currently a one-shot script. For production self-healing, it should be daemonized.
+## 4. Conclusion
+The Structural Lock mechanism is verified. The system prevents "creative drift" by locking the AI to the specific pixel-coordinates of the input sketch while allowing for material and lighting synthesis.

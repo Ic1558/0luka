@@ -1,0 +1,16 @@
+distilled_payload:
+  engine_directive: Keep existing structures, perspectives, and lighting identities.
+    Apply local edits to textures or furniture only.
+  fidelity_goal: '0.85'
+  lighting_logic: Global illumination, balanced exposure, preservation of source perspective.
+  primary_prompt: High-fidelity AEC visualization, Minimalist Japandi Living Room
+    with Oak Floor and Sage accents, architectural photography style, 8k resolution.
+  technical_strategy: Contextual Consistency
+intent: Minimalist Japandi Living Room with Oak Floor and Sage accents
+mode: retouch
+source_file: projects/test/photo_v1.jpg
+system_meta:
+  algorithm_hint: Inpainting Masking + IP-Adapter Consistency
+  engine_version: 1.0.0
+  timestamp: '2026-02-02T03:59:43.241528'
+trace_id: STUDIO-260202-035943

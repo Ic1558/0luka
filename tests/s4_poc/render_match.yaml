@@ -1,0 +1,12 @@
+artifact_id: art_render_001
+detected_elements:
+  - wall_north
+  - wall_east
+  - wall_west
+  - window_north
+  - door_south
+detected_materials:
+  - oak floor
+  - white plaster
+  - glass
+detected_mood: Modern Minimal

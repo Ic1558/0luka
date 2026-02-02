@@ -1,0 +1,4 @@
+[STUB ARTIFACT]
+kind=opal
+goal=Generate a modern living room interior with oak floor and morning sunlight
+created=2026-02-01T19:40:47.075301Z

@@ -1,0 +1,13 @@
+fidelity_goal: 0.85
+metadata:
+  engine: 0luka_distiller_v2_vision_enhanced
+  timestamp: '2026-02-02T04:06:59.658901'
+  zero_waste: VERIFIED_LOCAL
+mode: drawing
+perfect_prompt: 'Precision Engineering Visualization: Render based on technical vector
+  geometry. Intent: Minimalist Japandi with warm oak and soft linen textures. Strict
+  structural lock on wall intersections and window apertures. Zero drift from 2D coordinates.
+  Aesthetic: Clean architectural photography, hyper-realistic materials, neutral lighting.
+  Camera: 24mm Wide Angle, Eye-level (1.6m).'
+trace_id: STUDIO-DRAWING-040659-658642
+vision_context: Analyzed pilot_drawing.png as drawing source.
