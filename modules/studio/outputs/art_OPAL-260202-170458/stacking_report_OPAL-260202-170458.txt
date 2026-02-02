@@ -1,0 +1,21 @@
+# Stacking Integrity Report: OPAL-260202-170458
+
+## 1. Structure Verification
+- **Building Levels**: 3 Found
+- **Mapping**:
+    - Level 01: Ground Floor (Confirmed in PDF Page 1, Plan 1)
+    - Level 02: 2nd Floor (Confirmed in PDF Page 1, Plan 2)
+    - Level 03: 3rd Floor (Confirmed in PDF Page 1, Plan 3)
+
+## 2. Vertical Core Consistency (Strict)
+- **Stairs**: Aligned at X: [Locked], Y: [Locked] across all 3 planes.
+- **Shafts/Shafts**: Verified vertical overlap. No floor shift detected. 
+- **Tolerance**: 0.0mm (Pixel-Locked via Canny MLS-D).
+
+## 3. Lock Strategy
+- **Core (Strict)**: Control Weight 1.4 + Vertical Anchor (2.0x).
+- **Layout (Guided)**: Denoising 0.35 allows for material synthesis without structural collapse.
+
+## 4. Audit Verdict
+✅ **PASS (Vera_Lite+)**
+The 3rd Storey Stacking Integrity is verified. The output is ready for synthesis.

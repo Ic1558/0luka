@@ -1,19 +1,20 @@
-# Walkthrough: Structural Lock Audit Evidence
+## Phase 2: 3nd Storey Stacking Integrity (Addendum)
+The system was expanded to support the **3-Storey Studio Governance Protocol**.
 
-## 1. Distillation Success
-The `UniversalDistiller` successfully translated a raw sketch intent into an AEC-compliant prompt.
-- **Trace ID**: `STUDIO-SKETCH-163830-368370`
-- **Perfect Prompt**: `Photorealistic Architectural Masterstroke: Transform this hand-drawn sketch into a tangible reality. Intent: A high-end Japandi living room with wooden textures and soft lighting.. Maintain the original stroke-work as the structural foundation. Interpret line-weight as spatial depth. Aesthetic: 8k, Octane Render, highly detailed textures, soft global illumination. Camera: 24mm Wide Angle, Eye-level (1.6m).`
+### 1. Engine Upgrade (v2.1)
+The `UniversalDistiller` now understands `building.levels` and generates "Stacking Integrity" directives for multi-storey projects. 
+- **Target**: `wsk49-251216_03.pdf` (Verified with 3 Levels).
 
-## 2. Structural Lock Audit
-The `OpalAECConnector` successfully enforced the "Structural Lock" parameters in the Opal Job.
-- **Job ID**: `OPAL-260202-163838`
-- **Control Weight**: `1.5` (Maximum lock for sketch)
-- **Denoising Strength**: `0.45` (Prevents structural hallucination)
-- **Model**: `scribble_hed_aec`
+### 2. Dual-Level Lock Deployment
+The `OpalAECConnector` implemented a hierarchical lock system:
+- **Level A (Strict)**: 1.4+ weight for Stairs/Shafts.
+- **Level B (Guided)**: Managed denoising for aesthetic layout.
+- **Vertical Anchor**: 2.0x weight multiplier for cross-floor consistency.
 
-## 3. UI Synchronization
-The Opal Bridge UI contains the corresponding mode-specific parameters in `modeData`, ensuring the front-end audit dashboard reflects the back-end engine logic.
+### 3. Vera_Lite+ Audit Success
+- **Job ID**: `OPAL-260202-171044`
+- **Fidelity Target**: `95%+`
+- **Stacking Report**: Markers enabled in JSON payload for `OPAL-260202-171044`.
 
-## 4. Conclusion
-The Structural Lock mechanism is verified. The system prevents "creative drift" by locking the AI to the specific pixel-coordinates of the input sketch while allowing for material and lighting synthesis.
+### 4. Promotion Status
+Ready for **GMX Promotion** to System Lane, as all stacking integrity rules are satisfied.

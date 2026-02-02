@@ -1,0 +1,36 @@
+{
+  "job_id": "OPAL-260202-171044",
+  "template_id": "0luka-aec-drawing-v1-1-multi",
+  "parameters": {
+    "prompt": "Precision Engineering Visualization: Render based on technical vector geometry. Intent: Modern 3-storey minimalist villa with seamless indoor-outdoor transition and vertical green walls. Strict structural lock on wall intersections and window apertures. Zero drift from 2D coordinates. [STACKING INTEGRITY ENFORCED: 3 LEVELS]. Lock vertical core (stairs/shafts) across all planes. Do not collapse middle floors. Ensure Z-axis alignment matches the architecture. Aesthetic: Clean architectural photography, hyper-realistic materials, neutral lighting. Camera: 24mm Wide Angle, Eye-level (1.6m).",
+    "negative_prompt": "hallucination, distorted walls, extra windows, blurry textures, altered perspective, floor collapse, missing levels",
+    "controlnet_model": "canny_mlsd_aec",
+    "control_weight": 1.4,
+    "denoising_strength": 0.35,
+    "guidance_scale": 9.0,
+    "dual_lock_protocol": {
+      "level_a_strict": [
+        "stairs",
+        "shafts",
+        "core_walls"
+      ],
+      "level_b_guided": [
+        "furniture",
+        "materials",
+        "lighting"
+      ],
+      "vertical_anchor_weight": 2.0
+    }
+  },
+  "system_audit": {
+    "source_payload": "modules/studio/outputs/universal_payload_drawing_STUDIO-DRAWING-171029-120630.yaml",
+    "levels": 3,
+    "fidelity_target": "95%+",
+    "zero_waste_verdict": "ENFORCED",
+    "vera_lite_plus": {
+      "page_coverage_check": "REQUIRED",
+      "vertical_core_consistency": "STRICT",
+      "stacking_report": "PENDING_EXECUTION"
+    }
+  }
+}

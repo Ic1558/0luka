@@ -1,0 +1,17 @@
+fidelity_goal: 0.95
+levels: 3
+metadata:
+  engine: 0luka_distiller_v2_1_multi_storey
+  timestamp: '2026-02-02T17:10:29.120859'
+  zero_waste: VERIFIED_LOCAL
+mode: drawing
+perfect_prompt: 'Precision Engineering Visualization: Render based on technical vector
+  geometry. Intent: Modern 3-storey minimalist villa with seamless indoor-outdoor
+  transition and vertical green walls. Strict structural lock on wall intersections
+  and window apertures. Zero drift from 2D coordinates. [STACKING INTEGRITY ENFORCED:
+  3 LEVELS]. Lock vertical core (stairs/shafts) across all planes. Do not collapse
+  middle floors. Ensure Z-axis alignment matches the architecture. Aesthetic: Clean
+  architectural photography, hyper-realistic materials, neutral lighting. Camera:
+  24mm Wide Angle, Eye-level (1.6m).'
+trace_id: STUDIO-DRAWING-171029-120630
+vision_context: Analyzed plan_clean_001.png as drawing source for 3-storey structure.
