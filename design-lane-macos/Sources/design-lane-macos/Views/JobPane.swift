@@ -185,15 +185,10 @@ private struct JobResultView: View {
 
             if let error = detail.error {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Error Detail")
+                    Text("Error Message")
                         .font(.headline)
-                    Text(error.message ?? "Unknown error")
+                    Text(error.message)
                         .foregroundStyle(.red)
-                    if let code = error.code {
-                        Text("Code: \(code)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)

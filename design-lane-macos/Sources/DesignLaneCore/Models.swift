@@ -31,11 +31,10 @@ public enum JobStatus: String, Codable, Sendable, CaseIterable {
     case running
     case succeeded
     case failed
-    case canceled
 
     public var isTerminal: Bool {
         switch self {
-        case .succeeded, .failed, .canceled:
+        case .succeeded, .failed:
             return true
         case .queued, .running:
             return false
@@ -64,14 +63,10 @@ public struct JobOutput: Codable, Sendable, Equatable {
 }
 
 public struct JobError: Codable, Sendable, Equatable {
-    public let code: String?
-    public let message: String?
-    public let detail: JSONValue?
+    public let message: String
 
-    public init(code: String?, message: String?, detail: JSONValue?) {
-        self.code = code
+    public init(message: String) {
         self.message = message
-        self.detail = detail
     }
 }
 
