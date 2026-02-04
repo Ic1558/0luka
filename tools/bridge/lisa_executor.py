@@ -98,12 +98,35 @@ def process_task(root: Path, inbox_file: Path, inflight_base: Path, outbox_base:
                 f.write(json.dumps(tl_running, ensure_ascii=False) + "\n")
 
         # 3. Execute
-        cmd = ["echo", f"Executing LISA task: {intent} for {task_id}"]
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        stdout = res.stdout
-        stderr = res.stderr
-        exit_code = res.returncode
+        timeout = payload.get("timeout", 30)
         
+        if intent == "run_shell":
+            command = payload.get("command")
+            if not command:
+                raise ValueError("Payload missing 'command' for run_shell intent")
+            
+            cmd = ["/bin/zsh", "-c", command]
+            log.info(f"Executing shell command: {command}", task_id, "RUNNING")
+            
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            stdout = res.stdout
+            stderr = res.stderr
+            exit_code = res.returncode
+            summary = f"Shell command executed (exit={exit_code})"
+            result_data = {"command": command, "stdout_len": len(stdout), "stderr_len": len(stderr)}
+            if len(stdout) > 0: log.info(f"STDOUT: {stdout[:200]}...", task_id, "RUNNING")
+            if len(stderr) > 0: log.info(f"STDERR: {stderr[:200]}...", task_id, "RUNNING")
+            
+        else:
+            # Default reference echo
+            cmd = ["echo", f"Executing LISA task: {intent} for {task_id}"]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            stdout = res.stdout
+            stderr = res.stderr
+            exit_code = res.returncode
+            summary = f"LISA {intent} finished"
+            result_data = payload
+
         # 4. Prepare Result
         result_payload = {
             "task_id": task_id,
@@ -115,13 +138,15 @@ def process_task(root: Path, inbox_file: Path, inflight_base: Path, outbox_base:
             "stdout": stdout,
             "stderr": stderr,
             "exit_code": exit_code,
-            "result": {"summary": f"LISA {intent} finished", "details": payload}
+            "result": {"summary": summary, "details": result_data}
         }
         
         # 5. Outbox
         outbox_dir = outbox_base / "lisa"
         outbox_dir.mkdir(parents=True, exist_ok=True)
-        atomic_write(outbox_dir / f"{task_id}.result.json", result_payload)
+        out_path = outbox_dir / f"{task_id}.result.json"
+        log.info(f"Writing result to: {out_path}", task_id, "RUNNING")
+        atomic_write(out_path, result_payload)
         
         log.info("completed successfully", task_id, "DONE")
         return True

@@ -1,0 +1,41 @@
+# Definition of allowed variations for the Renderer
+# The AI Stylist (LLM) MUST choose from these keys only.
+
+version: 1.0
+schema:
+  materials:
+    FloorMat:
+      description: "Main flooring material"
+      options:
+        - polished_concrete_grey
+        - oak_herringbone_natural
+        - white_terrazzo
+        - black_slate_tile
+    
+    WallMat:
+      description: "Vertical partition material"
+      options:
+        - lime_plaster_white
+        - exposed_brick_red
+        - concrete_board_raw
+        - matte_paint_swisssword
+    
+    CeilingMat:
+      description: "Ceiling material (often white)"
+      options:
+        - gypsum_matte_white
+        - exposed_concrete_slab
+
+  lighting:
+    presets:
+      - studio_soft_daylight
+      - golden_hour_sun
+      - overcast_neutral
+      - night_interior_warm
+
+  camera:
+    modes:
+      - iso_ortho_south
+      - iso_ortho_east
+      - top_down_plan
+      - interior_eye_level_auto

@@ -1,0 +1,12 @@
+version: 1.0
+units: m
+scale: 1.0
+metadata:
+  source_file: ""
+  detected_at: ""
+  extraction_engine: "PyMuPDF.get_drawings"
+layers:
+  walls: []
+  openings: []
+  annotations: []
+  raw_paths: []

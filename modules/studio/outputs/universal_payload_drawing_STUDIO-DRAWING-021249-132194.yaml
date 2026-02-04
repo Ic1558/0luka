@@ -1,0 +1,14 @@
+fidelity_goal: 0.85
+levels: 1
+metadata:
+  engine: 0luka_distiller_v2_1_multi_storey
+  timestamp: '2026-02-04T02:12:49.132236'
+  zero_waste: VERIFIED_LOCAL
+mode: drawing
+perfect_prompt: 'Precision Engineering Visualization: Render based on technical vector
+  geometry. Intent: Bio-parametric office structure, white walls, green roof. Strict
+  structural lock on wall intersections and window apertures. Zero drift from 2D coordinates.
+  Aesthetic: Clean architectural photography, hyper-realistic materials, neutral lighting.
+  Camera: 24mm Wide Angle, Eye-level (1.6m).'
+trace_id: STUDIO-DRAWING-021249-132194
+vision_context: Analyzed massing_v1.obj as drawing source for 1-storey structure.

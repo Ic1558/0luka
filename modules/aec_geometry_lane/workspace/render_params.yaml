@@ -1,0 +1,17 @@
+# AI-Generated Stylist Output
+# Intent: "Modern Japanese Office"
+# Engine: 0luka Stylist v1.0
+
+style: japandi_minimalism
+
+materials:
+  WallMat: lime_plaster_white
+  FloorMat: oak_herringbone_natural
+  CeilingMat: gypsum_matte_white
+
+lighting:
+  preset: studio_soft_daylight
+
+camera:
+  mode: interior_eye_level_auto
+  height: 1.6
