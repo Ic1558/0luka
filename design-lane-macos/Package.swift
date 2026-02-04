@@ -30,9 +30,5 @@ let package = Package(
                 "DesignLaneCore"
             ]
         ),
-        .executableTarget(
-            name: "Verification",
-            dependencies: ["DesignLaneCore"]
-        ),
     ]
 )
