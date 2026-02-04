@@ -219,6 +219,7 @@
             },
             "JobStatus": {
                 "type": "string",
+                "description": "Deterministic state of the job. See core/semantics/job_lifecycle.md for rules.",
                 "enum": [
                     "queued",
                     "running",
