@@ -1,0 +1,66 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "OPAL Job Record",
+    "description": "On-disk persistence format for OPAL jobs as authorized by the kernel.",
+    "type": "object",
+    "properties": {
+        "id": {
+            "type": "string"
+        },
+        "prompt": {
+            "type": "string"
+        },
+        "input_file": {
+            "type": "string",
+            "description": "Local path or URI to the uploaded artifact."
+        },
+        "status": {
+            "$ref": "../semantics/job_lifecycle.md#/states"
+        },
+        "outputs": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "model",
+                            "image",
+                            "log",
+                            "artifact"
+                        ]
+                    }
+                }
+            }
+        },
+        "error": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "metadata": {
+            "type": "object"
+        },
+        "created_at": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "updated_at": {
+            "type": "string",
+            "format": "date-time"
+        }
+    },
+    "required": [
+        "id",
+        "prompt",
+        "status",
+        "created_at"
+    ]
+}

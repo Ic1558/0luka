@@ -3,7 +3,8 @@
     "info": {
         "title": "OPAL API",
         "description": "Telemetry & Health Service for 02luka OPAL V4 Pipeline",
-        "version": "1.1.0"
+        "version": "1.1.0",
+        "x-opal-authoritative": true
     },
     "paths": {
         "/api/health": {
