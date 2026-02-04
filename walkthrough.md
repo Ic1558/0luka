@@ -1,20 +1,20 @@
-## Phase 2: 3nd Storey Stacking Integrity (Addendum)
-The system was expanded to support the **3-Storey Studio Governance Protocol**.
+# Walkthrough: NotebookLM Skill Implementation
 
-### 1. Engine Upgrade (v2.1)
-The `UniversalDistiller` now understands `building.levels` and generates "Stacking Integrity" directives for multi-storey projects. 
-- **Target**: `wsk49-251216_03.pdf` (Verified with 3 Levels).
+## Overview
+Successfully integrated the NotebookLM system as a formalized "Skill" within the 02luka repository.
 
-### 2. Dual-Level Lock Deployment
-The `OpalAECConnector` implemented a hierarchical lock system:
-- **Level A (Strict)**: 1.4+ weight for Stairs/Shafts.
-- **Level B (Guided)**: Managed denoising for aesthetic layout.
-- **Vertical Anchor**: 2.0x weight multiplier for cross-floor consistency.
+## Actions Taken
+1.  **Discovery**: Verified that no existing `notebooklm` skill existed.
+2.  **Implementation**:
+    *   Created directory `/Users/icmini/0luka/skills/notebooklm`.
+    *   Created `/Users/icmini/0luka/skills/notebooklm/SKILL.md` using the standard 02luka skill template.
+    *   Mapped 32 MCP tools provided by the user into logical categories: Core, Source Management, Intelligence, Studio, and System.
 
-### 3. Vera_Lite+ Audit Success
-- **Job ID**: `OPAL-260202-171044`
-- **Fidelity Target**: `95%+`
-- **Stacking Report**: Markers enabled in JSON payload for `OPAL-260202-171044`.
+## Verification Evidence
+*   **Directory Check**: `skills/notebooklm` directory created.
+*   **File Integrity**: `SKILL.md` contains all mandated sections (Identity, Contracts, Constraints, Execution Steps, Failure Modes).
+*   **Tool Coverage**: All 32 tools are documented within the contract tables.
 
-### 4. Promotion Status
-Ready for **GMX Promotion** to System Lane, as all stacking integrity rules are satisfied.
+## Next Steps
+*   Update `manifest.md` if hash generation tools are available.
+*   Perform a trial run of `notebook_list` to ensure the MCP is active.

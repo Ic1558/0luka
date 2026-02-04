@@ -1,8 +1,24 @@
-# Task: Structural Lock Audit
+# Task: Install and Configure NotebookLM MCP
 
-- [x] Execute Phase 1: Structural Lock Audit <!-- id: 0 -->
-- [x] Upgrade Engines to v2.1 (3-Storey Support) <!-- id: 1 -->
-- [x] Process Boss's 3-Storey PDF (wsk49-251216_03.pdf) <!-- id: 2 -->
-- [x] Audit 3rd Storey Stacking Integrity Job <!-- id: 3 -->
-- [x] Generate Vera_Lite+ Stacking Report (JSON Markers) <!-- id: 4 -->
-- [x] Finalize 3-Storey Structural Lock Protocol <!-- id: 5 -->
+## Status
+- [x] Discovery
+- [x] Plan Approval
+- [x] Infrastructure Upgrade (Lisa upgraded to v2 via `lisa_executor.py` edit)
+- [x] Installation (Delegated to Lisa `install_force_mcp`, success)
+- [x] Configuration (Updated `opencode.json` with correct binary path)
+- [x] Authentication Attempt (Delegated to Lisa `auth_notebooklm`)
+  - **Result**: Failed (Chrome 403 Forbidden).
+  - **Reason**: `notebooklm-mcp-auth` auto-mode requires closing Chrome or manual interaction impossible in background.
+  - **Next Step**: User must run auth manually or use `--file` mode.
+- [x] Verification (Server binary exists and is executable)
+
+## Details
+- **Installed Version**: 0.1.15
+- **Location**: `/opt/homebrew/bin/notebooklm-mcp`
+- **Config**: Pointed to `/opt/homebrew/bin/notebooklm-mcp`.
+
+- [x] Skill Documentation (Created `skills/notebooklm/SKILL.md`)
+
+## User Action Required
+- Run `notebooklm-mcp-auth` in terminal to complete authentication.
+- Access the `notebooklm` skill via the agent for high-level research tasks.
