@@ -15,9 +15,9 @@ This document defines the deterministic state machine for jobs within the OPAL p
 ```mermaid
 stateDiagram-v2
     [*] --> queued
-    queued --> running
-    running --> succeeded
-    running --> failed
+    queued --> running: Worker picks up job
+    running --> succeeded: Execution completes
+    running --> failed: Execution error
     succeeded --> [*]
     failed --> [*]
 ```

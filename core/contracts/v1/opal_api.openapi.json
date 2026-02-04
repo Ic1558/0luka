@@ -3,7 +3,7 @@
     "info": {
         "title": "OPAL API",
         "description": "Telemetry & Health Service for 02luka OPAL V4 Pipeline",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "x-opal-authoritative": true
     },
     "paths": {
@@ -231,8 +231,13 @@
             "JobOutput": {
                 "type": "object",
                 "properties": {
-                    "path": {
-                        "type": "string"
+                    "id": {
+                        "type": "string",
+                        "description": "Stable artifact ID."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Human-friendly filename."
                     },
                     "kind": {
                         "type": "string",
@@ -242,11 +247,26 @@
                             "log",
                             "artifact"
                         ]
+                    },
+                    "mime": {
+                        "type": "string",
+                        "description": "MIME type (e.g. model/obj, image/png)."
+                    },
+                    "sha256": {
+                        "type": "string",
+                        "description": "SHA256 integrity checksum."
+                    },
+                    "href": {
+                        "type": "string",
+                        "description": "Relative URL to fetch the artifact bytes (e.g. /api/artifacts/{id})."
                     }
                 },
                 "required": [
-                    "path",
-                    "kind"
+                    "id",
+                    "name",
+                    "kind",
+                    "mime",
+                    "href"
                 ]
             },
             "JobError": {
