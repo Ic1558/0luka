@@ -1,1 +1,267 @@
-{"openapi":"3.1.0","info":{"title":"OPAL API","description":"Telemetry & Health Service for 02luka OPAL V4 Pipeline","version":"1.0.0"},"paths":{"/api/health":{"get":{"summary":"Health Check","description":"Basic health check endpoint.","operationId":"health_check_api_health_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HealthResponse"}}}}}}},"/health":{"get":{"summary":"Health Alias","description":"Alias for /api/health to reduce 404 noise.","operationId":"health_alias_health_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HealthResponse"}}}}}}},"/api/status":{"get":{"summary":"Quick Status","description":"Quick status for other health checks (avoids recursion).","operationId":"quick_status_api_status_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/StatusResponse"}}}}}}},"/api/telemetry/latest":{"get":{"summary":"Telemetry Latest","description":"Returns the latest consolidated telemetry state.","operationId":"telemetry_latest_api_telemetry_latest_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}},"/api/telemetry/health":{"get":{"summary":"Telemetry Health","description":"Full health check JSON from health_check_latest.json.","operationId":"telemetry_health_api_telemetry_health_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}},"/api/telemetry/summary":{"get":{"summary":"Telemetry Summary","description":"Slim summary view for UI dashboard.","operationId":"telemetry_summary_api_telemetry_summary_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}},"/api/budget":{"get":{"summary":"Get Budget","description":"Dev lane budget information.","operationId":"get_budget_api_budget_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}},"/api/telemetry/log":{"get":{"summary":"Telemetry Log","description":"Get recent health check log entries.","operationId":"telemetry_log_api_telemetry_log_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}},"/":{"get":{"summary":"Root","description":"API root with available endpoints.","operationId":"root__get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}}},"components":{"schemas":{"HealthResponse":{"properties":{"status":{"type":"string","title":"Status"},"timestamp":{"type":"string","title":"Timestamp"},"service":{"type":"string","title":"Service","default":"opal_api"},"version":{"type":"string","title":"Version","default":"1.0.0"}},"type":"object","required":["status","timestamp"],"title":"HealthResponse"},"StatusResponse":{"properties":{"status":{"type":"string","title":"Status"},"uptime":{"type":"string","title":"Uptime","default":"running"},"port":{"type":"integer","title":"Port","default":7001}},"type":"object","required":["status"],"title":"StatusResponse"}}}}
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "OPAL API",
+        "description": "Telemetry & Health Service for 02luka OPAL V4 Pipeline",
+        "version": "1.1.0"
+    },
+    "paths": {
+        "/api/health": {
+            "get": {
+                "summary": "Health Check",
+                "description": "Basic health check endpoint.",
+                "operationId": "health_check_api_health_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HealthResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/status": {
+            "get": {
+                "summary": "Quick Status",
+                "description": "Quick status for other health checks (avoids recursion).",
+                "operationId": "quick_status_api_status_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StatusResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/jobs": {
+            "post": {
+                "summary": "Create Job",
+                "description": "Submit a new design pipeline job involving a prompt and an optional artifact.",
+                "operationId": "create_job_api_jobs_post",
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/JobCreateRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Job created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/JobInfo"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/jobs/{id}": {
+            "get": {
+                "summary": "Poll Job",
+                "description": "Retrieve the current status and outputs of a specific job.",
+                "operationId": "get_job_api_jobs_id_get",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/JobDetail"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "HealthResponse": {
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "title": "Status"
+                    },
+                    "timestamp": {
+                        "type": "string",
+                        "title": "Timestamp"
+                    },
+                    "service": {
+                        "type": "string",
+                        "title": "Service",
+                        "default": "opal_api"
+                    },
+                    "version": {
+                        "type": "string",
+                        "title": "Version",
+                        "default": "1.0.0"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "status",
+                    "timestamp"
+                ],
+                "title": "HealthResponse"
+            },
+            "StatusResponse": {
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "title": "Status"
+                    },
+                    "uptime": {
+                        "type": "string",
+                        "title": "Uptime",
+                        "default": "running"
+                    },
+                    "port": {
+                        "type": "integer",
+                        "title": "Port",
+                        "default": 7001
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "status"
+                ],
+                "title": "StatusResponse"
+            },
+            "JobCreateRequest": {
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": "Processing instructions / goal"
+                    },
+                    "file": {
+                        "type": "string",
+                        "format": "binary",
+                        "description": "Target artifact (.obj, .zip, .pdf, .dwg)"
+                    },
+                    "metadata": {
+                        "type": "object",
+                        "description": "Optional job metadata"
+                    }
+                },
+                "required": [
+                    "prompt",
+                    "file"
+                ]
+            },
+            "JobInfo": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/JobStatus"
+                    }
+                },
+                "required": [
+                    "id",
+                    "status"
+                ]
+            },
+            "JobDetail": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/JobStatus"
+                    },
+                    "outputs": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/JobOutput"
+                        }
+                    },
+                    "error": {
+                        "$ref": "#/components/schemas/JobError"
+                    }
+                },
+                "required": [
+                    "id",
+                    "status"
+                ]
+            },
+            "JobStatus": {
+                "type": "string",
+                "enum": [
+                    "queued",
+                    "running",
+                    "succeeded",
+                    "failed",
+                    "canceled"
+                ]
+            },
+            "JobOutput": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "model",
+                            "image",
+                            "log",
+                            "artifact"
+                        ]
+                    }
+                },
+                "required": [
+                    "path",
+                    "kind"
+                ]
+            },
+            "JobError": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "detail": {
+                        "type": "object"
+                    }
+                }
+            }
+        }
+    }
+}
