@@ -9,8 +9,7 @@ This document defines the deterministic state machine for jobs within the OPAL p
 | `queued` | Job has been accepted and is waiting for an available worker. | No |
 | `running` | Job is currently being processed by the worker. | No |
 | `succeeded` | Job completed successfully. Artifacts are available in `outputs`. | Yes |
-| `failed` | Job stopped due to an error. Details are in the `error` field. | Yes |
-| `canceled` | Job was manually terminated before completion. | Yes |
+| `failed` | Job stopped due to an error. Details are in the `message` field. | Yes |
 
 ## Transitions
 ```mermaid
@@ -19,11 +18,8 @@ stateDiagram-v2
     queued --> running
     running --> succeeded
     running --> failed
-    queued --> canceled
-    running --> canceled
     succeeded --> [*]
     failed --> [*]
-    canceled --> [*]
 ```
 
 ## Polling Strategy

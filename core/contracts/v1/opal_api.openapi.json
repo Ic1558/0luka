@@ -224,8 +224,7 @@
                     "queued",
                     "running",
                     "succeeded",
-                    "failed",
-                    "canceled"
+                    "failed"
                 ]
             },
             "JobOutput": {
@@ -252,16 +251,13 @@
             "JobError": {
                 "type": "object",
                 "properties": {
-                    "code": {
-                        "type": "string"
-                    },
                     "message": {
                         "type": "string"
-                    },
-                    "detail": {
-                        "type": "object"
                     }
-                }
+                },
+                "required": [
+                    "message"
+                ]
             }
         }
     }
