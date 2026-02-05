@@ -1,0 +1,5 @@
+- [x] Move opencode/ -> cole/outbox/opencode/
+- [x] Move g/reports/opencode/ -> cole/outbox/g_reports_opencode/
+- [x] Move g/manuals/opencode/ -> cole/outbox/g_manuals_opencode/
+- [x] Create redirect README stubs at old locations
+- [x] Update manifest status + index

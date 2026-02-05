@@ -33,6 +33,21 @@ ALLOWED_CALL_SIGNS = ["[Liam]", "[Lisa]", "[GMX]", "[Codex]", "[Cole]"]
 SOT_MAX_AGE_HOURS = 24
 HOST_ALLOWLIST_EMERGENCY = ["icmini", "Ittipongs-Mac-mini"] # Strict host gating
 
+# Mechanical Mode Lock (Cole):
+# - Default (FREE/PLAN): allow writes ONLY under cole/**
+# - TRACKED: allow writes only to explicit allowed_files (plus cole/**)
+#
+# This is a hard safety invariant to prevent silent system/core edits.
+COLE_LOCK_PROTECTED_PREFIXES = (
+    "tools/",
+    "core_brain/",
+    "runtime/",
+    "bridge/",
+    "state/",
+    "tests/",
+)
+COLE_LOCK_ALLOWED_PREFIX_DEFAULT = "cole/"
+
 # Security Whitelists
 ALLOWED_COMMANDS = ["ls", "grep", "cat", "echo", "git", "head", "tail", "wc", "date"]
 RISK_MAP = {
@@ -71,6 +86,93 @@ def is_safe_command(cmd_str):
     if not cmd_str: return True
     parts = cmd_str.strip().split()
     return parts and parts[0] in ALLOWED_COMMANDS
+
+def _repo_rel(p: Path):
+    try:
+        return p.resolve().relative_to(BASE_DIR).as_posix()
+    except Exception:
+        return None
+
+def _parse_cole_tracked(raw: dict):
+    """Return (is_tracked, tk_id, run_id, allowed_files).
+
+    We require an explicit COLE:TRACKED signal via a dedicated field.
+    Accepted forms:
+      - cole_tracked: { tk_id, run_id, allowed_files: [...] }
+      - cole_tracked: true, plus top-level tk_id/run_id/allowed_files
+    """
+    if not isinstance(raw, dict):
+        return False, None, None, []
+
+    ct = raw.get("cole_tracked", None)
+    if ct is None:
+        # Back-compat: accept an explicit COLE:TRACKED signal in a string field,
+        # but still require tk_id/run_id/allowed_files to be present.
+        sig = raw.get("mode") or raw.get("header") or raw.get("note")
+        if isinstance(sig, str) and "COLE:TRACKED" in sig:
+            ct = True
+        else:
+            return False, None, None, []
+
+    tk_id = None
+    run_id = None
+    allowed = []
+
+    if isinstance(ct, dict):
+        tk_id = ct.get("tk_id")
+        run_id = ct.get("run_id")
+        allowed = ct.get("allowed_files") or []
+    elif ct is True:
+        tk_id = raw.get("tk_id")
+        run_id = raw.get("run_id")
+        allowed = raw.get("allowed_files") or []
+    else:
+        return False, None, None, []
+
+    if not isinstance(tk_id, str) or not tk_id.strip():
+        return False, None, None, []
+    if not isinstance(run_id, str) or not run_id.strip():
+        return False, None, None, []
+    if not isinstance(allowed, list) or not all(isinstance(x, str) and x.strip() for x in allowed):
+        return False, None, None, []
+
+    # Normalize allowed files to repo-relative POSIX paths (no leading ./)
+    norm = []
+    for a in allowed:
+        a2 = a.strip().lstrip("./")
+        if a2.endswith("/"):
+            a2 = a2.rstrip("/")
+        norm.append(a2)
+
+    return True, tk_id.strip(), run_id.strip(), norm
+
+def _cole_write_allowed(target_rel: str, tracked: bool, allowed_files: list[str]):
+    """Mechanical Mode Lock decision for Cole file writes."""
+    if not target_rel:
+        return False, "invalid target"
+
+    # Default FREE/PLAN: only cole/**
+    if not tracked:
+        if target_rel.startswith(COLE_LOCK_ALLOWED_PREFIX_DEFAULT):
+            return True, "ok"
+        return False, f"blocked by mechanical lock (FREE/PLAN): writes allowed only under {COLE_LOCK_ALLOWED_PREFIX_DEFAULT}"
+
+    # TRACKED: allow cole/** + explicit allowlist
+    if target_rel.startswith(COLE_LOCK_ALLOWED_PREFIX_DEFAULT):
+        return True, "ok"
+
+    for a in allowed_files:
+        # exact file match
+        if target_rel == a:
+            return True, "ok"
+        # directory scope match (allowlist entry treated as directory when it is a prefix)
+        if target_rel.startswith(a + "/"):
+            return True, "ok"
+
+    # Helpful detail for protected prefixes
+    if target_rel.startswith(COLE_LOCK_PROTECTED_PREFIXES):
+        return False, "blocked by mechanical lock: system/core write requires COLE:TRACKED + allowed_files"
+    return False, "blocked by mechanical lock: write requires COLE:TRACKED + allowed_files"
 
 # --- Forensic Helpers ---
 
@@ -289,6 +391,10 @@ def process_task(task_file):
         valid_schema = all(k in raw for k in ["task_id", "author", "call_sign", "ops"])
         call_sign = raw.get("call_sign")
         author = raw.get("author")
+
+        # Mechanical Mode Lock context (Cole)
+        is_cole = str(call_sign or "").strip().lower() == "[cole]"
+        cole_tracked, cole_tk_id, cole_run_id, cole_allowed_files = _parse_cole_tracked(raw)
         
         decision = {"status": "PENDING", "reason": "Routing"}
         
@@ -384,16 +490,40 @@ def process_task(task_file):
             if status_op == "ok":
                 try:
                     p_target = safe_path(target) if target else None
+
+                    # Mechanical Mode Lock (Cole): block unintended writes
+                    if is_cole and o_type in ["mkdir", "write_text", "write", "copy"] and p_target is not None:
+                        rel = _repo_rel(p_target)
+                        ok, why = _cole_write_allowed(rel, cole_tracked, cole_allowed_files)
+                        if not ok:
+                            status_op, err = "fail", why
+                            results.append({"op_id": op_id, "type": o_type, "status": status_op, "target_path": target, "duration_ms": int((time.time()-t_start)*1000), "stderr": err})
+                            break
+
                     if o_type == "mkdir": p_target.mkdir(parents=True, exist_ok=True)
                     elif o_type in ["write_text", "write"]: p_target.parent.mkdir(parents=True, exist_ok=True); p_target.write_text(op.get("content", ""))
                     elif o_type == "copy": shutil.copy2(safe_path(src), p_target)
                     elif o_type in ["run", "shell", "command"]:
+                        # Mechanical Mode Lock (Cole): FREE/PLAN must be read-only (no redirection)
+                        if is_cole and not cole_tracked:
+                            cmd_str = str(cmd or "")
+                            if any(x in cmd_str for x in [">", "<"]):
+                                status_op, err = "fail", "blocked by mechanical lock (FREE/PLAN): shell redirection forbidden"
+                            elif cmd_str.strip().startswith("git "):
+                                sub = cmd_str.strip().split()
+                                if len(sub) < 2 or sub[1] not in ["status", "diff", "log", "show", "rev-parse"]:
+                                    status_op, err = "fail", "blocked by mechanical lock (FREE/PLAN): git subcommand not allowed"
+                            # If we already failed, record and stop.
+                            if status_op == "fail":
+                                results.append({"op_id": op_id, "type": o_type, "status": status_op, "target_path": target, "duration_ms": int((time.time()-t_start)*1000), "stderr": err})
+                                break
+
                         if not is_safe_command(cmd) and not is_emergency: status_op, err = "fail", "Command not whitelisted"
                         else:
-                             if not is_emergency and any(c in cmd for c in [";", "&", "|", "`", "$("]): status_op, err = "fail", "Complex injection"
-                             else:
-                                 sub = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=BASE_DIR)
-                                 if sub.returncode != 0: status_op, err = "fail", sub.stderr
+                              if not is_emergency and any(c in cmd for c in [";", "&", "|", "`", "$("]): status_op, err = "fail", "Complex injection"
+                              else:
+                                  sub = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=BASE_DIR)
+                                  if sub.returncode != 0: status_op, err = "fail", sub.stderr
                 except Exception as e: status_op, err = "fail", str(e)
             
             if target and (sha_after := get_sha256(target)): artifacts.append({"path": target, "sha256_after": sha_after})

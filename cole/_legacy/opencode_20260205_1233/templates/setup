@@ -1,0 +1,60 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+: "${OPAL_API_BASE:=http://127.0.0.1:7001}"
+: "${SSH_HOST_ALIAS:=macmini}"
+: "${OPAL_REMOTE_ROOT:=~/0luka}"
+: "${OPAL_LOCAL_ARTIFACTS_DIR:=$HOME/opal_artifacts}"
+
+OPAL_API_BASE="${OPAL_API_BASE%/}"
+
+menu() {
+  echo "┌─────────────────────────────────────┐"
+  echo "│      MBP → Mini Control Panel       │"
+  echo "├─────────────────────────────────────┤"
+  echo "│  1) SSH to mini                     │"
+  echo "│  2) Check mini status               │"
+  echo "│  3) API health                      │"
+  echo "│  4) List jobs                       │"
+  echo "│  5) Tail logs (API/Workers)         │"
+  echo "│  6) Fetch artifacts (rsync)         │"
+  echo "│  q) Quit                            │"
+  echo "└─────────────────────────────────────┘"
+}
+
+menu
+read "choice?Select: "
+
+case "$choice" in
+  1)
+    exec ssh "$SSH_HOST_ALIAS"
+    ;;
+  2)
+    ssh "$SSH_HOST_ALIAS" 'hostname && uptime && df -h ~ | tail -n 1'
+    ;;
+  3)
+    curl -fsS "$OPAL_API_BASE/api/health" | jq
+    ;;
+  4)
+    curl -fsS "$OPAL_API_BASE/api/jobs" | jq
+    ;;
+  5)
+    echo "[API] tail -n 120 $OPAL_REMOTE_ROOT/runtime/logs/api_server.log"
+    ssh "$SSH_HOST_ALIAS" "tail -n 120 \"$OPAL_REMOTE_ROOT/runtime/logs/api_server.log\" || true"
+    echo ""
+    echo "[Workers] last 5 files in $OPAL_REMOTE_ROOT/runtime/logs/worker_pool"
+    ssh "$SSH_HOST_ALIAS" "ls -1t \"$OPAL_REMOTE_ROOT/runtime/logs/worker_pool\"/*.log 2>/dev/null | head -n 5 || true"
+    ;;
+  6)
+    mkdir -p "$OPAL_LOCAL_ARTIFACTS_DIR"
+    rsync -av "$SSH_HOST_ALIAS:$OPAL_REMOTE_ROOT/runtime/opal_artifacts/" "$OPAL_LOCAL_ARTIFACTS_DIR/"
+    echo "OK: artifacts synced to $OPAL_LOCAL_ARTIFACTS_DIR"
+    ;;
+  q)
+    exit 0
+    ;;
+  *)
+    echo "Invalid option"
+    exit 1
+    ;;
+esac

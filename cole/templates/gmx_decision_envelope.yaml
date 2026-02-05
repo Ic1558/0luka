@@ -1,0 +1,23 @@
+# Decision envelope template
+# Use this when Cole asks GMX for a policy/approval decision.
+
+to: "[GMX]"
+from: "[Cole]"
+mode: "tracked"
+
+tk_id: "tk_YYYYMMDD_HHMM_slug"
+run_id: "run_YYYYMMDD_HHMM_slug_r1"
+
+decision:
+  question: ""
+  options:
+    - label: "A"
+      description: ""
+      risk: ""
+    - label: "B"
+      description: ""
+      risk: ""
+  default: "A"
+
+evidence:
+  - "cole/runs/<run_id>/evidence/..."

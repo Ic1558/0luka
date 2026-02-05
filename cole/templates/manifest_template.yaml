@@ -1,0 +1,17 @@
+# Run manifest template
+# Save as: cole/runs/<run_id>/manifest.yaml
+
+agent: cole
+lane: opencode
+tk_id: tk_YYYYMMDD_HHMM_slug
+run_id: run_YYYYMMDD_HHMM_slug_r1
+status: partial
+timestamp_utc: "YYYY-MM-DDTHH:MM:SSZ"
+
+inputs:
+  - cole/inbox/tk_YYYYMMDD_HHMM_slug.yaml
+
+outputs:
+  - plan.md
+  - report.md
+  - todo.md
