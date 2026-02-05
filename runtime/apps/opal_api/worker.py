@@ -23,7 +23,8 @@ from runtime.apps.opal_api.common import (
     PROJECT_ROOT, ARTIFACTS_DIR, JOBS_DB_PATH, UPLOADS_DIR,
     WorkerRegistry, OPAL_HEARTBEAT_INTERVAL_SECS, OPAL_WORKER_TTL_SECS,
     JobLeaseStore, OPAL_LEASE_TTL_SECS, OPAL_LEASE_RENEW_SECS,
-    JobAttemptStore, OPAL_MAX_RETRIES, OPAL_RETRY_BACKOFFS, JOBS_DB_LOCK_PATH, _exclusive_lock, _atomic_write_json
+    JobAttemptStore, OPAL_MAX_RETRIES, OPAL_RETRY_BACKOFFS, JOBS_DB_LOCK_PATH, _exclusive_lock, _atomic_write_json,
+    TelemetryLogger
 )
 from core.enforcement import RuntimeEnforcer, PermissionDenied
 
@@ -398,6 +399,15 @@ def reclaim_expired_leases():
             # Another worker already reclaimed this job
             continue
         
+        # A2.1.1: Log reclaim winner
+        prev_worker = JobLeaseStore.read(job_id).get("worker_id", "unknown") if JobLeaseStore.read(job_id) else "unknown"
+        TelemetryLogger.log_event(
+            "reclaim_winner",
+            job_id=job_id,
+            worker_id=WORKER_ID,
+            prev_worker_id=prev_worker
+        )
+        
         # This worker won the reclaim
         with _exclusive_lock(JOBS_DB_LOCK_PATH):
             db = JobsDB._read_unlocked()
@@ -420,6 +430,22 @@ def reclaim_expired_leases():
                     
                     # Fix#2: Set backoff
                     JobAttemptStore.set_backoff(job_id, backoff_secs)
+                    
+                    # A2.1.1: Log backoff event
+                    TelemetryLogger.log_event(
+                        "backoff_applied",
+                        job_id=job_id,
+                        attempt=attempts,
+                        backoff_secs=backoff_secs
+                    )
+                    
+                    # A2.1.1: Log retry scheduled
+                    TelemetryLogger.log_event(
+                        "retry_scheduled",
+                        job_id=job_id,
+                        attempt=attempts,
+                        reason="lease_expired"
+                    )
                 else:
                     # Max retries reached: Fail permanently
                     logger.error(f"[Lease] 🛑 Reclaiming job {job_id} (Max retries {OPAL_MAX_RETRIES} reached) -> FAILED")
@@ -427,6 +453,13 @@ def reclaim_expired_leases():
                     job["error"] = {"message": "max_retries_exceeded_a2"}
                     job["completed_at"] = datetime.now().isoformat()
                     job["updated_at"] = datetime.now().isoformat()
+                    
+                    # A2.1.1: Log max retries reached
+                    TelemetryLogger.log_event(
+                        "max_retries_reached",
+                        job_id=job_id,
+                        final_attempt=attempts
+                    )
                 
                 _atomic_write_json(JOBS_DB_PATH, db)
             
@@ -500,12 +533,22 @@ def main():
                 logger.info(f"⏩ Claimed job {job['id']}")
                 
                 # A2-Phase1: Create Lease
+                current_attempt = JobAttemptStore.get_attempts(job["id"]) or 1
                 JobLeaseStore.create(
                     job_id=job["id"],
                     worker_id=WORKER_ID,
                     host=HOSTNAME,
                     ttl_secs=OPAL_LEASE_TTL_SECS,
                     meta={"pid": os.getpid()}
+                )
+                
+                # A2.1.1: Log telemetry event
+                TelemetryLogger.log_event(
+                    "lease_created",
+                    job_id=job["id"],
+                    worker_id=WORKER_ID,
+                    ttl=OPAL_LEASE_TTL_SECS,
+                    attempt=current_attempt
                 )
                 
                 # Renew Thread logic
