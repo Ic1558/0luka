@@ -384,3 +384,19 @@
 {"timestamp": "2026-02-05 14:48:43,949", "level": "ERROR", "worker": "Ittipongs-Mac-mini.local-89990", "event": "Error in loop: type object 'JobsDB' has no attribute 'delete_job'"}
 {"timestamp": "2026-02-05 14:52:09,847", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-89990", "event": "GC: Deleting expired job job_old_123"}
 {"timestamp": "2026-02-05 14:52:09,849", "level": "ERROR", "worker": "Ittipongs-Mac-mini.local-89990", "event": "Error in loop: type object 'JobsDB' has no attribute 'delete_job'"}
+{"timestamp": "2026-02-05 14:55:33,677", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-89990", "event": "GC: Deleting expired job job_old_123"}
+{"timestamp": "2026-02-05 14:55:33,682", "level": "ERROR", "worker": "Ittipongs-Mac-mini.local-89990", "event": "Error in loop: type object 'JobsDB' has no attribute 'delete_job'"}
+{"timestamp": "2026-02-05 14:58:57,230", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-89990", "event": "GC: Deleting expired job job_old_123"}
+{"timestamp": "2026-02-05 14:58:57,231", "level": "ERROR", "worker": "Ittipongs-Mac-mini.local-89990", "event": "Error in loop: type object 'JobsDB' has no attribute 'delete_job'"}
+{"timestamp": "2026-02-05 15:02:20,919", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-89990", "event": "GC: Deleting expired job job_old_123"}
+{"timestamp": "2026-02-05 15:02:20,920", "level": "ERROR", "worker": "Ittipongs-Mac-mini.local-89990", "event": "Error in loop: type object 'JobsDB' has no attribute 'delete_job'"}
+{"timestamp": "2026-02-05 15:05:45,440", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-89990", "event": "GC: Deleting expired job job_old_123"}
+{"timestamp": "2026-02-05 15:05:45,441", "level": "ERROR", "worker": "Ittipongs-Mac-mini.local-89990", "event": "Error in loop: type object 'JobsDB' has no attribute 'delete_job'"}
+{"timestamp": "2026-02-05 15:09:09,110", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-89990", "event": "GC: Deleting expired job job_old_123"}
+{"timestamp": "2026-02-05 15:09:09,111", "level": "ERROR", "worker": "Ittipongs-Mac-mini.local-89990", "event": "Error in loop: type object 'JobsDB' has no attribute 'delete_job'"}
+{"timestamp": "2026-02-05 15:12:32,666", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-89990", "event": "GC: Deleting expired job job_old_123"}
+{"timestamp": "2026-02-05 15:12:32,667", "level": "ERROR", "worker": "Ittipongs-Mac-mini.local-89990", "event": "Error in loop: type object 'JobsDB' has no attribute 'delete_job'"}
+{"timestamp": "2026-02-05 15:15:56,216", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-89990", "event": "GC: Deleting expired job job_old_123"}
+{"timestamp": "2026-02-05 15:15:56,222", "level": "ERROR", "worker": "Ittipongs-Mac-mini.local-89990", "event": "Error in loop: type object 'JobsDB' has no attribute 'delete_job'"}
+{"timestamp": "2026-02-05 15:19:20,013", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-89990", "event": "GC: Deleting expired job job_old_123"}
+{"timestamp": "2026-02-05 15:19:20,013", "level": "ERROR", "worker": "Ittipongs-Mac-mini.local-89990", "event": "Error in loop: type object 'JobsDB' has no attribute 'delete_job'"}

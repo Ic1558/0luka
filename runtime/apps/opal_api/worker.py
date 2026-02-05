@@ -16,9 +16,14 @@ import logging
 import socket
 import os
 
+import threading
+
 from runtime.apps.opal_api.common import (
     JobsDB, JobStatus, JobOutput, 
-    PROJECT_ROOT, ARTIFACTS_DIR, JOBS_DB_PATH
+    PROJECT_ROOT, ARTIFACTS_DIR, JOBS_DB_PATH, UPLOADS_DIR,
+    WorkerRegistry, OPAL_HEARTBEAT_INTERVAL_SECS, OPAL_WORKER_TTL_SECS,
+    JobLeaseStore, OPAL_LEASE_TTL_SECS, OPAL_LEASE_RENEW_SECS,
+    JobAttemptStore, OPAL_MAX_RETRIES, OPAL_RETRY_BACKOFFS, JOBS_DB_LOCK_PATH, _exclusive_lock, _atomic_write_json
 )
 from core.enforcement import RuntimeEnforcer, PermissionDenied
 
@@ -86,7 +91,14 @@ logging.basicConfig(
     level=logging.INFO,
     format='{"timestamp": "%(asctime)s", "level": "%(levelname)s", "worker": "%(worker_id)s", "event": "%(message)s"}'
 )
+# ═══════════════════════════════════════════
+# Phase A1: Worker Identity & Concurrency Control
+# ═══════════════════════════════════════════
 WORKER_ID = f"{socket.gethostname()}-{os.getpid()}"
+HOSTNAME = socket.gethostname()
+WORKER_INDEX = os.environ.get("WORKER_INDEX")
+_HB_LAST = 0.0
+
 logger = logging.getLogger("opal_worker")
 # Inject worker_id into logs
 old_factory = logging.getLogRecordFactory()
@@ -96,10 +108,63 @@ def record_factory(*args, **kwargs):
     return record
 logging.setLogRecordFactory(record_factory)
 
+def _heartbeat_tick(force: bool = False) -> None:
+    global _HB_LAST
+    now = time.monotonic()
+    if force or (now - _HB_LAST) >= OPAL_HEARTBEAT_INTERVAL_SECS:
+        # A2: Out-of-band Heartbeat
+        slots = int(os.environ.get("OPAL_ENGINE_SLOTS", "1"))
+        meta = {"pid": os.getpid()}
+        if WORKER_INDEX:
+            meta["worker_index"] = str(WORKER_INDEX)
+            
+        WorkerRegistry.upsert_heartbeat(
+            worker_id=WORKER_ID,
+            host=HOSTNAME,
+            engine_slots=slots,
+            meta=meta
+        )
+        # Opportunistic stale cleanup
+        WorkerRegistry.prune_stale()
+        _HB_LAST = now
+
 ENGINE_SCRIPT = PROJECT_ROOT / "modules/studio/features/nano_banana_engine.py"
 MOCK_ENGINE_SCRIPT = PROJECT_ROOT / "modules/studio/features/mock_engine_v1.py"
 STUDIO_OUTPUT_DIR = PROJECT_ROOT / "modules/studio/outputs"
-LOCK_FILE = PROJECT_ROOT / "modules/studio/.opal_lock"
+
+# A1: Engine Semaphore (Replaces Global .opal_lock)
+# Default 1 slot per worker to be safe, unless OPAL_ENGINE_SLOTS > 1
+class EngineSemaphore:
+    def __init__(self, root_dir: Path, slots: int):
+        self.root_dir = root_dir
+        self.slots = max(1, int(slots))
+        self.root_dir.mkdir(parents=True, exist_ok=True)
+        self._fds = []
+
+    def acquire(self) -> int:
+        """Attempts to acquire a slot. Returns slot_index or None."""
+        for i in range(self.slots):
+            p = self.root_dir / f"slot_{i}.lock"
+            # Open with mode 666 so distinct users (if any) can read/write. 
+            # But mostly same user.
+            try:
+                fd = os.open(str(p), os.O_CREAT | os.O_RDWR, 0o644)
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                self._fds.append(fd)
+                return i
+            except (IOError, BlockingIOError):
+                # Slot taken
+                continue
+        return None
+
+    def release(self):
+        for fd in self._fds:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+                os.close(fd)
+            except Exception:
+                pass
+        self._fds = []
 
 def calculate_sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -121,31 +186,14 @@ def get_canonical_input_checksum(job: dict, engine_name: str) -> str:
     }
     return calculate_sha256(json.dumps(canonical_data, sort_keys=True).encode("utf-8"))
 
-def acquire_lock():
-    """Acquires an exclusive lock to prevent concurrent engine runs."""
-    lock_fd = open(LOCK_FILE, 'w')
-    try:
-        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        return lock_fd
-    except IOError:
-        lock_fd.close()
-        return None
-
-def release_lock(lock_fd):
-    """Releases the lock."""
-    if lock_fd:
-        fcntl.flock(lock_fd, fcntl.LOCK_UN)
-        lock_fd.close()
-
 def list_studio_outputs() -> Set[Path]:
     if not STUDIO_OUTPUT_DIR.exists():
         return set()
     return set(STUDIO_OUTPUT_DIR.iterdir())
 
-def run_massing_engine_adapter(job: dict) -> tuple[list[dict], dict]:
+def run_massing_engine_adapter(job: dict, semaphore: EngineSemaphore) -> tuple[list[dict], dict]:
     """
-    Executes the Massing Engine with isolation.
-    Returns (outputs, provenance).
+    Executes the Massing Engine with isolation + semaphore.
     """
     # ═══════════════════════════════════════════
     # WORKER TOOL GATE
@@ -154,43 +202,31 @@ def run_massing_engine_adapter(job: dict) -> tuple[list[dict], dict]:
         candidate_paths = _collect_candidate_paths(job)
         
         # Define Scope: Allowed paths for Worker
-        # Use .resolve() to ensure canonical paths for comparison
         safe_roots = [
             str((PROJECT_ROOT / "modules/studio").resolve()),
             str(ARTIFACTS_DIR.resolve()),
-            str((PROJECT_ROOT / "runtime/opal_uploads").resolve()),
+            str(UPLOADS_DIR.resolve()),
             str(Path("/tmp").resolve())
         ]
         
-        # Check all collected paths against Enforcer
-        # We treat any path access as a generic "read_file" check for now to validate scope
         for path in candidate_paths:
             RuntimeEnforcer.enforce_tool_access(
                 role="worker",
-                tool="read_file", 
+                tool_name="read_file", 
                 args={"path": path},
                 scope={"allowed_paths": safe_roots}
             )
             
-        # Check Subprocess Execution Capability
-        # This checks headers/flags but not specific paths (already checked above)
         RuntimeEnforcer.enforce_tool_access(
             role="worker",
-            tool="subprocess",
+            tool_name="subprocess",
             args={"job_id": job["id"], "engine": job.get("metadata", {}).get("engine")},
             scope={"allowed_paths": safe_roots} 
         )
             
     except PermissionDenied as e:
          logger.warning(f"[Worker Gate] DENIED: {e}")
-         # Fail the job immediately
-         return [], {
-             "engine": "opal_security_gate",
-             "version": "1.0",
-             "error": str(e),
-             "input_checksum": "00000000"
-         }
-    # ═══════════════════════════════════════════
+         raise RuntimeError(f"Security Gate Denial: {e}")
 
     # 6B-lite: Engine Agnosticism
     engine_name = job.get("metadata", {}).get("engine", "nano_banana_engine")
@@ -199,22 +235,23 @@ def run_massing_engine_adapter(job: dict) -> tuple[list[dict], dict]:
         target_script = MOCK_ENGINE_SCRIPT
         print(f"[Worker] Processing job {job['id']} with MOCK ENGINE...")
     else:
-        # Default / Fallback
         target_script = ENGINE_SCRIPT
-        engine_name = "nano_banana_engine" # Normalize
+        engine_name = "nano_banana_engine"
         print(f"[Worker] Processing job {job['id']} with Nano Banana...")
     
     # 1. Prepare Workspace
+    # A2.1: Increment attempt counter for this execution
+    current_attempt = JobAttemptStore.increment_attempt(job["id"])
+    
     STUDIO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    job_artifacts_dir = ARTIFACTS_DIR / job["id"]
+    job_artifacts_dir = ARTIFACTS_DIR / job["id"] / f"attempt_{current_attempt}"
     job_artifacts_dir.mkdir(parents=True, exist_ok=True)
     
-    # 2. Create Input JSON
     input_payload = {
         "job_id": job["id"],
         "parameters": {
             "prompt": job.get("prompt", ""),
-            "control_weight": 0.9, # Default for now
+            "control_weight": 0.9,
             "denoising_strength": 0.5
         }
     }
@@ -222,16 +259,23 @@ def run_massing_engine_adapter(job: dict) -> tuple[list[dict], dict]:
     with open(input_json_path, 'w') as f:
         json.dump(input_payload, f)
 
-    # 3. Snapshot & Lock
-    lock_fd = acquire_lock()
-    if not lock_fd:
-        raise RuntimeError("Could not acquire engine lock. Another job is running.")
+    # 3. Semaphore Lock Check
+    # We enter this function assuming we hold the Job Lease, but now we need the Engine Slot.
+    slot = semaphore.acquire()
+    wait_time = 0
+    while slot is None:
+        if wait_time > 60: # Avoid infinite hang
+             raise RuntimeError("Timeout waiting for Engine Slot.")
+        time.sleep(1)
+        wait_time += 1
+        slot = semaphore.acquire()
+
+    logger.info(f"Acquired Engine Slot {slot}")
     
     try:
         pre_snapshot = list_studio_outputs()
         
         # 4. Execute
-        # Typer collapses single-command apps, so 'activate' keyword is implicitly removed from CLI
         cmd = ["python3", str(target_script), str(input_json_path)]
         print(f"[Worker] Running: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -245,26 +289,19 @@ def run_massing_engine_adapter(job: dict) -> tuple[list[dict], dict]:
         post_snapshot = list_studio_outputs()
         new_files = post_snapshot - pre_snapshot
         
-        # Filter strictly for result manifest and artifacts if engine produces them
-        # Nano Banana produces result_{job_id}.json
         manifest_path = STUDIO_OUTPUT_DIR / f"result_{job['id']}.json"
         
         outputs = []
         if manifest_path in new_files:
-            # Parse manifest if needed, or just trust the new files.
-            # Start by moving ALL new files (except input.json) to artifact dir
             for file_path in new_files:
                 if file_path == input_json_path:
                     continue
                 
-                # Move to permanent storage
                 dest_path = job_artifacts_dir / file_path.name
                 shutil.move(str(file_path), str(dest_path))
                 
-                # Metadata
                 sha256 = calculate_file_sha256(dest_path)
                 
-                # Determine mime type (simple check)
                 mime = "application/octet-stream"
                 if dest_path.suffix == ".json": mime = "application/json"
                 elif dest_path.suffix == ".png": mime = "image/png"
@@ -276,59 +313,127 @@ def run_massing_engine_adapter(job: dict) -> tuple[list[dict], dict]:
                 outputs.append({
                     "id": f"artifact_{calculate_sha256(serve_id.encode())[:8]}",
                     "name": dest_path.name,
-                    "kind": "artifact", # Could refine based on extension
+                    "kind": "artifact",
                     "mime": mime,
                     "sha256": sha256,
                     "href": f"/api/artifacts/{serve_id}"
                 })
-        else:
-             # If no manifest found but success, maybe check other new files?
-             # For now, strict: if no result_{job_id}.json and return 0, warn?
-             pass
-
+        
     finally:
         # 6. Cleanup
         if input_json_path.exists():
             input_json_path.unlink()
-        release_lock(lock_fd)
+        semaphore.release()
+        logger.info(f"Released Engine Slot {slot}")
 
     provenance = {
         "engine": engine_name,
-        "version": "1.0", # Placeholder
+        "version": "1.0",
         "input_checksum": get_canonical_input_checksum(job, engine_name)
     }
     
     return outputs, provenance
 
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+# ============================================================================
+# LEGACY A1 RECOVERY (DEPRECATED - NOT CALLED)
+# ============================================================================
+# This function is preserved for reference only. It is NOT called in the
+# worker loop. A2 lease-based recovery (reclaim_expired_leases) is now
+# authoritative for all fault tolerance, including multi-host scenarios.
+# ============================================================================
+
 def recover_crashed_jobs():
     """
-    Scans for jobs left in RUNNING state from a previous worker crash
-    and transitions them to FAILED.
+    A1: Scans for jobs left in RUNNING state by DEAD workers.
     """
-    logger.info("Running crash recovery scan...")
+    logger.info("Running A1 crash recovery scan (single-host PID check)...")
     all_jobs = JobsDB.get_all_jobs()
     zombies_found = 0
     
     for job_id, job in all_jobs.items():
         if job["status"] == JobStatus.RUNNING:
-            logger.warning(f"Found zombie job {job_id}. Marking FAILED.")
-            JobsDB.update_job(job_id, {
-                "status": JobStatus.FAILED,
-                "error": {"message": "worker_crash"},
-                "completed_at": datetime.now().isoformat()
-            })
-            zombies_found += 1
+            wid = job.get("worker_id")
+            if not wid:
+                continue # Unclaimed?
+                
+            # Parse <hostname>-<pid>
+            try:
+                parts = wid.split("-")
+                pid = int(parts[-1])
+            except ValueError:
+                continue
+                
+            # If PID is not alive, fail the job
+            if not _pid_alive(pid):
+                logger.warning(f"Found zombie job {job_id} from dead worker {wid}. Marking FAILED.")
+                JobsDB.update_job(job_id, {
+                    "status": JobStatus.FAILED,
+                    "error": {"message": "worker_died_recovered_a1"},
+                    "completed_at": datetime.now().isoformat()
+                })
+                zombies_found += 1
             
     if zombies_found > 0:
         logger.info(f"Recovered {zombies_found} zombie jobs.")
-    else:
-        logger.info("No zombie jobs found.")
+
+def reclaim_expired_leases():
+    """
+    A2-Phase2.1: Scans for expired leases and applies retry policy.
+    Implements atomic 'Winner' logic + backoff to prevent storm.
+    """
+    expired_ids = JobLeaseStore.list_expired()
+    if not expired_ids:
+        return
+        
+    for job_id in expired_ids:
+        # Fix#3: Atomic winner selection
+        if not JobAttemptStore.try_mark_reclaimed(job_id, WORKER_ID, reason="lease_expired"):
+            # Another worker already reclaimed this job
+            continue
+        
+        # This worker won the reclaim
+        with _exclusive_lock(JOBS_DB_LOCK_PATH):
+            db = JobsDB._read_unlocked()
+            job = db.get(job_id)
+            
+            if job and job["status"] == JobStatus.RUNNING:
+                attempts = JobAttemptStore.get_attempts(job_id)
+                
+                if attempts < OPAL_MAX_RETRIES:
+                    # Retry: Requeue with backoff
+                    backoff_idx = min(attempts, len(OPAL_RETRY_BACKOFFS) - 1)
+                    backoff_secs = OPAL_RETRY_BACKOFFS[backoff_idx]
+                    
+                    logger.warning(f"[Lease] ♻️ Reclaiming job {job_id} (Attempt {attempts}/{OPAL_MAX_RETRIES}) -> QUEUED (backoff={backoff_secs}s)")
+                    
+                    job["status"] = JobStatus.QUEUED
+                    job["worker_id"] = None
+                    job["error"] = {"message": f"lease_expired_retry_{attempts}"}
+                    job["updated_at"] = datetime.now().isoformat()
+                    
+                    # Fix#2: Set backoff
+                    JobAttemptStore.set_backoff(job_id, backoff_secs)
+                else:
+                    # Max retries reached: Fail permanently
+                    logger.error(f"[Lease] 🛑 Reclaiming job {job_id} (Max retries {OPAL_MAX_RETRIES} reached) -> FAILED")
+                    job["status"] = JobStatus.FAILED
+                    job["error"] = {"message": "max_retries_exceeded_a2"}
+                    job["completed_at"] = datetime.now().isoformat()
+                    job["updated_at"] = datetime.now().isoformat()
+                
+                _atomic_write_json(JOBS_DB_PATH, db)
+            
+            # Always clean up the lease file under lock
+            JobLeaseStore.force_delete(job_id)
 
 def run_job_gc():
-    """
-    Garbage Collects terminal jobs older than retention threshold.
-    """
-    # Retention: 24 hours
     RETENTION_SECONDS = 24 * 3600
     now = datetime.now()
     cutoff_time = now.timestamp() - RETENTION_SECONDS
@@ -337,87 +442,108 @@ def run_job_gc():
     deleted_count = 0
     
     for job_id, job in list(all_jobs.items()):
-        # Check if terminal
         if job["status"] not in [JobStatus.SUCCEEDED, JobStatus.FAILED]:
             continue
             
-        # Check age based on completed_at or created_at or updated_at
-        # Prefer completed_at, fallback to updated_at
         ref_time_str = job.get("completed_at") or job.get("updated_at")
         if not ref_time_str:
             continue
             
         try:
-            ref_time = datetime.fromisoformat(ref_time_str).timestamp()
+            ref_time = datetime.fromisoformat(ref_time_str.replace("Z", "+00:00")).timestamp()
         except ValueError:
             continue
             
         if ref_time < cutoff_time:
             logger.info(f"GC: Deleting expired job {job_id}")
-            # Delete artifacts
             artifact_dir = ARTIFACTS_DIR / job_id
             if artifact_dir.exists():
                 shutil.rmtree(artifact_dir)
-            
-            # Delete record
             JobsDB.delete_job(job_id)
             deleted_count += 1
             
     if deleted_count > 0:
         logger.info(f"GC: Purged {deleted_count} jobs.")
 
-def count_running_jobs() -> int:
-    all_jobs = JobsDB.get_all_jobs()
-    return sum(1 for job in all_jobs.values() if job["status"] == JobStatus.RUNNING)
-
 def main():
-    logger.info("Starting OPAL Massing Engine Worker (Real Adapter)...")
+    logger.info(f"Starting OPAL Massing Engine Worker {WORKER_ID}...")
     
-    # Phase 6A.2: Crash Recovery
-    recover_crashed_jobs()
+    # Prep Semaphore
+    slots = int(os.environ.get("OPAL_ENGINE_SLOTS", "1"))
+    sem_path = PROJECT_ROOT / "runtime/locks/engine_slots"
+    semaphore = EngineSemaphore(sem_path, slots)
     
-    logger.info(f"Polling JobsDB at {JOBS_DB_PATH}...")
+    # Initial Recovery (A2: Lease reclaimer will handle stale jobs via TTL)
+    # recover_crashed_jobs()
     
-    MAX_RUNNING_JOBS = 1
+    logger.info(f"Polling JobsDB (Atomic Lease mode)...")
+    
+    # Force initial heartbeat
+    _heartbeat_tick(force=True)
+    
     loop_count = 0
     while True:
         try:
-            # Phase 6A.1: GC Tick (every 100 loops ~ 200s)
+            _heartbeat_tick()
             loop_count += 1
             if loop_count % 100 == 0:
                  run_job_gc()
+            
+            if loop_count % 10 == 0:
+                 reclaim_expired_leases()
 
-            # Phase 6A.3: Concurrency Guard
-            if count_running_jobs() >= MAX_RUNNING_JOBS:
-                # Backpressure: Skip dequeue
-                time.sleep(2)
-                continue
-
-            job = JobsDB.get_next_queued_job()
+            # A1: Atomic Claim
+            # We no longer poll queue list -> update race. We execute explicit atomic claim.
+            job = JobsDB.claim_next_job(WORKER_ID)
+            
             if job:
-                logger.info(f"Picked up job {job['id']}")
-                JobsDB.update_job(job["id"], {
-                    "status": JobStatus.RUNNING,
-                    "started_at": datetime.now().isoformat()
-                })
+                logger.info(f"⏩ Claimed job {job['id']}")
+                
+                # A2-Phase1: Create Lease
+                JobLeaseStore.create(
+                    job_id=job["id"],
+                    worker_id=WORKER_ID,
+                    host=HOSTNAME,
+                    ttl_secs=OPAL_LEASE_TTL_SECS,
+                    meta={"pid": os.getpid()}
+                )
+                
+                # Renew Thread logic
+                stop_evt = threading.Event()
+                def _renew_loop():
+                    while not stop_evt.wait(OPAL_LEASE_RENEW_SECS):
+                        ok = JobLeaseStore.renew(job["id"], WORKER_ID, OPAL_LEASE_TTL_SECS)
+                        if not ok:
+                            logger.warning(f"[Lease] Renew failed for {job['id']}")
+                
+                renew_thread = threading.Thread(target=_renew_loop, daemon=True)
+                renew_thread.start()
                 
                 try:
-                    outputs, provenance = run_massing_engine_adapter(job)
+                    outputs, provenance = run_massing_engine_adapter(job, semaphore)
                     JobsDB.update_job(job["id"], {
                         "status": JobStatus.SUCCEEDED,
                         "completed_at": datetime.now().isoformat(),
                         "outputs": outputs,
                         "run_provenance": provenance
                     })
-                    logger.info(f"Job {job['id']} SUCCEEDED")
+                    logger.info(f"✅ Job {job['id']} SUCCEEDED")
                 except Exception as e:
-                    logger.error(f"Job {job['id']} FAILED: {e}")
+                    logger.error(f"❌ Job {job['id']} FAILED: {e}")
                     JobsDB.update_job(job["id"], {
                         "status": JobStatus.FAILED,
                         "completed_at": datetime.now().isoformat(),
                         "error": {"message": str(e)}
                     })
+                finally:
+                    # Stop renewal thread and release lease
+                    stop_evt.set()
+                    renew_thread.join(timeout=2)
+                    JobLeaseStore.release(job["id"], WORKER_ID)
+                    # A2.1: Success! Clear attempts
+                    JobAttemptStore.clear(job["id"])
             else:
+                # No jobs, sleep
                 time.sleep(2)
         except KeyboardInterrupt:
             logger.info("Stopping...")

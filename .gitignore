@@ -39,3 +39,8 @@ bridge.log
 !**/*.yaml
 !**/*.yml
 !**/*.md
+
+# OPAL runtime outputs
+modules/studio/outputs/
+runtime/logs/
+*.log

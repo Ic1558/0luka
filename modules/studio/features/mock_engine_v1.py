@@ -24,7 +24,16 @@ def activate(job_path: str):
         job = json.load(f)
 
     job_id = job.get("job_id", "UNKNOWN")
+    prompt = job.get("parameters", {}).get("prompt", "")
     logging.info(f"🤖 ACTIVE MOCK SYNTHESIS FOR {job_id}...")
+    
+    if "SLEEP" in prompt:
+        import time
+        import re
+        match = re.search(r"SLEEP_TEST_(\d+)s", prompt)
+        secs = int(match.group(1)) if match else 10
+        logging.info(f"⏳ Sleeping {secs}s for load testing...")
+        time.sleep(secs)
 
     # Create a dummy artifact
     output_dir = ROOT / "modules" / "studio" / "outputs"

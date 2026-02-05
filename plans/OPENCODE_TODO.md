@@ -1,64 +1,113 @@
-# OpenCode TODO: Core Architecture Deployment
+# OpenCode TODO: Final Tasks
 
-**Full plan**: `core_architecture_phased.md` (same directory)
+**Updated:** 2026-02-05
 
-## Go/No-Go Decision
+## Status Summary
 
-**Phase 1 NOW**: JSON/YAML contracts (universal readability)
-**Phase 2.5 LATER**: Rust as SOT (after jobs contract proven)
-
-**Current bottleneck**: No jobs endpoints + contract not authoritative
-**Don't over-engineer** before basics work.
+| Item | Status |
+|------|--------|
+| SSH MBP → Mini | ✅ Done |
+| Reboot test | ✅ Passed |
+| ic1558/core repo | ✅ Exists |
+| OpenAPI contract | ✅ v1.3.0 |
+| OPAL API server | ✅ Running |
 
 ---
 
-## Phase 1 Actions (NOW)
+## Remaining Tasks (2 Items)
 
-### 1. Create `ic1558/core` Repo
+### Task 1: Sync Contract with Implementation ⚠️
+
+**Problem:** `GET /api/jobs` is implemented but NOT in contract.
+
+**File:** `/Users/icmini/0luka/core/contracts/v1/opal_api.openapi.json`
+
+**Add to paths section:**
+```json
+"/api/jobs": {
+  "get": {
+    "operationId": "listJobs",
+    "summary": "List all jobs",
+    "responses": {
+      "200": {
+        "description": "Map of job_id to JobDetail",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/components/schemas/JobDetail"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "post": { ... existing ... }
+}
+```
+
+Then commit:
+- `runtime/apps/opal_api/opal_api_server.py`
+- `core/contracts/v1/opal_api.openapi.json`
+
+---
+
+### Task 2: Create Setup Menu on MBP ❌
+
+**File:** `~/.local/bin/setup` (on MBP, not Mini)
+
 ```bash
-gh repo create ic1558/core --public \
-  --description "Contracts, schemas, semantics (SOT)"
+#!/bin/zsh
+# MBP → Mini Control Panel
+
+echo "┌─────────────────────────────────────┐"
+echo "│      MBP → Mini Control Panel       │"
+echo "├─────────────────────────────────────┤"
+echo "│  1) SSH to Mini                     │"
+echo "│  2) Check Mini status               │"
+echo "│  3) View API health (:7001)         │"
+echo "│  4) List jobs                       │"
+echo "│  5) View recent logs                │"
+echo "│  6) Fetch artifacts (safe)          │"
+echo "│  q) Quit                            │"
+echo "└─────────────────────────────────────┘"
+
+read "choice?Select: "
+case $choice in
+  1) ssh macmini ;;
+  2) ssh macmini "hostname && uptime && df -h ~ | tail -1" ;;
+  3) curl -s http://100.77.94.44:7001/api/health | jq ;;
+  4) curl -s http://100.77.94.44:7001/api/jobs | jq ;;
+  5) ssh macmini "tail -50 ~/0luka/server.log" ;;
+  6) rsync -av macmini:~/0luka/runtime/opal_artifacts/ ~/0luka-artifacts/ ;;
+  q) exit 0 ;;
+  *) echo "Invalid option" ;;
+esac
 ```
 
-### 2. Create Structure
-```
-core/
-├── VERSION              # "1.0.0"
-├── COMPATIBILITY.md     # Promise to modules
-├── contracts/v1/        # OpenAPI specs
-├── schemas/v1/          # JSON schemas
-└── semantics/           # Markdown docs
-```
-
-### 3. Write First Contract
-- `contracts/v1/opal_api.openapi.yaml`
-- Must include `/jobs` endpoint
-
-### 4. Create `setup` Menu on MBP
+Then:
 ```bash
-# ~/.local/bin/setup
-# Interactive menu for MBP → Mini control
+mkdir -p ~/.local/bin
+chmod +x ~/.local/bin/setup
 ```
 
-### 5. Wire 0luka to Validate Against Core
-- CI fetches core contracts
-- Validates server matches spec
+---
+
+## Verification
+
+```bash
+# Test contract sync
+curl -s http://100.77.94.44:7001/api/jobs | jq 'keys'
+
+# Test setup menu (on MBP)
+setup
+```
 
 ---
 
-## Phase 2.5 Actions (LATER)
+## Full Plans (Reference)
 
-**When**: jobs contract + server match proven
-
-1. Add `Cargo.toml` to core
-2. Write Rust types with `#[derive(JsonSchema, ToSchema)]`
-3. Auto-generate specs from Rust
-4. CI regenerates on every push
-
----
-
-## Key Principles
-- ❌ No hard paths
-- ✅ Use `CORE_CONTRACTS_URL` env var
-- ✅ Phase 1: JSON/YAML (start simple)
-- ✅ Phase 2.5: Rust (lock correctness)
+- `antigravity_seamless_final.md` - Latest plan
+- `core_architecture_phased.md` - Full architecture

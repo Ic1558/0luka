@@ -77,20 +77,27 @@ async def quick_status():
     """Quick status for other health checks (avoids recursion)."""
     return StatusResponse(status="ok")
 
+@app.get("/api/jobs", response_model=dict[str, JobDetail])
+async def list_jobs():
+    """List all jobs (Minimal Law)."""
+    return JobsDB.get_all_jobs()
+
+
 @app.post("/api/jobs", response_model=JobInfo, status_code=201)
 async def create_job(
     prompt: str = Form(...),
-    file: UploadFile = File(...),
-    metadata: Optional[str] = Form(None)
+    input_file: UploadFile = File(...),
+    metadata: Optional[str] = Form(None),
+    job_id: Optional[str] = Form(None)
 ):
     """Submit a new design pipeline job (Minimal Law)."""
-    job_id = f"job_{secrets.token_hex(6)}"
+    job_id = job_id or f"job_{secrets.token_hex(6)}"
     
     # Save file
     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-    file_path = UPLOADS_DIR / f"{job_id}_{file.filename}"
+    file_path = UPLOADS_DIR / f"{job_id}_{input_file.filename}"
     with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+        shutil.copyfileobj(input_file.file, buffer)
     
     # Create Job Logic
     job_metadata = {}
