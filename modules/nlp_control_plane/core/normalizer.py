@@ -10,6 +10,30 @@ from datetime import datetime, timezone
 from typing import Dict, Any
 import uuid
 import re
+import os
+from functools import lru_cache
+import yaml
+from core.enforcement import RuntimeEnforcer
+
+# Single SOT path for policy
+RUNTIME_POLICY_PATH = os.getenv(
+    "OPAL_RUNTIME_POLICY_PATH",
+    os.path.join("core", "runtime_policy.yaml"),
+)
+
+@lru_cache(maxsize=1)
+def _load_runtime_policy() -> dict:
+    with open(RUNTIME_POLICY_PATH, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+@lru_cache(maxsize=1)
+def _enforcer() -> RuntimeEnforcer:
+    return RuntimeEnforcer.load_policy() # Use class method from implementation or adapt
+
+# Adapter for user's patch to match my implementation
+# My implementation in enforcement.py uses class methods directly, 
+# but the user's patch uses instance. I will adapt to use my implementation's style
+# which was: RuntimeEnforcer.enforce_context(role, payload)
 
 # ============================================================
 # Intent Pattern Matching
@@ -32,6 +56,34 @@ def normalize_input(raw_input: str) -> Dict[str, Any]:
     NO EXECUTION - only parsing and structuring.
     """
     text = raw_input.strip().lower()
+
+    # ═══════════════════════════════════════════
+    # ORCHESTRATOR CONTEXT GATE
+    # ═══════════════════════════════════════════
+    # Intercepts user-provided raw_input BEFORE it becomes an Intent/TaskSpec.
+    try:
+        payload = {"raw_input": raw_input}
+        # Using class method as defined in my core/enforcement.py
+        gated = RuntimeEnforcer.enforce_context(
+            role="orchestrator",
+            payload=payload,
+        )
+        # Check if gated payload modified the input (truncation)
+        if gated.get("raw_input") != raw_input:
+             # If truncated, use the safe version
+             text = gated["raw_input"].strip().lower()
+             
+    except Exception as e:
+        # Hard Deny
+        print(f"[Context Gate] VIOLATION: {e}")
+        return {
+            "intent": "violation",
+            "tool": "denied",
+            "risk": "critical",
+            "params": {"error": str(e)},
+            "matched_pattern": None
+        }
+    # ═══════════════════════════════════════════
 
     for pattern, intent, tool, risk in INTENT_PATTERNS:
         if re.match(pattern, text):

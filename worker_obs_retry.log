@@ -1,0 +1,4 @@
+{"timestamp": "2026-02-05 04:08:35,827", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-66038", "event": "Starting OPAL Massing Engine Worker (Real Adapter)..."}
+{"timestamp": "2026-02-05 04:08:35,827", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-66038", "event": "Running crash recovery scan..."}
+{"timestamp": "2026-02-05 04:08:35,828", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-66038", "event": "No zombie jobs found."}
+{"timestamp": "2026-02-05 04:08:35,828", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-66038", "event": "Polling JobsDB at /Users/icmini/0luka/observability/jobs_db.json..."}

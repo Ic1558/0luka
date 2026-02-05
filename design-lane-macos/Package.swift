@@ -30,5 +30,9 @@ let package = Package(
                 "DesignLaneCore"
             ]
         ),
+        .testTarget(
+            name: "DesignLaneCoreTests",
+            dependencies: ["DesignLaneCore"]
+        )
     ]
 )
