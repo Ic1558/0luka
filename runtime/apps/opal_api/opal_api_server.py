@@ -56,7 +56,6 @@ _CONTRACT_REL = "contracts/v1/opal_api.openapi.json"
 def _load_contract_bytes() -> bytes:
     src = (
         os.environ.get("CORE_CONTRACTS_URL")
-        or os.environ.get("CORE_CONTRACTS_URL")
         or os.environ.get("CORE_CONTRACT_URL")
         or _DEFAULT_CORE_CONTRACTS_URL
     ).strip()
