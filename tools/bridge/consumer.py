@@ -29,7 +29,7 @@ TELEMETRY_DIR = BASE_DIR / "observability/telemetry"
 EMERGENCY_LOG = TELEMETRY_DIR / "gate_emergency.jsonl"
 EMERGENCY_USED = TELEMETRY_DIR / "gate_emergency_used.jsonl"
 
-ALLOWED_CALL_SIGNS = ["[Liam]", "[Lisa]", "[GMX]", "[Codex]"]
+ALLOWED_CALL_SIGNS = ["[Liam]", "[Lisa]", "[GMX]", "[Codex]", "[Cole]"]
 SOT_MAX_AGE_HOURS = 24
 HOST_ALLOWLIST_EMERGENCY = ["icmini", "Ittipongs-Mac-mini"] # Strict host gating
 
