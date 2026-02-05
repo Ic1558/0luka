@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from runtime.apps.opal_api.common import (
     HealthResponse, StatusResponse, JobInfo, JobDetail, 
-    JobsDB, normalize_paths, read_json_file, 
+    JobsDB, WorkerRegistry, normalize_paths, read_json_file, 
     PROJECT_ROOT, TELEMETRY_PATH, BUDGET_PATH, HEALTH_LOG_PATH, 
     UPLOADS_DIR, ARTIFACTS_DIR
 )
@@ -81,6 +81,47 @@ async def quick_status():
 async def list_jobs():
     """List all jobs (Minimal Law)."""
     return JobsDB.get_all_jobs()
+
+
+@app.get("/api/workers", response_model=list[dict])
+async def list_workers():
+    """List all workers in the federation (A3.0)."""
+    return WorkerRegistry.list_workers()
+
+
+@app.get("/api/nodes", response_model=dict)
+async def list_nodes():
+    """List aggregated nodes/hosts (A3.0)."""
+    workers = WorkerRegistry.list_workers()
+    nodes = {}
+    
+    for w in workers:
+        # Worker ID format: host_id:seq (A2.2) or deprecated format
+        wid = w.get("worker_id", "")
+        if ":" in wid:
+            host_id = wid.split(":")[0]
+        else:
+            # Fallback for legacy ID (hostname-pid)
+            host_id = w.get("host", "unknown")
+
+        if host_id not in nodes:
+            nodes[host_id] = {
+                "host_id": host_id,
+                "hostname": w.get("host"),
+                "worker_count": 0,
+                "engine_slots_total": 0,
+                "last_seen_latest": "",
+            }
+        
+        node = nodes[host_id]
+        node["worker_count"] += 1
+        node["engine_slots_total"] += w.get("engine_slots", 0)
+        
+        ls = w.get("last_seen", "")
+        if ls > node["last_seen_latest"]:
+            node["last_seen_latest"] = ls
+            
+    return {"nodes": list(nodes.values())}
 
 
 @app.post("/api/jobs", response_model=JobInfo, status_code=201)

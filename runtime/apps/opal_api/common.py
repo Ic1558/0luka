@@ -25,6 +25,7 @@ OPAL_WORKER_SEQ_FILE = os.getenv('OPAL_WORKER_SEQ_FILE', 'runtime/identity/worke
 
 OPAL_HEARTBEAT_INTERVAL_SECS = float(os.environ.get("OPAL_HEARTBEAT_INTERVAL", "2"))
 OPAL_WORKER_TTL_SECS = float(os.environ.get("OPAL_WORKER_TTL", "10"))
+OPAL_REGISTRY_PRUNE_EVERY_SECS = float(os.environ.get("OPAL_REGISTRY_PRUNE_EVERY_SECS", "10"))
 
 # --- A2 Phase 1: Lease TTL Sidecars ---
 JOB_LEASE_DIR = PROJECT_ROOT / "runtime" / "job_leases"
@@ -419,6 +420,13 @@ class WorkerRegistry:
             workers = reg.get("workers", {})
             if not isinstance(workers, dict):
                 workers = {}
+            
+            # Global Prune Throttling (A3.1)
+            last_pruned_str = reg.get("last_pruned_at")
+            if last_pruned_str:
+                last_pruned = parse_ts(last_pruned_str)
+                if last_pruned and (now - last_pruned).total_seconds() < OPAL_REGISTRY_PRUNE_EVERY_SECS:
+                    return 0
 
             to_delete = []
             for wid, w in workers.items():
@@ -430,12 +438,16 @@ class WorkerRegistry:
                     to_delete.append(wid)
 
             if not to_delete:
+                # Update timestamp to avoid frequent rescans (A3.1)
+                reg["last_pruned_at"] = _now_iso_utc()
+                _atomic_write_json(WORKER_REGISTRY_PATH, reg)
                 return 0
 
             for wid in to_delete:
                 workers.pop(wid, None)
 
             reg["updated_at"] = _now_iso_utc()
+            reg["last_pruned_at"] = _now_iso_utc()
             reg["workers"] = workers
             _atomic_write_json(WORKER_REGISTRY_PATH, reg)
 
