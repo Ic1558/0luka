@@ -26,6 +26,7 @@ from runtime.apps.opal_api.common import (
     JobAttemptStore, OPAL_MAX_RETRIES, OPAL_RETRY_BACKOFFS, JOBS_DB_LOCK_PATH, _exclusive_lock, _atomic_write_json,
     TelemetryLogger
 )
+from runtime.apps.opal_api.common import IdentityManager
 from core.enforcement import RuntimeEnforcer, PermissionDenied
 
 def _collect_candidate_paths(job: dict) -> list[str]:
@@ -95,7 +96,7 @@ logging.basicConfig(
 # ═══════════════════════════════════════════
 # Phase A1: Worker Identity & Concurrency Control
 # ═══════════════════════════════════════════
-WORKER_ID = f"{socket.gethostname()}-{os.getpid()}"
+WORKER_ID = IdentityManager.make_worker_id()
 HOSTNAME = socket.gethostname()
 WORKER_INDEX = os.environ.get("WORKER_INDEX")
 _HB_LAST = 0.0
@@ -241,8 +242,8 @@ def run_massing_engine_adapter(job: dict, semaphore: EngineSemaphore) -> tuple[l
         print(f"[Worker] Processing job {job['id']} with Nano Banana...")
     
     # 1. Prepare Workspace
-    # A2.1: Increment attempt counter for this execution
-    current_attempt = JobAttemptStore.increment_attempt(job["id"])
+    # A2.1: Get current attempt (already incremented in main loop)
+    current_attempt = JobAttemptStore.get_attempts(job["id"])
     
     STUDIO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     job_artifacts_dir = ARTIFACTS_DIR / job["id"] / f"attempt_{current_attempt}"
@@ -354,6 +355,9 @@ def recover_crashed_jobs():
     """
     A1: Scans for jobs left in RUNNING state by DEAD workers.
     """
+    if os.environ.get("OPAL_ENABLE_A1_PID_RECOVERY", "0") != "1":
+        return
+
     logger.info("Running A1 crash recovery scan (single-host PID check)...")
     all_jobs = JobsDB.get_all_jobs()
     zombies_found = 0
@@ -533,7 +537,8 @@ def main():
                 logger.info(f"⏩ Claimed job {job['id']}")
                 
                 # A2-Phase1: Create Lease
-                current_attempt = JobAttemptStore.get_attempts(job["id"]) or 1
+                # Fix: Increment attempt immediately upon claim
+                current_attempt = JobAttemptStore.increment_attempt(job["id"])
                 JobLeaseStore.create(
                     job_id=job["id"],
                     worker_id=WORKER_ID,
