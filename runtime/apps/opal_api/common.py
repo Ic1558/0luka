@@ -9,7 +9,12 @@ from pydantic import BaseModel
 # ═══════════════════════════════════════════
 # Configuration
 # ═══════════════════════════════════════════
-PROJECT_ROOT = Path(os.environ.get("LUKA_BASE", "/Users/icmini/0luka"))
+_DEFAULT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(
+    os.environ.get("LUKA_BASE")
+    or os.environ.get("OLUKA_ROOT")
+    or str(_DEFAULT_ROOT)
+).resolve()
 TELEMETRY_PATH = PROJECT_ROOT / "observability" / "telemetry" / "health.latest.json"
 BUDGET_PATH = PROJECT_ROOT / "observability" / "finance" / "budget.json"
 HEALTH_LOG_PATH = PROJECT_ROOT / "observability" / "logs" / "health.log"

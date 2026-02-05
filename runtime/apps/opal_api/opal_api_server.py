@@ -7,14 +7,17 @@ Port: 7001
 """
 
 import json
+import os
 import secrets
 import shutil
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
+from urllib.parse import urlparse, unquote
+import urllib.request
 
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from runtime.apps.opal_api.common import (
@@ -45,15 +48,50 @@ app.add_middleware(
 
 
 # ═══════════════════════════════════════════
-# Authoritative Contract Reflection
+# Authoritative Contract Reflection (SOT = Ic1558/core)
 # ═══════════════════════════════════════════
-CONTRACT_PATH = PROJECT_ROOT / "core" / "contracts" / "v1" / "opal_api.openapi.json"
+_DEFAULT_CORE_CONTRACTS_URL = "https://raw.githubusercontent.com/Ic1558/core/main"
+_CONTRACT_REL = "contracts/v1/opal_api.openapi.json"
+
+def _load_contract_bytes() -> bytes:
+    src = (
+        os.environ.get("CORE_CONTRACTS_URL")
+        or os.environ.get("CORE_CONTRACTS_URL")
+        or os.environ.get("CORE_CONTRACT_URL")
+        or _DEFAULT_CORE_CONTRACTS_URL
+    ).strip()
+    if not src:
+        src = _DEFAULT_CORE_CONTRACTS_URL
+
+    # file:// URL support
+    if src.startswith("file://"):
+        u = urlparse(src)
+        p = Path(unquote(u.path))
+        if p.is_dir():
+            p = p / _CONTRACT_REL
+        return p.read_bytes()
+
+    # Filesystem paths (absolute or relative-to-repo-root)
+    if "://" not in src:
+        p = Path(src)
+        if not p.is_absolute():
+            p = (PROJECT_ROOT / p).resolve()
+        if p.is_dir():
+            p = p / _CONTRACT_REL
+        return p.read_bytes()
+
+    # URL to file OR URL base directory
+    url = src if src.endswith(".json") else (src.rstrip("/") + "/" + _CONTRACT_REL)
+    with urllib.request.urlopen(url, timeout=10) as resp:
+        return resp.read()
 
 @app.get("/openapi.json", include_in_schema=False)
 async def get_open_api_endpoint():
-    if CONTRACT_PATH.exists():
-        return FileResponse(CONTRACT_PATH, media_type="application/json")
-    return app.openapi()
+    try:
+        b = _load_contract_bytes()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Failed to load authoritative contract: {e}")
+    return Response(content=b, media_type="application/json")
 
 
 # ═══════════════════════════════════════════
