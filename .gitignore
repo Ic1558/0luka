@@ -46,3 +46,10 @@ runtime/logs/
 *.log
 observability/telemetry/*.jsonl
 observability/telemetry/*.jsonl
+
+# generated shims
+/system/bin/
+# registry fix artifacts
+/core_brain/catalog/registry.yaml.bak
+dropped.json
+dups.json
