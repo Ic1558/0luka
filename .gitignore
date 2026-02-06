@@ -53,3 +53,6 @@ observability/telemetry/*.jsonl
 /core_brain/catalog/registry.yaml.bak
 dropped.json
 dups.json
+
+# runtime state
+/state/current_system.json
