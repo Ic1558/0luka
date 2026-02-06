@@ -56,3 +56,8 @@ dups.json
 
 # runtime state
 
+
+# ------------------------------
+# Runtime State (DO NOT COMMIT)
+# ------------------------------
+/state/
