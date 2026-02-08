@@ -1,0 +1,109 @@
+name: Luka AI Daily Health Check
+
+on:
+  schedule:
+    # Run at 02:00 UTC (09:00 ICT)
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      notify:
+        description: 'Send email notification'
+        required: false
+        default: 'true'
+
+env:
+  ROOT: ${{ github.workspace }}
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.health.outputs.status }}
+      summary: ${{ steps.health.outputs.summary }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install pyyaml jsonschema
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      
+      - name: Run Core Tests
+        id: tests
+        continue-on-error: true
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          failed=0
+          for test in core/verify/test_*.py; do
+            if [ -f "$test" ]; then
+              echo "Running $test..."
+              if python3 "$test" 2>&1; then
+                echo "✅ $test" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "❌ $test" >> $GITHUB_STEP_SUMMARY
+                failed=$((failed + 1))
+              fi
+            fi
+          done
+          echo "failed=$failed" >> $GITHUB_OUTPUT
+      
+      - name: Check Schema Compliance
+        id: schema
+        continue-on-error: true
+        run: |
+          echo "## Schema Compliance" >> $GITHUB_STEP_SUMMARY
+          if grep -rn "file:///Users" core/ 2>/dev/null; then
+            echo "❌ Hardpath detected in core/" >> $GITHUB_STEP_SUMMARY
+            echo "hardpath=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ No hardpaths in core/" >> $GITHUB_STEP_SUMMARY
+            echo "hardpath=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Generate Health Summary
+        id: health
+        run: |
+          failed=${{ steps.tests.outputs.failed || 0 }}
+          hardpath=${{ steps.schema.outputs.hardpath || 'false' }}
+          if [ "$failed" -eq 0 ] && [ "$hardpath" = "false" ]; then
+            status="healthy"
+            summary="✅ All checks passed"
+          else
+            status="degraded"
+            summary="⚠️ Issues: $failed test failures, hardpath=$hardpath"
+          fi
+          echo "status=$status" >> $GITHUB_OUTPUT
+          echo "summary=$summary" >> $GITHUB_OUTPUT
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "**Overall: $summary**" >> $GITHUB_STEP_SUMMARY
+
+  notify:
+    needs: health-check
+    runs-on: ubuntu-latest
+    if: always() && (github.event.inputs.notify != 'false')
+    
+    steps:
+      - name: Send Email Report
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp-mail.outlook.com
+          server_port: 587
+          secure: true
+          username: ${{ secrets.AI_TEAM_EMAIL }}
+          password: ${{ secrets.AI_TEAM_EMAIL_PASS }}
+          subject: "[0luka] Daily Health: ${{ needs.health-check.outputs.status }}"
+          to: ${{ secrets.AI_TEAM_EMAIL }}
+          from: "Luka AI <${{ secrets.AI_TEAM_EMAIL }}>"
+          body: |
+            # 0luka Daily Health Report
+            **Date:** ${{ github.run_started_at }}
+            **Status:** ${{ needs.health-check.outputs.status }}
+            **Summary:** ${{ needs.health-check.outputs.summary }}
+            ---
+            [View Full Report](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
