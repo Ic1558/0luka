@@ -181,6 +181,15 @@ def handle_steps(
             error = sanitize_error(exc)
             step_result["ok"] = False
             step_result["error"] = error
+            failure_name = f"{artifact_prefix}_failure_{index}.png"
+            failure_path = artifacts_dir / failure_name
+            try:
+                ensure_dir(failure_path.parent)
+                driver.save_screenshot(str(failure_path))
+                artifact_paths.append(str(failure_path))
+                step_result["failure_screenshot"] = str(failure_path)
+            except Exception as screenshot_exc:  # noqa: BLE001
+                step_result["failure_screenshot_error"] = sanitize_error(screenshot_exc)
             results.append(step_result)
             break
 
