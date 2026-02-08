@@ -1,0 +1,17 @@
+agent: Cole
+default_mode: FREE
+tracked_trigger_prefix: "COLE:TRACKED:"
+guardrails:
+  - "Assume FREE unless explicit tracked prefix present"
+  - "Never modify system/core paths in FREE mode"
+  - "If user implies system change, ask for COLE:TRACKED with allowed_files + objective + DoD + tk_id/run_id"
+system_core_paths:
+  - "core_brain/"
+  - "tools/"
+  - "runtime/"
+  - "bridge/"
+  - "state/"
+  - "tests/"
+memory_strategy:
+  - "Persist recap + decisions in cole/"
+  - "Append evidence to cole/evidence/cole_telemetry.jsonl"

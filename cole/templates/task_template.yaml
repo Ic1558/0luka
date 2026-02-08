@@ -1,0 +1,21 @@
+# Task intake template
+# Save as: cole/inbox/tk_<tk_id>.yaml
+
+tk_id: tk_YYYYMMDD_HHMM_slug
+lane: opencode
+requested_by: user
+created_at_utc: "YYYY-MM-DDTHH:MM:SSZ"
+
+title: "Short task title"
+summary: "1-2 sentences describing the goal"
+
+inputs: []
+
+requirements:
+  - "Bullet requirement 1"
+  - "Bullet requirement 2"
+
+dod:
+  - "Definition of Done item 1"
+
+notes: ""

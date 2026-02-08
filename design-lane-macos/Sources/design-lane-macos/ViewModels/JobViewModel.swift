@@ -16,10 +16,13 @@ final class JobViewModel: ObservableObject {
     @Published private(set) var viewState: ViewState = .idle
     @Published var prompt: String = ""
     @Published var selectedFileURL: URL?
+    @Published var selectedEngine: String = "nano_banana_engine" // Default Real Engine
     @Published var lastJobDetail: JobDetail?
 
     private var client: OpalAPIClient?
     private var pollTask: Task<Void, Never>?
+
+    let availableEngines = ["nano_banana_engine", "mock_engine_v1"]
 
     func setClient(baseURL: URL) {
         client = OpalAPIClient(baseURL: baseURL)
@@ -42,7 +45,12 @@ final class JobViewModel: ObservableObject {
         viewState = .submitting
 
         do {
-            let info = try await client.createJob(prompt: prompt, fileURL: fileURL)
+            // Inject engine selection into metadata
+            let metadata: [String: JSONValue] = [
+                "engine": .string(selectedEngine)
+            ]
+            
+            let info = try await client.createJob(prompt: prompt, fileURL: fileURL, metadata: metadata)
             viewState = .processing(id: info.id, status: info.status)
             startPolling(jobID: info.id)
         } catch {

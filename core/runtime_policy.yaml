@@ -1,0 +1,45 @@
+context_policy_v1:
+  orchestrator:
+    description: "Main planning agent (NLP Control Plane)"
+    max_input_tokens: 2200
+    allow:
+      - summary
+      - final_result
+      - metadata
+      - task_spec
+    deny:
+      - raw_artifacts
+      - file_read
+      - tool_output_raw
+      - web_fetch
+      - full_fs_access
+
+  explorer:
+    description: "ReadOnly agent for research"
+    max_input_tokens: 12000
+    allow:
+      - summary
+      - selected_chunks
+      - citations
+      - file_read_scoped
+    deny:
+      - write_fs
+      - execute_code
+
+  worker:
+    description: "Execution agent (Engine Adapter)"
+    max_input_tokens: 8000
+    allow:
+      - scoped_inputs
+      - tool_use_scoped
+    deny:
+      - full_repo_scan
+      - unbound_network
+
+  engine:
+    description: "Sandboxed execution unit"
+    max_input_tokens: 6000
+    allow:
+      - sandbox_inputs_only
+    deny:
+      - any_fs_outside_sandbox

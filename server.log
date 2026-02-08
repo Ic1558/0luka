@@ -1,0 +1,57 @@
+INFO:     Started server process [89803]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:7001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:57957 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57959 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57960 - "POST /api/jobs HTTP/1.1" 201 Created
+INFO:     127.0.0.1:57961 - "GET /api/jobs/job_9d28bc7a5afb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57964 - "GET /api/jobs/job_9d28bc7a5afb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57966 - "GET /api/jobs/job_9d28bc7a5afb HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57967 - "GET /api/artifacts/job_9d28bc7a5afb/result_job_9d28bc7a5afb.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57968 - "POST /api/jobs HTTP/1.1" 201 Created
+INFO:     127.0.0.1:57969 - "GET /api/jobs/job_4b79ac9e38bf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57971 - "GET /api/jobs/job_4b79ac9e38bf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57982 - "GET /api/jobs/job_4b79ac9e38bf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57983 - "POST /api/jobs HTTP/1.1" 201 Created
+INFO:     127.0.0.1:57984 - "POST /api/jobs HTTP/1.1" 201 Created
+INFO:     127.0.0.1:57985 - "GET /api/jobs/job_ca0150c68a48 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57986 - "GET /api/jobs/job_c443f33462d6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57988 - "GET /api/jobs/job_ca0150c68a48 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57989 - "GET /api/jobs/job_c443f33462d6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57991 - "GET /api/jobs/job_ca0150c68a48 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57992 - "GET /api/jobs/job_c443f33462d6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57996 - "GET /api/jobs/job_ca0150c68a48 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57997 - "GET /api/jobs/job_c443f33462d6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57999 - "GET /api/jobs/job_ca0150c68a48 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58000 - "GET /api/jobs/job_c443f33462d6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55628 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55733 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55805 - "POST /api/jobs HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:55858 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55859 - "POST /api/jobs HTTP/1.1" 201 Created
+INFO:     127.0.0.1:55897 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55899 - "POST /api/jobs HTTP/1.1" 201 Created
+INFO:     127.0.0.1:55900 - "GET /api/jobs/job_dc36b664d530 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55902 - "GET /api/jobs/job_dc36b664d530 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55904 - "GET /api/jobs/job_dc36b664d530 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55905 - "GET /api/artifacts/job_dc36b664d530/mock_artifact_job_dc36b664d530.txt HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56385 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56388 - "POST /api/jobs HTTP/1.1" 201 Created
+INFO:     127.0.0.1:56389 - "GET /api/jobs/job_8468b60ffa39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56391 - "GET /api/jobs/job_8468b60ffa39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56392 - "GET /api/artifacts/job_8468b60ffa39/mock_artifact_job_8468b60ffa39.txt HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57458 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57459 - "POST /api/jobs HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:57612 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57613 - "POST /api/jobs HTTP/1.1" 201 Created
+INFO:     127.0.0.1:57614 - "GET /api/jobs/job_2d1a8c825f3a HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57616 - "GET /api/jobs/job_2d1a8c825f3a HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57618 - "GET /api/jobs/job_2d1a8c825f3a HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57619 - "GET /api/artifacts/job_2d1a8c825f3a/result_job_2d1a8c825f3a.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57620 - "POST /api/jobs HTTP/1.1" 201 Created
+INFO:     127.0.0.1:57621 - "GET /api/jobs/job_03dc583fbf7c HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57623 - "GET /api/jobs/job_03dc583fbf7c HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57625 - "GET /api/jobs/job_03dc583fbf7c HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57626 - "GET /api/artifacts/job_03dc583fbf7c/result_job_03dc583fbf7c.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55302 - "GET /api/jobs HTTP/1.1" 405 Method Not Allowed

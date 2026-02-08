@@ -30,6 +30,10 @@ def activate(job_path: str):
     denoising = params.get("denoising_strength", 0.5)
 
     logging.info(f"🎨 ACTIVATING SYNTHESIS FOR {job_id}...")
+    if "sleep_10" in prompt:
+        import time
+        logging.info("💤 Sleeping 10s for simulation...")
+        time.sleep(10)
     logging.info(f"📍 Prompt: {prompt}")
     logging.info(f"🔒 Enforcing Control Weight: {weight}")
     logging.info(f"🌫️ Denoising Limit: {denoising}")

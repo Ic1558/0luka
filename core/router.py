@@ -3,7 +3,9 @@ import os
 import json
 import time
 from datetime import datetime
+from datetime import datetime
 from core.verify.gates_registry import GATES
+from core.enforcement import RuntimeEnforcer, PermissionDenied
 
 POLICY_PATH = "core/policy.yaml"
 
@@ -45,6 +47,22 @@ class Router:
         # 3. Capability Check
         if not capabilities_subset(task_spec["capabilities"], pol["capabilities"]):
             return {"status": "rejected", "reason": "caps_exceeded"}
+
+        # 3.5. Runtime Enforcement (Tool Gate)
+        # Check if the proposed operations violate the runtime policy for the proposer's role
+        # Mapping: actor_id -> role (simplified)
+        role = pol.get("role", "worker") # Default to worker if not specified
+        ops = task_spec.get("operations", [])
+        for op in ops:
+            try:
+                RuntimeEnforcer.enforce_tool_access(
+                    role=role,
+                    tool_name=op["tool"],
+                    args=op.get("params", {}),
+                    scope=task_spec.get("scope", {})
+                )
+            except PermissionDenied as e:
+                return {"status": "rejected", "reason": f"policy_violation: {str(e)}"}
 
         # 4. Root Check
         allowed_roots = task_spec["scope"]["allowed_roots"]

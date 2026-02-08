@@ -1,9 +1,0 @@
-allowed_actions:
-  - PING
-  - GET_STATUS
-  - GET_PROCESSES
-  - RESTART_AGENT
-execution_limits:
-  max_rate_per_minute: 30
-  timeout_seconds: 10
-cooldown_seconds: 300
