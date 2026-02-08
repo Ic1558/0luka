@@ -1,6 +1,0 @@
-id: "T-20260125-001_behavior_baseline"
-title: "Behavior Drift Baseline"
-intent: "Capture the 'Normal' operating parameters of the self-contained 0luka system"
-status: "in-progress"
-verification:
-  gates: ["gate.net.port", "gate.perf.memory", "gate.proc.purity"]
