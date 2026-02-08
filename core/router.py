@@ -2,10 +2,14 @@ import yaml
 import os
 import json
 import time
+from pathlib import Path
 from datetime import datetime
 from datetime import datetime
 from core.verify.gates_registry import GATES
 from core.enforcement import RuntimeEnforcer, PermissionDenied
+from core.phase1d_result_gate import ResultGateError, gate_outbound_result
+from core.outbox_writer import OutboxWriterError, write_result_to_outbox
+from core.schema_registry import SchemaError, validate
 
 POLICY_PATH = "core/policy.yaml"
 
@@ -29,9 +33,96 @@ def capabilities_subset(requested, allowed):
                 return False
     return True
 
+
+def _safe_rename(src: str, dst: str) -> bool:
+    """Move src -> dst safely.
+
+    - Returns False if src does not exist or is not a file.
+    - Ensures destination parent directories exist.
+    - Uses os.replace for an atomic move on the same filesystem.
+    """
+    try:
+        if not src or not dst:
+            return False
+        if not os.path.exists(src):
+            return False
+        if not os.path.isfile(src):
+            return False
+        parent = os.path.dirname(dst)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        os.replace(src, dst)
+        return True
+    except Exception:
+        return False
+
+
+def _write_audit(
+    task_id: str,
+    decision: str,
+    reason: str = "",
+    trace_id: str = "",
+    intent: str = "",
+    executor: str = "",
+    resolved_refs: list = None,
+    evidence_paths: list = None,
+    gate_results: dict = None,
+) -> str:
+    """Write audit artifact atomically. Returns path or raises on failure."""
+    ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    audit = {
+        "schema_version": "router_audit_v1",
+        "task_id": task_id,
+        "trace_id": trace_id or task_id,
+        "ts_utc": ts,
+        "intent": intent,
+        "executor": executor,
+        "decision": decision,
+        "reason": reason,
+        "resolved_refs": resolved_refs or [],
+        "evidence_paths": evidence_paths or [],
+        "gate_results": gate_results or {},
+    }
+
+    audit_str = json.dumps(audit, ensure_ascii=False)
+    if "/Users/" in audit_str or "file:///Users" in audit_str:
+        raise RuntimeError("audit_contains_hard_paths")
+
+    # Schema validation (fail-closed)
+    try:
+        validate("router_audit", audit)
+    except SchemaError as exc:
+        raise RuntimeError(f"audit_schema_invalid:{exc}")
+
+    root_env = os.environ.get("ROOT", "").strip()
+    root = Path(root_env).expanduser().resolve(strict=False) if root_env else Path(__file__).resolve().parents[1]
+    out_dir = root / "observability" / "artifacts" / "router_audit"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{task_id}.json"
+    tmp_path = out_dir / f".{task_id}.tmp"
+
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        f.write(json.dumps(audit, indent=2, ensure_ascii=False) + "\n")
+    os.replace(tmp_path, out_path)
+    return str(out_path)
+
 class Router:
     def __init__(self):
         self.policy = load_policy()
+
+    def execute(self, task_spec):
+        schema_version = task_spec.get("schema_version")
+        if schema_version == "clec.v1":
+            from core.clec_executor import CLECExecutorError, execute_clec_ops
+
+            ops = task_spec.get("ops", [])
+            verify = task_spec.get("verify", [])
+            try:
+                status, evidence = execute_clec_ops(ops, {}, verify)
+            except CLECExecutorError as exc:
+                return {"status": "error", "reason": str(exc), "evidence": {}}
+            return {"status": status, "evidence": evidence}
+        return {"status": "unsupported_schema", "reason": "schema_not_routable"}
 
     def propose(self, task_spec):
         # 1. Basic Validation
@@ -85,31 +176,133 @@ class Router:
         return {"status": "active", "task_id": task_id}
 
     def audit(self, task_spec, result_bundle):
-        # 1. Run Gates
+        task_id = task_spec.get("id", "unknown")
+        intent = task_spec.get("intent", "")
+        executor = task_spec.get("actor", {}).get("proposer", "")
+        trace_id = result_bundle.get("trace_id", task_id)
+
+        resolved_refs = []
+        resolved = (result_bundle.get("resolved") or {}).get("resources") or []
+        for res in resolved:
+            ref = res.get("ref", "")
+            if ref.startswith("ref://"):
+                resolved_refs.append(ref)
+
+        evidence_paths = []
+        evidence = result_bundle.get("evidence") or {}
+        for key in ["logs", "commands", "effects"]:
+            items = evidence.get(key) or []
+            if items:
+                evidence_paths.append(f"evidence.{key}[{len(items)}]")
+
         gate_names = self.policy["verification"]["required_gates_for_commit"]
-        # Add task-specific gates
         gate_names = list(set(gate_names + task_spec["verification"].get("gates", [])))
-        
+
         gate_results = {}
         all_pass = True
         for name in gate_names:
             if name in GATES:
                 res = GATES[name](task_spec, result_bundle)
                 gate_results[name] = res
-                if not res["pass"]: all_pass = False
+                if not res["pass"]:
+                    all_pass = False
             else:
                 gate_results[name] = {"pass": False, "reason": "gate_not_found"}
                 all_pass = False
 
-        # 2. Results
-        task_id = task_spec["id"]
-        if all_pass:
-            task_spec["status"] = "committed"
-            # Move to closed
-            os.rename(f"artifacts/tasks/open/{task_id}.yaml", f"artifacts/tasks/closed/{task_id}.yaml")
-            return {"status": "committed", "gates": gate_results}
-        else:
+        if not all_pass:
+            try:
+                _write_audit(
+                    task_id=task_id,
+                    decision="rejected",
+                    reason="gates_failed",
+                    trace_id=trace_id,
+                    intent=intent,
+                    executor=executor,
+                    resolved_refs=resolved_refs,
+                    evidence_paths=evidence_paths,
+                    gate_results=gate_results,
+                )
+            except Exception:
+                pass
+
             task_spec["status"] = "audit_failed"
-            # Move to rejected
-            os.rename(f"artifacts/tasks/open/{task_id}.yaml", f"artifacts/tasks/rejected/{task_id}.yaml")
+            _safe_rename(
+                f"artifacts/tasks/open/{task_id}.yaml",
+                f"artifacts/tasks/rejected/{task_id}.yaml"
+            )
             return {"status": "rejected", "gates": gate_results}
+
+        # Happy path ordering: gate checks -> audit write -> outbound write.
+        try:
+            _write_audit(
+                task_id=task_id,
+                decision="ok",
+                trace_id=trace_id,
+                intent=intent,
+                executor=executor,
+                resolved_refs=resolved_refs,
+                evidence_paths=evidence_paths,
+                gate_results=gate_results,
+            )
+        except Exception as exc:
+            task_spec["status"] = "audit_failed"
+            _safe_rename(
+                f"artifacts/tasks/open/{task_id}.yaml",
+                f"artifacts/tasks/rejected/{task_id}.yaml"
+            )
+            return {"status": "rejected", "reason": f"audit_write_failed:{exc}"}
+
+        try:
+            result_bundle = gate_outbound_result(result_bundle)
+            write_result_to_outbox(result_bundle)
+        except ResultGateError as exc:
+            try:
+                _write_audit(
+                    task_id=task_id,
+                    decision="error",
+                    reason=f"outbound_result_gate_failed:{exc}",
+                    trace_id=trace_id,
+                    intent=intent,
+                    executor=executor,
+                    resolved_refs=resolved_refs,
+                    evidence_paths=evidence_paths,
+                )
+            except Exception:
+                pass
+
+            task_spec["status"] = "audit_failed"
+            _safe_rename(
+                f"artifacts/tasks/open/{task_id}.yaml",
+                f"artifacts/tasks/rejected/{task_id}.yaml"
+            )
+            return {"status": "rejected", "reason": f"outbound_result_gate_failed:{exc}"}
+
+        except OutboxWriterError as exc:
+            try:
+                _write_audit(
+                    task_id=task_id,
+                    decision="error",
+                    reason=f"outbox_write_failed:{exc}",
+                    trace_id=trace_id,
+                    intent=intent,
+                    executor=executor,
+                    resolved_refs=resolved_refs,
+                    evidence_paths=evidence_paths,
+                )
+            except Exception:
+                pass
+
+            task_spec["status"] = "audit_failed"
+            _safe_rename(
+                f"artifacts/tasks/open/{task_id}.yaml",
+                f"artifacts/tasks/rejected/{task_id}.yaml"
+            )
+            return {"status": "rejected", "reason": f"outbox_write_failed:{exc}"}
+
+        task_spec["status"] = "committed"
+        _safe_rename(
+            f"artifacts/tasks/open/{task_id}.yaml",
+            f"artifacts/tasks/closed/{task_id}.yaml"
+        )
+        return {"status": "committed", "gates": gate_results}

@@ -1,0 +1,33 @@
+version: "1"
+updated_at: "2026-02-08"
+
+env:
+  root_vars:
+    - "0LUKA_ROOT"
+    - "LUKA_ROOT"
+
+hosts:
+  macmini:
+    fingerprint_contains: ["Darwin", "arm64"]
+    root: "${0LUKA_ROOT:-${LUKA_ROOT:-$HOME/0luka}}"
+  mbp:
+    fingerprint_contains: ["Darwin", "arm64"]
+    root: "${0LUKA_ROOT:-${LUKA_ROOT:-$HOME/0luka}}"
+  default:
+    root: "${0LUKA_ROOT:-${LUKA_ROOT:-$HOME/0luka}}"
+
+refs:
+  "ref://repo/0luka": "${root}"
+  "ref://repo/core": "${root}/core"
+  "ref://interface/inbox": "${root}/interface/inbox"
+  "ref://interface/outbox": "${root}/interface/outbox"
+  "ref://artifacts": "${root}/artifacts"
+  "ref://runtime": "${root}/runtime"
+  "ref://contracts": "${root}/core/contracts"
+  "ref://contracts/v1": "${root}/core/contracts/v1"
+  "ref://observability": "${root}/observability"
+  "ref://observability/inbox": "${root}/observability/bridge/inbox"
+  "ref://observability/outbox": "${root}/observability/bridge/outbox"
+  "ref://observability/artifacts": "${root}/observability/artifacts"
+  "ref://observability/telemetry": "${root}/observability/telemetry"
+  "ref://observability/ledger": "${root}/observability/stl/ledger"

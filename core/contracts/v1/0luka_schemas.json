@@ -1,0 +1,282 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://0luka.dev/schemas/v1/combined",
+  "$defs": {
+    "envelope": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["v", "type", "trace", "source", "payload"],
+      "properties": {
+        "v": { "type": "string" },
+        "type": { "type": "string" },
+        "trace": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["trace_id", "ts"],
+          "properties": {
+            "trace_id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 }
+          }
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["actor", "lane"],
+          "properties": {
+            "actor": { "type": "string", "minLength": 1 },
+            "lane": { "type": "string", "minLength": 1 }
+          }
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["task"],
+          "properties": {
+            "task": { "$ref": "#/$defs/task" }
+          }
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["task_id", "intent", "inputs"],
+      "properties": {
+        "task_id": { "type": "string", "minLength": 1 },
+        "task_type": { "type": "string" },
+        "intent": { "type": "string", "minLength": 1 },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "refs": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "ref": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "run_result": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["task_id", "status", "summary", "outputs", "evidence", "provenance"],
+      "properties": {
+        "task_id": { "type": "string", "minLength": 1 },
+        "status": { "type": "string" },
+        "summary": { "type": "string" },
+        "outputs": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "artifacts": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "evidence": { "$ref": "#/$defs/evidence_min" },
+        "provenance": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "hashes": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "inputs_sha256": { "type": "string" },
+                "outputs_sha256": { "type": "string" }
+              }
+            }
+          }
+        },
+        "resolved": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "trust": { "type": "boolean" },
+            "resources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "uri": { "type": "string" },
+                  "kind": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "evidence_min": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "effects": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "logs": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "router_audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "task_id",
+        "trace_id",
+        "ts_utc",
+        "decision"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "router_audit_v1"
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ts_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "intent": {
+          "type": "string"
+        },
+        "executor": {
+          "type": "string"
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "rejected",
+            "error"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "resolved_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidence_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "gate_results": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "dispatch_latest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "ts",
+        "task_id",
+        "status",
+        "stats"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "dispatch_latest_v1"
+        },
+        "ts": {
+          "type": "string",
+          "minLength": 1
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trace_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "committed",
+            "rejected",
+            "error"
+          ]
+        },
+        "author": {
+          "type": "string"
+        },
+        "intent": {
+          "type": "string"
+        },
+        "result_path": {
+          "type": "string"
+        },
+        "audit_path": {
+          "type": "string"
+        },
+        "source_moved_to": {
+          "type": "string"
+        },
+        "stats": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "total_dispatched",
+            "total_committed",
+            "total_rejected",
+            "total_error"
+          ],
+          "properties": {
+            "total_dispatched": {
+              "type": "integer"
+            },
+            "total_committed": {
+              "type": "integer"
+            },
+            "total_rejected": {
+              "type": "integer"
+            },
+            "total_error": {
+              "type": "integer"
+            },
+            "total_skipped": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    }
+  }
+}
