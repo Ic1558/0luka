@@ -5139,7 +5139,7 @@ Tool: read
 00017| 				"firecrawl-mcp"
 00018| 			],
 00019| 			"env": {
-00020| 				"FIRECRAWL_API_KEY": "fc-cea05cbdea6b421bbb63c34da8fa37a6"
+00020| 				"FIRECRAWL_API_KEY": "REDACTED"
 00021| 			}
 00022| 		},
 00023| 		"notebooklm": {
