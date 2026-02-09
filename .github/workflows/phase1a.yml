@@ -12,14 +12,34 @@ jobs:
   phase1a-scope-lock:
     name: phase1a-scope-lock
     runs-on: ubuntu-latest
-    if: contains(join(github.event.pull_request.labels.*.name, ','), 'phase1a')
     steps:
+      - name: Detect phase1a label
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          LABELS_JSON='${{ toJSON(github.event.pull_request.labels.*.name) }}'
+          if echo "$LABELS_JSON" | grep -q '"phase1a"'; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: No-op when phase1a label missing
+        if: steps.detect.outputs.enabled != 'true'
+        shell: bash
+        run: |
+          echo "phase1a label not present; scope-lock is a no-op."
+          exit 0
+
       - name: Checkout
+        if: steps.detect.outputs.enabled == 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Verify changed files are Phase 1A allowlist only
+        if: steps.detect.outputs.enabled == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -62,17 +82,38 @@ jobs:
   phase1a-smoke:
     name: phase1a-smoke
     runs-on: ubuntu-latest
-    if: contains(join(github.event.pull_request.labels.*.name, ','), 'phase1a')
     steps:
+      - name: Detect phase1a label
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          LABELS_JSON='${{ toJSON(github.event.pull_request.labels.*.name) }}'
+          if echo "$LABELS_JSON" | grep -q '"phase1a"'; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: No-op when phase1a label missing
+        if: steps.detect.outputs.enabled != 'true'
+        shell: bash
+        run: |
+          echo "phase1a label not present; smoke is a no-op."
+          exit 0
+
       - name: Checkout
+        if: steps.detect.outputs.enabled == 'true'
         uses: actions/checkout@v4
 
       - name: Setup Python
+        if: steps.detect.outputs.enabled == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install deps (minimal)
+        if: steps.detect.outputs.enabled == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -80,6 +121,7 @@ jobs:
           python -m pip install pyyaml
 
       - name: Phase 1A smoke
+        if: steps.detect.outputs.enabled == 'true'
         shell: bash
         run: |
           set -euo pipefail
