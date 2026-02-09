@@ -59,11 +59,18 @@
 - **Strict Binding**: Use only tools defined in the catalog. No ad-hoc scripts unless sanctioned by `task_boundary`.
 - **Firecrawl**: Read-Only (Safety Guard).
 
-### 3.3 Preflight (MANDATORY)
-- Read `g/session/session_state.latest.json` before any plan execution.
+### 3.3 Preflight
+- Read `g/session/session_state.latest.json` for UI context (OPTIONAL, warn-only).
 - If present, also read `g/session/SESSION_STATE.md` for human context.
-- Fail-closed: if JSON missing/invalid/stale -> stop and report `DEGRADED_PRECHECK`.
-- Staleness: if `now_utc - ts_utc > SESSION_STATE_TTL_SEC` (default 120s).
+- Session state is a **soft signal**: missing/invalid/stale -> log warning, continue execution.
+- **Session state is NOT an execution permit** (see Section 3.3.1).
+- Hard gate: system liveness via dispatcher heartbeat or executor health (Section 3.3.1).
+
+#### 3.3.1 Execution Liveness Gate
+- Check `observability/artifacts/dispatcher_heartbeat.json` for dispatcher process liveness.
+- Check via PID: `os.kill(pid, 0)` — if process alive, system is live.
+- If dispatcher not running: execution allowed (plans queue to inbox for later dispatch).
+- **session_state != execution permit**: session freshness does not gate task dispatch.
 
 ## 4. Execution Policy (Liam Write Policy)
 ### 4.1 Level Definitions
