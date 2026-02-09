@@ -61,6 +61,44 @@ def _log_event(event: Dict[str, Any]) -> None:
         f.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
+def _emit_dispatch_start(task_id: str, trace_id: str, intent: str, module: str) -> float:
+    started = time.monotonic()
+    _log_event(
+        {
+            "event": "dispatch.start",
+            "ts": _utc_now(),
+            "task_id": task_id,
+            "trace_id": trace_id,
+            "intent": intent,
+            "module": module,
+        }
+    )
+    return started
+
+
+def _emit_dispatch_end(
+    task_id: str,
+    trace_id: str,
+    status: str,
+    started: float,
+    outbox_path: str = "",
+    outbox_ref: str = "",
+) -> None:
+    duration_ms = int((time.monotonic() - started) * 1000)
+    _log_event(
+        {
+            "event": "dispatch.end",
+            "ts": _utc_now(),
+            "task_id": task_id,
+            "trace_id": trace_id,
+            "status": status,
+            "duration_ms": duration_ms,
+            "outbox_path": outbox_path,
+            "outbox_ref": outbox_ref,
+        }
+    )
+
+
 def _write_dispatch_pointer(
     task_id: str,
     status: str,
@@ -219,7 +257,9 @@ def _build_result_bundle(task_id: str, envelope: Dict[str, Any], task: Dict[str,
 
 def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
     task_id = "unknown"
+    dispatch_trace_id = "unknown"
     counted_dispatch = False
+    dispatch_started_at = 0.0
     try:
         if yaml is None:
             raise DispatchError("missing dependency: pyyaml (pip install pyyaml)")
@@ -235,6 +275,13 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             return {"task_id": task_id, "status": "skipped", "reason": "already_processed"}
 
         envelope = _wrap_envelope(raw)
+        dispatch_trace_id = str(envelope.get("trace", {}).get("trace_id", task_id))
+        dispatch_started_at = _emit_dispatch_start(
+            task_id=task_id,
+            trace_id=dispatch_trace_id,
+            intent=str(raw.get("intent", "")),
+            module=str(raw.get("module") or raw.get("schema_version") or "core.task_dispatcher"),
+        )
         try:
             gated = gate_inbound_envelope(envelope)
         except Phase1AResolverError as exc:
@@ -250,10 +297,16 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
                     status="rejected",
                     author=str(raw.get("author", "")),
                     intent=str(raw.get("intent", "")),
-                    trace_id=str(envelope.get("trace", {}).get("trace_id", task_id)),
+                    trace_id=dispatch_trace_id,
                     audit_path=f"observability/artifacts/router_audit/{task_id}.json",
                     source_moved_to=f"interface/rejected/{file_path.name}",
                 )
+            _emit_dispatch_end(
+                task_id=task_id,
+                trace_id=dispatch_trace_id,
+                status="rejected",
+                started=dispatch_started_at,
+            )
             return result
 
         task = gated["payload"]["task"]
@@ -268,12 +321,24 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             if not dry_run:
                 _move_file(file_path, REJECTED)
                 _log_event({**result, "ts": _utc_now(), "file": file_path.name})
+            _emit_dispatch_end(
+                task_id=task_id,
+                trace_id=dispatch_trace_id,
+                status="skipped",
+                started=dispatch_started_at,
+            )
             return result
 
         router = Router()
         exec_result = router.execute(task)
         if dry_run:
             _stats["total_skipped"] += 1
+            _emit_dispatch_end(
+                task_id=task_id,
+                trace_id=dispatch_trace_id,
+                status="dry_run_ok",
+                started=dispatch_started_at,
+            )
             return {"task_id": task_id, "status": "dry_run_ok", "exec_status": exec_result.get("status")}
 
         result_bundle = _build_result_bundle(task_id, envelope, task, exec_result)
@@ -298,7 +363,7 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
                 status="committed",
                 author=str(task.get("author", "")),
                 intent=str(task.get("intent", "")),
-                trace_id=str(envelope.get("trace", {}).get("trace_id", task_id)),
+                trace_id=dispatch_trace_id,
                 result_path=f"interface/outbox/tasks/{task_id}.result.json",
                 audit_path=f"observability/artifacts/router_audit/{task_id}.json",
                 source_moved_to=f"interface/completed/{file_path.name}",
@@ -310,10 +375,20 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
                 status=str(audit_result.get("status", "rejected")),
                 author=str(task.get("author", "")),
                 intent=str(task.get("intent", "")),
-                trace_id=str(envelope.get("trace", {}).get("trace_id", task_id)),
+                trace_id=dispatch_trace_id,
                 audit_path=f"observability/artifacts/router_audit/{task_id}.json",
                 source_moved_to=f"interface/rejected/{file_path.name}",
             )
+        final_status = str(audit_result.get("status", "error"))
+        final_outbox_path = f"interface/outbox/tasks/{task_id}.result.json" if final_status == "committed" else ""
+        _emit_dispatch_end(
+            task_id=task_id,
+            trace_id=dispatch_trace_id,
+            status=final_status,
+            started=dispatch_started_at,
+            outbox_path=final_outbox_path,
+            outbox_ref="ref://interface/outbox" if final_outbox_path else "",
+        )
         return final
 
     except Exception as exc:
@@ -326,8 +401,15 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             _write_dispatch_pointer(
                 task_id=task_id,
                 status="error",
-                trace_id=task_id,
+                trace_id=dispatch_trace_id,
                 source_moved_to=f"interface/inbox/{file_path.name}",
+            )
+        if dispatch_started_at > 0:
+            _emit_dispatch_end(
+                task_id=task_id,
+                trace_id=dispatch_trace_id,
+                status="error",
+                started=dispatch_started_at,
             )
         return error_result
 

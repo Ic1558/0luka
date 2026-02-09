@@ -124,6 +124,78 @@ def test_dispatch_clec_task_e2e() -> None:
             _restore_env(old)
 
 
+def test_dispatch_emits_start_end_events() -> None:
+    """Dispatcher must emit exactly one dispatch.start and dispatch.end per task."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td).resolve()
+        old = _set_env(root)
+        try:
+            _mkdirs(root)
+            task_id = "task_dispatch_events_001"
+            task_file = root / "interface" / "inbox" / f"{task_id}.yaml"
+            task_file.write_text(
+                "\n".join(
+                    [
+                        f"task_id: {task_id}",
+                        "author: codex",
+                        "schema_version: clec.v1",
+                        "ts_utc: '2026-02-08T00:00:00Z'",
+                        "call_sign: '[Codex]'",
+                        "root: '${ROOT}'",
+                        "intent: events.dispatch",
+                        "lane: task",
+                        "ops:",
+                        "  - op_id: op1",
+                        "    type: run",
+                        "    command: git status",
+                        "verify: []",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (root / "artifacts" / "tasks" / "open" / f"{task_id}.yaml").write_text("id: x\n", encoding="utf-8")
+
+            dispatcher = _load_dispatcher(root)
+            result = dispatcher.dispatch_one(task_file)
+            assert result["status"] in {"committed", "rejected", "error"}, result
+            assert dispatcher.DISPATCH_LOG.exists(), "dispatcher.jsonl missing"
+
+            lines = dispatcher.DISPATCH_LOG.read_text(encoding="utf-8").splitlines()
+            events = [json.loads(line) for line in lines if line.strip()]
+            start_events = [e for e in events if e.get("event") == "dispatch.start" and e.get("task_id") == task_id]
+            end_events = [e for e in events if e.get("event") == "dispatch.end" and e.get("task_id") == task_id]
+
+            assert len(start_events) == 1, f"expected 1 start event, got {len(start_events)}"
+            assert len(end_events) == 1, f"expected 1 end event, got {len(end_events)}"
+
+            start_event = start_events[0]
+            assert start_event.get("task_id") == task_id
+            assert isinstance(start_event.get("trace_id"), str) and start_event.get("trace_id")
+            assert isinstance(start_event.get("intent"), str)
+            assert isinstance(start_event.get("module"), str) and start_event.get("module")
+
+            end_event = end_events[0]
+            assert end_event.get("task_id") == task_id
+            assert end_event.get("trace_id") == start_event.get("trace_id")
+            assert isinstance(end_event.get("status"), str) and end_event.get("status")
+            assert isinstance(end_event.get("duration_ms"), int)
+            assert end_event.get("duration_ms") >= 0
+            assert bool(end_event.get("outbox_path")) or bool(end_event.get("outbox_ref"))
+
+            for event in (start_event, end_event):
+                serialized = json.dumps(event, ensure_ascii=False, sort_keys=True)
+                assert "/Users/" not in serialized
+                assert "file:///Users/" not in serialized
+
+            print(
+                f"test_dispatch_emits_start_end_events: ok "
+                f"(start={len(start_events)}, end={len(end_events)}, duration_ms={end_event['duration_ms']})"
+            )
+        finally:
+            _restore_env(old)
+
+
 def test_dispatch_idempotent() -> None:
     """Dispatching same task with existing outbox result should skip."""
     with tempfile.TemporaryDirectory() as td:
@@ -497,6 +569,7 @@ def test_watch_heartbeat_no_hardpaths() -> None:
 
 def main() -> int:
     test_dispatch_clec_task_e2e()
+    test_dispatch_emits_start_end_events()
     test_dispatch_idempotent()
     test_dispatch_invalid_yaml_stays_in_inbox()
     test_dispatch_non_clec_skipped()
