@@ -1,0 +1,84 @@
+name: phase1a
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  phase1a-scope-lock:
+    name: phase1a-scope-lock
+    runs-on: ubuntu-latest
+    if: contains(join(github.event.pull_request.labels.*.name, ','), 'phase1a')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify changed files are Phase 1A allowlist only
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          echo "BASE=$BASE"
+          echo "HEAD=$HEAD"
+
+          # Deterministic comparison on CI
+          git diff --name-only "$BASE" "$HEAD" | sort > /tmp/changed.txt
+          echo "Changed files:"
+          cat /tmp/changed.txt
+
+          # Allowlist: Phase 1A-only
+          cat > /tmp/allow.txt <<'EOF'
+core/contracts/v1/ref_resolution.map.yaml
+core/ref_resolver.py
+core/verify/test_ref_resolver.py
+EOF
+          sort /tmp/allow.txt > /tmp/allow_sorted.txt
+
+          # Fail if any changed file is outside allowlist
+          if comm -23 /tmp/changed.txt /tmp/allow_sorted.txt | grep -q .; then
+            echo "ERROR: Found files outside Phase 1A allowlist:"
+            comm -23 /tmp/changed.txt /tmp/allow_sorted.txt || true
+            exit 1
+          fi
+
+          # Require at least one allowlist file when label is present
+          if ! comm -12 /tmp/changed.txt /tmp/allow_sorted.txt | grep -q .; then
+            echo "ERROR: phase1a label present but no Phase 1A files changed."
+            exit 1
+          fi
+
+          echo "OK: Phase 1A scope locked."
+
+  phase1a-smoke:
+    name: phase1a-smoke
+    runs-on: ubuntu-latest
+    if: contains(join(github.event.pull_request.labels.*.name, ','), 'phase1a')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps (minimal)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml
+
+      - name: Phase 1A smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m compileall core/ref_resolver.py
+          python3 core/verify/test_ref_resolver.py
