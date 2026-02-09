@@ -33,12 +33,15 @@ jobs:
           echo "Changed files:"
           cat /tmp/changed.txt
 
-          # Allowlist: Phase 1A-only
+          # Allowlist: Phase 1A-only (Indented to satisfy YAML parser)
           cat > /tmp/allow.txt <<'EOF'
-core/contracts/v1/ref_resolution.map.yaml
-core/ref_resolver.py
-core/verify/test_ref_resolver.py
-EOF
+          core/contracts/v1/ref_resolution.map.yaml
+          core/ref_resolver.py
+          core/verify/test_ref_resolver.py
+          EOF
+          
+          # Clean up indentation from HEREDOC before comparison
+          sed -i 's/^[[:space:]]*//' /tmp/allow.txt
           sort /tmp/allow.txt > /tmp/allow_sorted.txt
 
           # Fail if any changed file is outside allowlist
