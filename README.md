@@ -14,3 +14,6 @@
 
 **Intent (The Future):**
 - [ROADMAP_v2.md](ROADMAP_v2.md)
+
+## License
+This repository is proprietary and internal-use only. See `LICENSE` and `NOTICE.md`.

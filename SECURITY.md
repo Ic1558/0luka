@@ -6,6 +6,8 @@ This repository follows a **phase-gated security model**.
 Only the `main` branch is considered supported.
 Phase-locked baselines (e.g. Phase 1A immutable baseline) must not be bypassed.
 
+This repository is proprietary and internal-use only. See `LICENSE` and `NOTICE.md`.
+
 ## Reporting a Vulnerability
 If you discover a security issue, **do not open a public issue**.
 
