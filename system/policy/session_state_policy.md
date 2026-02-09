@@ -22,3 +22,6 @@
 - Blocking plan generation
 - Permission to execute
 - Replacing heartbeat/liveness checks
+
+## Async Queue Semantics
+Execution in 0luka is asynchronous: planner → inbox → dispatcher → executor. Session state is consumed for UX context only and never blocks any stage of this pipeline.

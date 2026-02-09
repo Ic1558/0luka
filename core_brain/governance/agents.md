@@ -63,14 +63,14 @@
 - Read `g/session/session_state.latest.json` for UI context (OPTIONAL, warn-only).
 - If present, also read `g/session/SESSION_STATE.md` for human context.
 - Session state is a **soft signal**: missing/invalid/stale -> log warning, continue execution.
-- **Session state is NOT an execution permit** (see Section 3.3.1).
-- Hard gate: system liveness via dispatcher heartbeat or executor health (Section 3.3.1).
+- **Session state is NOT an execution permit.**
 
-#### 3.3.1 Execution Liveness Gate
-- Check `observability/artifacts/dispatcher_heartbeat.json` for dispatcher process liveness.
-- Check via PID: `os.kill(pid, 0)` — if process alive, system is live.
-- If dispatcher not running: execution allowed (plans queue to inbox for later dispatch).
-- **session_state != execution permit**: session freshness does not gate task dispatch.
+#### 3.3.1 Async Execution Model
+- 0luka execution is **asynchronous and non-blocking by design**: planner → inbox (queue) → dispatcher → executor.
+- Plan generation and task submission MUST NOT be blocked by liveness signals.
+- All liveness signals (session_state, heartbeat, health) are **advisory** unless a specific gate explicitly states otherwise.
+- If the dispatcher is not running, plans and tasks queue to inbox for later dispatch.
+- **session_state != execution permit**: session freshness does not gate any execution path.
 
 ## 4. Execution Policy (Liam Write Policy)
 ### 4.1 Level Definitions
