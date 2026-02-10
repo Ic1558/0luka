@@ -24,8 +24,8 @@ except ModuleNotFoundError:
 
 sys.path.insert(0, str(ROOT))
 
-from core.submit import SubmitError, submit_task
-from core.task_dispatcher import dispatch_one
+import core.submit as submit_mod
+import core.task_dispatcher as dispatcher_mod
 from core.verify.no_hardpath_guard import find_hardpath_violations
 
 
@@ -72,6 +72,15 @@ def _check_no_hardpaths(path: Path) -> List[Dict[str, str]]:
 
 
 def run_smoke(*, clean: bool = False) -> SmokeResult:
+    # Keep smoke deterministic under test suite module-reload ordering:
+    # ensure executor layer writes under current ROOT (temp ROOT in tests).
+    try:
+        import core.clec_executor as clec_executor
+
+        clec_executor.ROOT = ROOT
+    except Exception:
+        pass
+
     result = SmokeResult()
     slug = _ts_slug()
     task_id = f"smoke_{slug}_{_unique_suffix()}"
@@ -96,7 +105,7 @@ def run_smoke(*, clean: bool = False) -> SmokeResult:
         (ROOT / rel).mkdir(parents=True, exist_ok=True)
 
     try:
-        receipt = submit_task(
+        receipt = submit_mod.submit_task(
             {
                 "author": "smoke_test",
                 "schema_version": "clec.v1",
@@ -119,7 +128,7 @@ def run_smoke(*, clean: bool = False) -> SmokeResult:
             task_id=task_id,
         )
         result.record("submit", True, f"task_id={receipt['task_id']}")
-    except (SubmitError, Exception) as exc:
+    except (submit_mod.SubmitError, Exception) as exc:
         result.record("submit", False, str(exc))
         return result
 
@@ -128,7 +137,7 @@ def run_smoke(*, clean: bool = False) -> SmokeResult:
     open_task.write_text(f"id: {task_id}\n", encoding="utf-8")
 
     try:
-        dispatch_result = dispatch_one(inbox_file)
+        dispatch_result = dispatcher_mod.dispatch_one(inbox_file)
         status = str(dispatch_result.get("status", "error"))
         result.record("dispatch", status == "committed", f"status={status}")
     except Exception as exc:
@@ -154,9 +163,17 @@ def run_smoke(*, clean: bool = False) -> SmokeResult:
     written_path = ROOT / canary_rel
     if written_path.exists():
         actual = written_path.read_text(encoding="utf-8").strip()
-        result.record("written_file", actual == canary_content)
+        result.record(
+            "written_file",
+            actual == canary_content,
+            f"path={written_path.as_posix()}",
+        )
     else:
-        result.record("written_file", False, "canary file not found")
+        result.record(
+            "written_file",
+            False,
+            f"canary file not found: path={written_path.as_posix()}",
+        )
 
     completed_path = ROOT / "interface" / "completed" / f"{task_id}.yaml"
     result.record("source_moved", completed_path.exists() and not inbox_file.exists())

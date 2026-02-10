@@ -1,0 +1,5 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "0luka.schemas/v1/phase1a_task",
+  "$ref": "0luka_schemas_v1.json#/$defs/Phase1A.Task"
+}

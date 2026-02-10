@@ -59,15 +59,23 @@ def test_error_message_sanitized() -> None:
 
 def test_back_resolve_trusted_uri() -> None:
     root = Path(__file__).resolve().parents[2]
+    old_root = os.environ.get("0LUKA_ROOT")
+    os.environ["0LUKA_ROOT"] = str(root)
     result = _base_result()
     result["resolved"] = {
         "trust": True,
         "resources": [{"kind": "path", "uri": (root / "interface/inbox").as_uri()}],
     }
     result["evidence"]["logs"] = [f"used {(root / 'interface/inbox').as_uri()}"]
-    out = gate_outbound_result(result)
-    assert "ref://interface/inbox" in str(out)
-    assert "file:///Users/" not in str(out)
+    try:
+        out = gate_outbound_result(result)
+        assert "ref://interface/inbox" in str(out)
+        assert "file:///Users/" not in str(out)
+    finally:
+        if old_root is None:
+            os.environ.pop("0LUKA_ROOT", None)
+        else:
+            os.environ["0LUKA_ROOT"] = old_root
 
 
 def test_schema_missing_task_id_reject() -> None:
