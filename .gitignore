@@ -93,3 +93,7 @@ _trash/
 *.dylib
 *.so
 *.wasm
+
+# local-only workspace noise
+**/node_modules/
+tools/ops/luka-cloud-bridge/local/.env

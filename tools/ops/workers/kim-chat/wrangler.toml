@@ -1,0 +1,5 @@
+name = "kim-chat"
+main = "worker.js"
+compatibility_date = "2025-08-12"
+usage_model = "standard"
+routes = ["ai.theedges.work/*"]

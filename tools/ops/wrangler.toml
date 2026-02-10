@@ -1,0 +1,6 @@
+name = "luka-notify-bridge"
+main = "cloudflare_notify_worker.js"
+compatibility_date = "2024-03-01"
+
+[[send_email]]
+name = "EMAIL"
