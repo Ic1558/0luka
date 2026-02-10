@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Phase 2 simulated tests for tool-selection policy."""
+"""Phase 2.1 reasoning + governance tests (offline, simulated)."""
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import sys
@@ -27,16 +28,16 @@ def _restore_env(old: dict) -> None:
 
 
 def _load_policy_module():
-    import importlib
-
     import core.config as cfg
+    import core.reasoning_audit as ra
 
     importlib.reload(cfg)
+    importlib.reload(ra)
     mod = importlib.import_module("core.tool_selection_policy")
     return importlib.reload(mod)
 
 
-def _read_events(path: Path) -> list[dict]:
+def _read_jsonl(path: Path) -> list[dict]:
     if not path.exists():
         return []
     rows = []
@@ -46,7 +47,7 @@ def _read_events(path: Path) -> list[dict]:
     return rows
 
 
-def test_scenario_a_protected() -> None:
+def test_protected_escalates_and_blocks_headless() -> None:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td).resolve()
         old = _set_env(root)
@@ -54,51 +55,62 @@ def test_scenario_a_protected() -> None:
             pol = _load_policy_module()
             memory = pol.load_policy_memory()
             ctx = {
-                "url": "https://dash.cloudflare.com",
+                "intent": "open dashboard",
+                "url": "https://dash.cloudflare.com/login",
                 "target": "https://dash.cloudflare.com/login",
                 "status_code": 403,
                 "headers": {"server": "cloudflare"},
                 "task_text": "cf-challenge turnstile",
-                "human_action": "Complete Cloudflare login",
             }
             sense = pol.sense_target(ctx)
             risk = pol.classify_risk(sense, memory)
             decision = pol.select_tool(ctx, sense, risk, memory)
-            assert decision["tool"] == "HUMAN_BROWSER"
+
             assert decision["risk_class"] == "Protected"
-            blocked = pol.enforce_before_execute(decision, execution_tool="FIRECRAWL_SCRAPE")
+            assert decision["human_required"] is True
+            assert decision["djm"]["human_justification"]
+
+            blocked = pol.enforce_before_execute(decision, execution_tool="HEADLESS_AUTOMATION")
             assert blocked["allowed"] is False
-            events = _read_events(root / "observability" / "events.jsonl")
-            assert any(e.get("type") == "policy.human_escalation.requested" for e in events)
-            print("test_scenario_a_protected: ok")
+
+            events = _read_jsonl(root / "observability" / "events.jsonl")
+            assert any(e.get("type") == "human.escalate" for e in events)
+            assert any(e.get("type") == "policy.violation" for e in events)
+
+            reasoning = _read_jsonl(root / "observability" / "audit" / "reasoning.jsonl")
+            assert len(reasoning) >= 1
+            assert "djm" in reasoning[-1]
+            print("test_protected_escalates_and_blocks_headless: ok")
         finally:
             _restore_env(old)
 
 
-def test_scenario_b_local() -> None:
+def test_internal_local_read_file_path() -> None:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td).resolve()
         old = _set_env(root)
         try:
             pol = _load_policy_module()
             memory = pol.load_policy_memory()
-            ctx = {"target": "/Users/icmini/0luka/.env.local"}
+            ctx = {"target": "/Users/icmini/0luka/.env.local", "intent": "inspect env"}
             sense = pol.sense_target(ctx)
             risk = pol.classify_risk(sense, memory)
             decision = pol.select_tool(ctx, sense, risk, memory)
+
             assert decision["risk_class"] == "Internal-Local"
             assert decision["tool"] in {"READ_FILE", "CLI"}
-            kinds = {e["kind"] for e in decision["required_evidence"]}
+            kinds = {row["kind"] for row in decision["required_evidence"]}
             assert "file" in kinds
             assert "log" in kinds
-            allowed = pol.enforce_before_execute(decision, execution_tool=decision["tool"])
+
+            allowed = pol.enforce_before_execute(decision)
             assert allowed["allowed"] is True
-            print("test_scenario_b_local: ok")
+            print("test_internal_local_read_file_path: ok")
         finally:
             _restore_env(old)
 
 
-def test_scenario_c_reflect_update() -> None:
+def test_reflect_promotes_to_confirmed_and_freezes() -> None:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td).resolve()
         old = _set_env(root)
@@ -108,48 +120,53 @@ def test_scenario_c_reflect_update() -> None:
             ctx = {
                 "url": "https://x.example/login",
                 "target": "https://x.example/login",
-                "status_code": 403,
-                "headers": {"server": "cloudflare"},
-                "task_text": "cf-challenge",
+                "status_code": 200,
+                "headers": {},
+                "intent": "fetch",
             }
             sense = pol.sense_target(ctx)
             risk = pol.classify_risk(sense, memory)
             decision = pol.select_tool(ctx, sense, risk, memory)
-            pol.enforce_before_execute(decision, execution_tool="HEADLESS_AUTOMATION")
 
-            updated = pol.reflect_update_policy(
+            memory = pol.reflect_update_policy(
                 decision,
-                {"status": 403, "headers": {"server": "cloudflare"}, "domain": "x.example", "evidence": "e1"},
+                {"status": 403, "headers": {"server": "cloudflare"}, "domain": "x.example", "evidence": "h1"},
                 memory,
             )
-            updated = pol.reflect_update_policy(
+            memory = pol.reflect_update_policy(
                 decision,
-                {"status": 403, "headers": {"server": "cloudflare"}, "domain": "y.example", "evidence": "e2"},
-                updated,
+                {"status": 429, "headers": {"server": "cloudflare"}, "domain": "x.example", "evidence": "h2"},
+                memory,
             )
-            updated = pol.reflect_update_policy(
-                decision,
-                {"status": 403, "headers": {"server": "cloudflare"}, "domain": "z.example", "evidence": "e3"},
-                updated,
+
+            rows = memory.get("protected_domains", [])
+            row = next((r for r in rows if r.get("domain") == "x.example"), None)
+            assert row is not None
+            assert row.get("state") == "CONFIRMED"
+            assert row.get("frozen") is True
+
+            blocked = pol.enforce_before_execute(
+                {
+                    **decision,
+                    "risk_class": "Protected",
+                    "sense": {**decision["sense"], "domain": "x.example"},
+                    "human_required": False,
+                },
+                execution_tool="FIRECRAWL_SCRAPE",
             )
-            domains = [row["domain"] for row in updated.get("protected_domains", [])]
-            assert "x.example" in domains
-            assert "y.example" in domains
-            assert "z.example" in domains
-            assert len(domains) >= 3
-            assert pol.emit_policy_verified_if_proven(actor="PolicyEnforcer", phase="2.1") is True
-            events = _read_events(root / "observability" / "events.jsonl")
-            assert any(e.get("type") == "policy.verified" for e in events)
-            print("test_scenario_c_reflect_update: ok")
+            assert blocked["allowed"] is False
+            events = _read_jsonl(root / "observability" / "events.jsonl")
+            assert any(e.get("type") == "policy.violation" for e in events)
+            print("test_reflect_promotes_to_confirmed_and_freezes: ok")
         finally:
             _restore_env(old)
 
 
 def main() -> int:
-    test_scenario_a_protected()
-    test_scenario_b_local()
-    test_scenario_c_reflect_update()
-    print("test_tool_selection_policy: all ok")
+    test_protected_escalates_and_blocks_headless()
+    test_internal_local_read_file_path()
+    test_reflect_promotes_to_confirmed_and_freezes()
+    print("test_phase2_1_reasoning: all ok")
     return 0
 
 

@@ -1,24 +1,19 @@
-# Task: Install and Configure NotebookLM MCP
+# Task: 0luka Phase 9 Governance & NLP Control Plane
 
 ## Status
-- [x] Discovery
-- [x] Plan Approval
-- [x] Infrastructure Upgrade (Lisa upgraded to v2 via `lisa_executor.py` edit)
-- [x] Installation (Delegated to Lisa `install_force_mcp`, success)
-- [x] Configuration (Updated `opencode.json` with correct binary path)
-- [x] Authentication Attempt (Delegated to Lisa `auth_notebooklm`)
-  - **Result**: Failed (Chrome 403 Forbidden).
-  - **Reason**: `notebooklm-mcp-auth` auto-mode requires closing Chrome or manual interaction impossible in background.
-  - **Next Step**: User must run auth manually or use `--file` mode.
-- [x] Verification (Server binary exists and is executable)
+- [x] **Discovery**: Audited Phase 2 and 2.1 implementation and verified behavior on branch `main`.
+- [x] **Phase 8 (Dispatcher Service)**: Verified as PROVEN (Behavioral proof of reboot survival and activity logging).
+- [x] **Phase 9 Spec**: Authored `modules/nlp_control_plane/PHASE9_SPEC.md` and `VECTORS.md`.
+- [x] **Phase 9 Implementation**: Skeleton `synthesizer.py` implemented with mandatory Governance & Provenance gates.
+- [x] **Phase 9 Verification**: `prove_phase9_nlp.py` PASS with deterministic vectors.
 
-## Details
-- **Installed Version**: 0.1.15
-- **Location**: `/opt/homebrew/bin/notebooklm-mcp`
-- **Config**: Pointed to `/opt/homebrew/bin/notebooklm-mcp`.
+## Active Phase
+- **Phase 9**: IN_PROGRESS (Linguist & Sentry logic reinforcement)
 
-- [x] Skill Documentation (Created `skills/notebooklm/SKILL.md`)
+## Governance & Policy
+- **Branch Protection**: Enforced through `policy.verified` and `execution.verified` events.
+- **Fail-Closed**: Proven via `CLECExecutor` evidence enforcement.
 
-## User Action Required
-- Run `notebooklm-mcp-auth` in terminal to complete authentication.
-- Access the `notebooklm` skill via the agent for high-level research tasks.
+## Next Steps
+- Finalize NLP Model integration for complex conversion.
+- Unblock Mission Control UI integration.
