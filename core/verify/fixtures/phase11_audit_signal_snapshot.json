@@ -1,0 +1,7 @@
+{
+  "schema_version": "audit.signal.v1",
+  "signal_type": "RISK_SPIKE",
+  "confidence": 0.95,
+  "justification": "UNSAFE_INPUT_REDACTED",
+  "requires_human": true
+}
