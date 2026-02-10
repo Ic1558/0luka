@@ -12,10 +12,17 @@ from __future__ import annotations
 import json
 import os
 import time
+import sys
 from pathlib import Path
 from typing import Any, Dict
 
-ROOT = Path(os.environ.get("ROOT") or Path(__file__).resolve().parents[1])
+try:
+    from core.config import ROOT as CONFIG_ROOT
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from core.config import ROOT as CONFIG_ROOT
+
+ROOT = Path(os.environ.get("ROOT") or CONFIG_ROOT)
 ACTIVITY_PATH = ROOT / "observability" / "activity" / "activity.jsonl"
 
 POLICY: Dict[str, Dict[str, Any]] = {

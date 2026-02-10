@@ -23,14 +23,32 @@ try:
 except ImportError:
     yaml = None
 
-ROOT = Path(os.environ.get("ROOT") or Path(__file__).resolve().parents[1])
-INBOX = ROOT / "interface" / "inbox"
-COMPLETED = ROOT / "interface" / "completed"
-REJECTED = ROOT / "interface" / "rejected"
-DISPATCH_LOG = ROOT / "observability" / "logs" / "dispatcher.jsonl"
-DISPATCH_LATEST = ROOT / "observability" / "artifacts" / "dispatch_latest.json"
-HEARTBEAT_PATH = ROOT / "observability" / "artifacts" / "dispatcher_heartbeat.json"
-DEFAULT_INTERVAL = 5
+try:
+    from core.config import (
+        COMPLETED,
+        DEFAULT_WATCH_INTERVAL_SEC,
+        DISPATCH_HEARTBEAT,
+        DISPATCH_LATEST,
+        DISPATCH_LOG,
+        INBOX,
+        REJECTED,
+        ROOT,
+    )
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from core.config import (
+        COMPLETED,
+        DEFAULT_WATCH_INTERVAL_SEC,
+        DISPATCH_HEARTBEAT,
+        DISPATCH_LATEST,
+        DISPATCH_LOG,
+        INBOX,
+        REJECTED,
+        ROOT,
+    )
+
+HEARTBEAT_PATH = DISPATCH_HEARTBEAT
+DEFAULT_INTERVAL = DEFAULT_WATCH_INTERVAL_SEC
 
 _stats = {
     "total_dispatched": 0,
