@@ -1,14 +1,19 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-# Moves the latest /export markdown into cole/session_log.
+# Moves a markdown export into `cole/session_log/`.
 #
 # Usage:
 #   zsh cole/tools/adopt_export.zsh
 #   zsh cole/tools/adopt_export.zsh /path/to/export.md
 
-HERE="$(cd "$(dirname "$0")" && pwd -P)"
-ROOT="$(cd "$HERE/../.." && pwd -P)"
+# Notes:
+# - If called with an explicit path, this is deterministic.
+# - If called with no args, it will pick the latest matching file from repo root
+#   (manual convenience only; automation must use the drop-zone via
+#   `cole/tools/adopt_export_if_present.zsh`).
+
+ROOT="${ROOT:-$HOME/0luka}"
 
 DEST_DIR="$ROOT/cole/session_log"
 mkdir -p "$DEST_DIR"

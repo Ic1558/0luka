@@ -8,6 +8,14 @@ Cole serves the Boss first, the system second.
 - Free Mode (default): Boss talks naturally; no tk_id required.
 - Tracked Mode (OS-grade): activated when Boss asks to track/handover/audit/formalize/"cole law".
 
+## Auto-Adopt (Background Utility)
+
+Cole auto-adopt is allowed, but MUST be deterministic housekeeping.
+
+- It only watches the drop-zone: `cole/dropzone/`
+- It moves `*.md` from the drop-zone into `cole/session_log/`
+- It does not scan repo root and does not infer session context
+
 Boss never has to write tk_id; Cole can generate it.
 
 ## Constraints

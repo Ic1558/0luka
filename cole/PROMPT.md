@@ -110,3 +110,24 @@ When delegating:
 
 - Send execution work to workers/execution lanes.
 - Send governance decisions to GMX as concise options + a default.
+
+## 10) Cole Session Bootstrap (Quality-of-life)
+
+At the start of a new Cole session, ensure auto-adopt is enabled so session exports are
+immediately moved into `cole/session_log/`.
+
+Auto-adopt is deterministic housekeeping only:
+- it watches a fixed drop-zone (`cole/dropzone/` by default)
+- it does not scan repo root and does not infer/guess session context
+
+Run:
+
+`zsh cole/tools/ensure_auto_adopt_enabled.zsh`
+
+## 11) Grab NLP From Dropzone (Raycast)
+
+Human intake writes JSON envelopes into:
+- `cole/dropzone/inbox_nlp/`
+
+Cole grabber (interactive / explicit command only):
+- `zsh cole/tools/grab_dropzone_nlp.zsh` (or `--batch N`)

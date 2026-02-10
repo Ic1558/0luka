@@ -1,0 +1,55 @@
+name: CI Size Guard
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  size-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Check for Large Files
+        run: |
+          echo "## Size Check" >> $GITHUB_STEP_SUMMARY
+          
+          # Find files >5MB in the diff
+          WARN_SIZE=$((5 * 1024 * 1024))
+          BLOCK_SIZE=$((50 * 1024 * 1024))
+          
+          large_files=()
+          blocked_files=()
+          
+          for file in $(git diff --name-only origin/${{ github.base_ref }}...HEAD); do
+            if [ -f "$file" ]; then
+              size=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file" 2>/dev/null || echo 0)
+              size_mb=$((size / 1024 / 1024))
+              
+              if [ $size -gt $BLOCK_SIZE ]; then
+                blocked_files+=("$file ($size_mb MB)")
+                echo "🔴 BLOCKED: $file ($size_mb MB)" >> $GITHUB_STEP_SUMMARY
+              elif [ $size -gt $WARN_SIZE ]; then
+                large_files+=("$file ($size_mb MB)")
+                echo "⚠️ WARNING: $file ($size_mb MB)" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          done
+          
+          if [ ${#blocked_files[@]} -gt 0 ]; then
+            echo ""
+            echo "---" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **Files >50MB detected. PR cannot be merged.**" >> $GITHUB_STEP_SUMMARY
+            echo "Please remove or use Git LFS." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
+          if [ ${#large_files[@]} -gt 0 ]; then
+            echo ""
+            echo "---" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Files >5MB detected. Consider optimization.**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ No large files detected" >> $GITHUB_STEP_SUMMARY
+          fi
