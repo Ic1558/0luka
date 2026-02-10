@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>0luka Mission Control (Observer-Narrator)</title>
+    <script src="redaction.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --text: #e2e8f0;
+            --accent: #38bdf8;
+            --amber: #fbbf24;
+            --red: #ef4444;
+        }
+
+        body {
+            font-family: -apple-system, system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 20px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+        }
+
+        .pane {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 15px;
+            border: 1px solid #334155;
+        }
+
+        .event {
+            border-left: 4px solid var(--accent);
+            padding: 8px;
+            margin-bottom: 8px;
+            background: #334155;
+        }
+
+        .event.warning {
+            border-left-color: var(--amber);
+        }
+
+        .event.attention {
+            border-left-color: var(--red);
+        }
+
+        .badge {
+            font-size: 10px;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .badge.ready {
+            background: #22c55e;
+        }
+
+        .badge.busy {
+            background: var(--amber);
+        }
+
+        #heartbeat {
+            font-family: monospace;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🛰️ 0luka Mission Control</h1>
+    <div id="status-bar" style="margin-bottom: 20px;">
+        <span id="heartbeat">Dispatcher: [POLLING...]</span>
+    </div>
+
+    <div class="grid">
+        <div class="pane">
+            <h2>Activity Timeline (Recent)</h2>
+            <div id="timeline">No events detected.</div>
+        </div>
+        <div class="pane">
+            <h2>Audit Signals</h2>
+            <div id="signals">Scanning for anomalies...</div>
+        </div>
+    </div>
+
+    <script>
+        async function submitAnnotation(eventId, action, note) {
+            const payload = {
+                event_id: eventId || 'unknown',
+                action: action,
+                comment: note || '',
+                author: 'mission_control_user'
+            };
+            const res = await fetch('/api/annotations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            return res.json();
+        }
+
+        async function fetchFeed() {
+            try {
+                const res = await fetch('/api/observability/activity/activity.jsonl');
+                const data = await res.json();
+                const container = document.getElementById('timeline');
+                container.innerHTML = '';
+
+                data.reverse().forEach(ev => {
+                    const eventId = ev.activity_id || ev.task_id || ev.event_id || 'unknown';
+                    const div = document.createElement('div');
+                    div.className = 'event';
+                    if (ev.level === 'warning') div.classList.add('warning');
+                    if (ev.level === 'attention') div.classList.add('attention');
+
+                    div.innerHTML = `
+                        <div style="font-size: 11px; opacity: 0.7;">${ev.ts}</div>
+                        <div>${Redactor.sanitize(ev.narrative)}</div>
+                        <div style="margin-top:8px;">
+                            <input type="text" placeholder="Note (optional)" style="width:70%;" data-note-for="${eventId}">
+                            <button data-ack-for="${eventId}">Acknowledge</button>
+                        </div>
+                    `;
+                    const btn = div.querySelector(`button[data-ack-for="${eventId}"]`);
+                    const noteInput = div.querySelector(`input[data-note-for="${eventId}"]`);
+                    btn.addEventListener('click', async () => {
+                        const note = noteInput ? noteInput.value : '';
+                        const out = await submitAnnotation(eventId, 'acknowledge', note);
+                        if (out && out.ok) {
+                            btn.textContent = 'Acked';
+                            btn.disabled = true;
+                        } else {
+                            btn.textContent = 'Retry';
+                        }
+                    });
+                    container.appendChild(div);
+                });
+            } catch (e) {
+                console.error("Feed error", e);
+            }
+        }
+
+        async function fetchHeartbeat() {
+            try {
+                const res = await fetch('/api/observability/artifacts/dispatcher_heartbeat.json');
+                const hb = await res.json();
+                const status = hb.status === 'watching' ? 'READY' : 'BUSY';
+                document.getElementById('heartbeat').innerHTML = `Dispatcher: <span class="badge ${hb.status}">${status}</span> [PID: ${hb.pid}] | Uptime: ${hb.uptime_sec}s`;
+            } catch (e) { }
+        }
+
+        setInterval(fetchFeed, 5000);
+        setInterval(fetchHeartbeat, 5000);
+        fetchFeed();
+        fetchHeartbeat();
+    </script>
+</body>
+
+</html>
