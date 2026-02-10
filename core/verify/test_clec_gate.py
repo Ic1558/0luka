@@ -70,7 +70,16 @@ def test_evidence_capture() -> None:
             {"op_id": "r1", "type": "run", "command": "git status"},
         ]
         # run from real repo root; write_text evidence/hash must still be captured
-        status, evidence = execute_clec_ops(ops, {})
+        status, evidence = execute_clec_ops(
+            ops,
+            {},
+            run_provenance={
+                "task_id": "clec_gate_evidence",
+                "author": "test",
+                "tool": "CLECExecutor",
+                "evidence_refs": ["test:clec_gate"],
+            },
+        )
         assert status in {"ok", "partial"}
         assert evidence.get("hashes"), "write_text must capture hashes"
         assert evidence.get("logs"), "run must capture stdout/stderr logs"

@@ -15,14 +15,28 @@ except ImportError:
     ValidationError = Exception  # type: ignore[assignment]
     jsonschema_validate = None
 
-POLICY_PATH = "core/policy.yaml"
-REPO_ROOT = Path(__file__).resolve().parents[1]
-ROUTER_AUDIT_SCHEMA_PATH = REPO_ROOT / "interface" / "schemas" / "router_audit_v1.json"
+def _resolve_repo_root() -> Path:
+    root_env = os.environ.get("ROOT", "").strip()
+    if root_env:
+        return Path(root_env).expanduser().resolve(strict=False)
+    return Path(__file__).resolve().parents[1]
+
+
+REPO_ROOT = _resolve_repo_root()
 _ROUTER_AUDIT_SCHEMA_CACHE = None
 
 def load_policy():
-    with open(POLICY_PATH, 'r') as f:
-        return yaml.safe_load(f)
+    repo_root = _resolve_repo_root()
+    candidates = [
+        repo_root / "core" / "policy.yaml",
+        Path(__file__).with_name("policy.yaml"),
+    ]
+    for path in candidates:
+        if path.exists() and path.is_file():
+            with path.open("r", encoding="utf-8") as f:
+                return yaml.safe_load(f)
+    tried = ", ".join(str(p.resolve(strict=False)) for p in candidates)
+    raise FileNotFoundError(f"policy_not_found; tried: {tried}")
 
 def path_under_roots(path, roots):
     path = os.path.abspath(os.path.expanduser(path))
@@ -46,11 +60,21 @@ def _load_router_audit_schema():
     if jsonschema_validate is None:
         raise RuntimeError("missing dependency: jsonschema (pip install jsonschema)")
     if _ROUTER_AUDIT_SCHEMA_CACHE is None:
-        if not ROUTER_AUDIT_SCHEMA_PATH.exists():
-            raise RuntimeError(f"audit_schema_not_found:{ROUTER_AUDIT_SCHEMA_PATH}")
+        candidates = [
+            _resolve_repo_root() / "interface" / "schemas" / "router_audit_v1.json",
+            Path(__file__).resolve().parents[1] / "interface" / "schemas" / "router_audit_v1.json",
+        ]
+        schema_path = None
+        for candidate in candidates:
+            if candidate.exists() and candidate.is_file():
+                schema_path = candidate
+                break
+        if schema_path is None:
+            tried = ", ".join(str(p.resolve(strict=False)) for p in candidates)
+            raise RuntimeError(f"audit_schema_not_found:{tried}")
         try:
             _ROUTER_AUDIT_SCHEMA_CACHE = json.loads(
-                ROUTER_AUDIT_SCHEMA_PATH.read_text(encoding="utf-8")
+                schema_path.read_text(encoding="utf-8")
             )
         except Exception as exc:
             raise RuntimeError(f"audit_schema_invalid_json:{exc}") from exc
@@ -147,8 +171,14 @@ class Router:
 
             ops = task_spec.get("ops", [])
             verify = task_spec.get("verify", [])
+            run_provenance = {
+                "task_id": str(task_spec.get("task_id") or task_spec.get("id") or "unknown"),
+                "author": str(task_spec.get("author") or task_spec.get("actor", {}).get("proposer") or "unknown"),
+                "tool": "CLECExecutor",
+                "evidence_refs": [f"task:{task_spec.get('task_id') or task_spec.get('id') or 'unknown'}"],
+            }
             try:
-                status, evidence = execute_clec_ops(ops, {}, verify)
+                status, evidence = execute_clec_ops(ops, {}, verify, run_provenance=run_provenance)
             except CLECExecutorError as exc:
                 return {"status": "error", "reason": str(exc), "evidence": {}}
             return {"status": status, "evidence": evidence}

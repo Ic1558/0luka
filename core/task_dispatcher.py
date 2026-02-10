@@ -61,6 +61,12 @@ _stats = {
 sys.path.insert(0, str(ROOT))
 
 from core.phase1a_resolver import Phase1AResolverError, gate_inbound_envelope
+from core.run_provenance import (
+    append_event as append_execution_event,
+    append_provenance,
+    complete_run_provenance,
+    init_run_provenance,
+)
 from core.router import Router
 
 
@@ -278,6 +284,7 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
     dispatch_trace_id = "unknown"
     counted_dispatch = False
     dispatch_started_at = 0.0
+    prov_row = None
     try:
         if yaml is None:
             raise DispatchError("missing dependency: pyyaml (pip install pyyaml)")
@@ -288,9 +295,56 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             raise DispatchError("task file must be a YAML object")
 
         task_id = str(raw.get("task_id", file_path.stem))
+        try:
+            prov_row = init_run_provenance(
+                {
+                    "author": str(raw.get("author") or "unknown"),
+                    "tool": "DispatcherService",
+                    "evidence_refs": [
+                        f"file:{file_path}",
+                        "command:python3 -m core dispatch --watch",
+                    ],
+                },
+                {"task_id": task_id, "dry_run": dry_run, "task": raw},
+            )
+            append_execution_event(
+                {
+                    "type": "execution.started",
+                    "category": "execution",
+                    "task_id": task_id,
+                    "component": "dispatcher",
+                    "file": str(file_path),
+                }
+            )
+        except Exception as exc:
+            append_execution_event(
+                {
+                    "type": "execution.failed",
+                    "category": "execution",
+                    "task_id": task_id,
+                    "component": "dispatcher",
+                    "reason": f"missing_provenance:{exc}",
+                }
+            )
+            raise DispatchError(f"run_provenance_required:{exc}") from exc
+
         if _already_processed(task_id):
             _stats["total_skipped"] += 1
-            return {"task_id": task_id, "status": "skipped", "reason": "already_processed"}
+            result = {"task_id": task_id, "status": "skipped", "reason": "already_processed"}
+            prov_row = complete_run_provenance(prov_row, result)
+            append_provenance(prov_row)
+            append_execution_event(
+                {
+                    "type": "execution.completed",
+                    "category": "execution",
+                    "task_id": task_id,
+                    "component": "dispatcher",
+                    "status": "skipped",
+                    "input_hash": prov_row.get("input_hash"),
+                    "output_hash": prov_row.get("output_hash"),
+                }
+            )
+            return result
 
         envelope = _wrap_envelope(raw)
         dispatch_trace_id = str(envelope.get("trace", {}).get("trace_id", task_id))
@@ -325,6 +379,19 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
                 status="rejected",
                 started=dispatch_started_at,
             )
+            prov_row = complete_run_provenance(prov_row, result)
+            append_provenance(prov_row)
+            append_execution_event(
+                {
+                    "type": "execution.completed",
+                    "category": "execution",
+                    "task_id": task_id,
+                    "component": "dispatcher",
+                    "status": "rejected",
+                    "input_hash": prov_row.get("input_hash"),
+                    "output_hash": prov_row.get("output_hash"),
+                }
+            )
             return result
 
         task = gated["payload"]["task"]
@@ -345,6 +412,19 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
                 status="skipped",
                 started=dispatch_started_at,
             )
+            prov_row = complete_run_provenance(prov_row, result)
+            append_provenance(prov_row)
+            append_execution_event(
+                {
+                    "type": "execution.completed",
+                    "category": "execution",
+                    "task_id": task_id,
+                    "component": "dispatcher",
+                    "status": "skipped",
+                    "input_hash": prov_row.get("input_hash"),
+                    "output_hash": prov_row.get("output_hash"),
+                }
+            )
             return result
 
         router = Router()
@@ -357,7 +437,21 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
                 status="dry_run_ok",
                 started=dispatch_started_at,
             )
-            return {"task_id": task_id, "status": "dry_run_ok", "exec_status": exec_result.get("status")}
+            result = {"task_id": task_id, "status": "dry_run_ok", "exec_status": exec_result.get("status")}
+            prov_row = complete_run_provenance(prov_row, result)
+            append_provenance(prov_row)
+            append_execution_event(
+                {
+                    "type": "execution.completed",
+                    "category": "execution",
+                    "task_id": task_id,
+                    "component": "dispatcher",
+                    "status": "dry_run_ok",
+                    "input_hash": prov_row.get("input_hash"),
+                    "output_hash": prov_row.get("output_hash"),
+                }
+            )
+            return result
 
         result_bundle = _build_result_bundle(task_id, envelope, task, exec_result)
         task_spec = _build_task_spec(task_id, task)
@@ -407,6 +501,19 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             outbox_path=final_outbox_path,
             outbox_ref="ref://interface/outbox" if final_outbox_path else "",
         )
+        prov_row = complete_run_provenance(prov_row, final)
+        append_provenance(prov_row)
+        append_execution_event(
+            {
+                "type": "execution.completed",
+                "category": "execution",
+                "task_id": task_id,
+                "component": "dispatcher",
+                "status": final_status,
+                "input_hash": prov_row.get("input_hash"),
+                "output_hash": prov_row.get("output_hash"),
+            }
+        )
         return final
 
     except Exception as exc:
@@ -429,6 +536,19 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
                 status="error",
                 started=dispatch_started_at,
             )
+        append_execution_event(
+            {
+                "type": "execution.failed",
+                "category": "execution",
+                "task_id": task_id,
+                "component": "dispatcher",
+                "reason": f"dispatch_error:{type(exc).__name__}:{exc}",
+            }
+        )
+        if prov_row:
+            with contextlib.suppress(Exception):
+                row = complete_run_provenance(prov_row, error_result)
+                append_provenance(row)
         return error_result
 
 

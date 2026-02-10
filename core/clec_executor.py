@@ -7,6 +7,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -71,7 +72,45 @@ def _run_verify_checks(verify: List[Dict[str, Any]]) -> None:
             raise CLECExecutorError(f"verify_check_unsupported:index={idx}")
 
 
-def execute_clec_ops(ops: List[Dict[str, Any]], evidence: Dict[str, Any], verify: List[Dict[str, Any]] | None = None) -> Tuple[str, Dict[str, Any]]:
+def execute_clec_ops(
+    ops: List[Dict[str, Any]],
+    evidence: Dict[str, Any],
+    verify: List[Dict[str, Any]] | None = None,
+    run_provenance: Dict[str, Any] | None = None,
+) -> Tuple[str, Dict[str, Any]]:
+    from core.run_provenance import (
+        append_event as provenance_event,
+        append_provenance,
+        complete_run_provenance,
+        init_run_provenance,
+    )
+
+    execution_input = {"ops": ops, "verify": verify or []}
+    task_id = str((run_provenance or {}).get("task_id") or "unknown")
+    started_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    provenance_event(
+        {
+            "type": "execution.started",
+            "category": "execution",
+            "task_id": task_id,
+            "tool": str((run_provenance or {}).get("tool") or ""),
+        }
+    )
+
+    try:
+        prov_row = init_run_provenance(run_provenance or {}, execution_input)
+    except Exception as exc:
+        provenance_event(
+            {
+                "type": "execution.failed",
+                "category": "execution",
+                "task_id": task_id,
+                "reason": f"missing_provenance:{exc}",
+            }
+        )
+        raise CLECExecutorError(f"run_provenance_required:{exc}") from exc
+
     if verify:
         _run_verify_checks(verify)
 
@@ -154,5 +193,32 @@ def execute_clec_ops(ops: List[Dict[str, Any]], evidence: Dict[str, Any], verify
     status = "ok"
     if side_effect_seen and not out.get("logs") and not out.get("hashes") and not out.get("patches"):
         status = "partial"
-    return status, out
 
+    try:
+        prov_row = complete_run_provenance(prov_row, {"status": status, "evidence": out})
+        append_provenance(prov_row)
+    except Exception as exc:
+        provenance_event(
+            {
+                "type": "execution.failed",
+                "category": "execution",
+                "task_id": task_id,
+                "reason": f"provenance_write_failed:{exc}",
+            }
+        )
+        raise CLECExecutorError(f"provenance_write_failed:{exc}") from exc
+
+    provenance_event(
+        {
+            "type": "execution.completed",
+            "category": "execution",
+            "task_id": task_id,
+            "tool": prov_row.get("tool"),
+            "author": prov_row.get("author"),
+            "input_hash": prov_row.get("input_hash"),
+            "output_hash": prov_row.get("output_hash"),
+            "started_at": started_ts,
+            "completed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+    )
+    return status, out

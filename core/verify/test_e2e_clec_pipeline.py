@@ -55,7 +55,17 @@ def test_e2e_clec_write_text() -> None:
         (root / "artifacts").mkdir(parents=True, exist_ok=True)
 
         executor = _load_executor()
-        status, evidence = executor.execute_clec_ops(task["ops"], {}, task.get("verify"))
+        status, evidence = executor.execute_clec_ops(
+            task["ops"],
+            {},
+            task.get("verify"),
+            run_provenance={
+                "task_id": task["task_id"],
+                "author": task["author"],
+                "tool": "CLECExecutor",
+                "evidence_refs": [f"task:{task['task_id']}"],
+            },
+        )
         assert status == "ok", f"execute failed: {status}"
         assert "artifacts/e2e_test.txt" in evidence.get("hashes", {}), "missing hash"
 
@@ -133,7 +143,17 @@ def test_e2e_clec_run_command() -> None:
         }
 
         executor = _load_executor()
-        _status, evidence = executor.execute_clec_ops(task["ops"], {}, task.get("verify"))
+        _status, evidence = executor.execute_clec_ops(
+            task["ops"],
+            {},
+            task.get("verify"),
+            run_provenance={
+                "task_id": task["task_id"],
+                "author": task["author"],
+                "tool": "CLECExecutor",
+                "evidence_refs": [f"task:{task['task_id']}"],
+            },
+        )
         assert len(evidence.get("logs", [])) > 0, "no logs captured"
         assert evidence["logs"][0].get("command") == "git status"
         print("test_e2e_clec_run_command: ok")
