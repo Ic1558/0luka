@@ -88,6 +88,16 @@
             <div id="signals">Scanning for anomalies...</div>
         </div>
     </div>
+    <div class="grid" style="margin-top: 20px;">
+        <div class="pane">
+            <h2>Metrics Dashboard</h2>
+            <div id="metrics">Loading metrics...</div>
+        </div>
+        <div class="pane">
+            <h2>Policy Suggestions</h2>
+            <div id="suggestions">No suggestions yet.</div>
+        </div>
+    </div>
 
     <script>
         async function submitAnnotation(eventId, action, note) {
@@ -155,10 +165,60 @@
             } catch (e) { }
         }
 
+        async function fetchMetrics() {
+            try {
+                const res = await fetch('/api/observability/metrics/phase14/system_kpis.jsonl');
+                const rows = await res.json();
+                const latestByType = {};
+                rows.forEach(r => {
+                    if (r && r.kpi_type) latestByType[r.kpi_type] = r;
+                });
+                const metricsNode = document.getElementById('metrics');
+                const alignment = latestByType.alignment?.value;
+                const blockRate = latestByType.block_rate?.value;
+                const triage = latestByType.triage_velocity?.value;
+                metricsNode.innerHTML = `
+                    <div>Alignment Rate: <b>${alignment ?? 'n/a'}%</b></div>
+                    <div>Block Rate: <b>${blockRate ?? 'n/a'}%</b></div>
+                    <div>Triage Velocity: <b>${triage ?? 'n/a'}</b></div>
+                `;
+            } catch (e) {
+                document.getElementById('metrics').textContent = 'Metrics unavailable.';
+            }
+        }
+
+        async function fetchSuggestions() {
+            try {
+                const res = await fetch('/api/observability/recommendations/policy_suggestions.jsonl');
+                const rows = await res.json();
+                const node = document.getElementById('suggestions');
+                if (!rows.length) {
+                    node.textContent = 'No suggestions yet.';
+                    return;
+                }
+                node.innerHTML = '';
+                rows.slice(-5).reverse().forEach(r => {
+                    const div = document.createElement('div');
+                    div.className = 'event warning';
+                    div.innerHTML = `
+                        <div style="font-size:11px;opacity:0.7;">${r.ts || ''}</div>
+                        <div><b>${r.targeted_gate || 'gate'}</b>: ${Redactor.sanitize(r.suggested_change || '')}</div>
+                    `;
+                    node.appendChild(div);
+                });
+            } catch (e) {
+                document.getElementById('suggestions').textContent = 'Suggestions unavailable.';
+            }
+        }
+
         setInterval(fetchFeed, 5000);
         setInterval(fetchHeartbeat, 5000);
+        setInterval(fetchMetrics, 5000);
+        setInterval(fetchSuggestions, 5000);
         fetchFeed();
         fetchHeartbeat();
+        fetchMetrics();
+        fetchSuggestions();
     </script>
 </body>
 
