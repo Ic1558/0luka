@@ -62,6 +62,9 @@ TEST_SUITES = [
     "test_smoke.py",
     "test_ledger.py",
     "test_retention.py",
+    "test_config.py",
+    "test_cli.py",
+    "test_bridge.py",
 ]
 
 
