@@ -65,6 +65,10 @@ TEST_SUITES = [
     "test_config.py",
     "test_cli.py",
     "test_bridge.py",
+    "test_timeline.py",
+    "test_seal.py",
+    "test_circuit_breaker.py",
+    "test_watchdog.py",
 ]
 
 

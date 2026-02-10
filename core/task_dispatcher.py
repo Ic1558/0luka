@@ -67,7 +67,17 @@ from core.run_provenance import (
     complete_run_provenance,
     init_run_provenance,
 )
+from core.circuit_breaker import CircuitBreaker, CircuitOpenError
 from core.router import Router
+from core.timeline import emit_event as _timeline_emit
+
+_dispatch_breaker = CircuitBreaker(
+    name="router.execute",
+    failure_threshold=3,
+    recovery_timeout_sec=60.0,
+    max_retries=0,
+    backoff_factor=1.5,
+)
 
 
 class DispatchError(RuntimeError):
@@ -348,6 +358,10 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
 
         envelope = _wrap_envelope(raw)
         dispatch_trace_id = str(envelope.get("trace", {}).get("trace_id", task_id))
+        try:
+            _timeline_emit(dispatch_trace_id, task_id, "PENDING", phase="dispatch")
+        except Exception:
+            pass
         dispatch_started_at = _emit_dispatch_start(
             task_id=task_id,
             trace_id=dispatch_trace_id,
@@ -357,6 +371,10 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
         try:
             gated = gate_inbound_envelope(envelope)
         except Phase1AResolverError as exc:
+            try:
+                _timeline_emit(dispatch_trace_id, task_id, "DROPPED", phase="gate", detail=str(exc))
+            except Exception:
+                pass
             result = {"task_id": task_id, "status": "rejected", "reason": f"gate_rejected:{exc}"}
             if not dry_run:
                 _move_file(file_path, REJECTED)
@@ -394,6 +412,10 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             )
             return result
 
+        try:
+            _timeline_emit(dispatch_trace_id, task_id, "DISPATCHED", phase="gate")
+        except Exception:
+            pass
         task = gated["payload"]["task"]
         schema_version = str(task.get("schema_version", "")).strip()
         if schema_version != "clec.v1":
@@ -428,7 +450,21 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             return result
 
         router = Router()
-        exec_result = router.execute(task)
+        try:
+            exec_result = _dispatch_breaker.call(router.execute, task)
+        except CircuitOpenError as exc:
+            try:
+                _timeline_emit(dispatch_trace_id, task_id, "DROPPED", phase="dispatch", detail=str(exc))
+            except Exception:
+                pass
+            result = {"task_id": task_id, "status": "error", "reason": f"circuit_open:{exc}"}
+            _stats["total_dispatched"] += 1
+            _stats["total_error"] += 1
+            counted_dispatch = True
+            _emit_dispatch_end(task_id=task_id, trace_id=dispatch_trace_id, status="error", started=dispatch_started_at)
+            prov_row = complete_run_provenance(prov_row, result)
+            append_provenance(prov_row)
+            return result
         if dry_run:
             _stats["total_skipped"] += 1
             _emit_dispatch_end(

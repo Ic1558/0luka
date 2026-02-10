@@ -24,6 +24,8 @@ except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from core.config import DISPATCH_LEDGER, DISPATCH_LOG, ROOT
 
+from core.seal import chain_ledger_entry
+
 LEDGER_PATH = DISPATCH_LEDGER
 
 
@@ -114,6 +116,10 @@ def append_entry(
         "ts": ts or _utc_now(),
         "audit_path": audit_path,
     }
+
+    prev_hash = str(entries[-1].get("entry_hash", "")) if entries else ""
+    entry = chain_ledger_entry(entry, prev_hash)
+
     entries.append(entry)
     ledger["entries"] = entries
     ledger["summary"] = _recompute_summary(entries)
@@ -152,6 +158,12 @@ def rebuild_from_log() -> Dict[str, Any]:
                     "audit_path": str(event.get("audit_path", "")),
                 }
             )
+
+    prev = ""
+    for i, entry in enumerate(entries):
+        chained = chain_ledger_entry(entry, prev)
+        entries[i] = chained
+        prev = chained["entry_hash"]
 
     ledger = {
         "schema_version": "dispatch_ledger_v1",
