@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Phase 15.2: Deterministic Skill OS wiring from skills/manifest.md."""
+"""Phase 15.4: Deterministic Skill OS wiring + alias resolution."""
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Set
+from typing import Dict, Iterable, List, Set, Tuple
+
+import yaml
+
+from core.run_provenance import append_provenance, complete_run_provenance, init_run_provenance
 
 
 class SkillWiringError(RuntimeError):
@@ -21,6 +26,17 @@ class SkillWiringRow:
     no_parallel: bool
 
 
+def _resolve_root() -> Path:
+    raw = os.environ.get("ROOT", "").strip()
+    if raw:
+        return Path(raw).expanduser().resolve(strict=False)
+    return Path(__file__).resolve().parents[2]
+
+
+def _aliases_path() -> Path:
+    return _resolve_root() / "skills" / "aliases" / "aliases_v1.yaml"
+
+
 def _strip_ticks(value: str) -> str:
     v = value.strip()
     if v.startswith("`") and v.endswith("`") and len(v) >= 2:
@@ -35,6 +51,142 @@ def _to_bool(value: str) -> bool:
     if v == "false":
         return False
     raise SkillWiringError(f"invalid_bool:{value}")
+
+
+def _normalize_skill_id(skill_id: str) -> str:
+    return skill_id.strip().casefold().replace("_", "-")
+
+
+def _parse_manifest_skill_ids(manifest_path: Path) -> Set[str]:
+    skill_ids: Set[str] = set()
+    if not manifest_path.exists():
+        return skill_ids
+    for line in manifest_path.read_text(encoding="utf-8").splitlines():
+        if "|" not in line or "`" not in line:
+            continue
+        cells = [c.strip() for c in line.split("|")[1:-1]]
+        if len(cells) < 1:
+            continue
+        skill_cell = cells[0]
+        if not (skill_cell.startswith("`") and skill_cell.endswith("`")):
+            continue
+        skill_id = skill_cell[1:-1].strip()
+        if skill_id:
+            skill_ids.add(skill_id)
+    return skill_ids
+
+
+def _load_aliases() -> Dict[str, List[str]]:
+    path = _aliases_path()
+    if not path.exists():
+        return {}
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise SkillWiringError(f"alias_map_invalid_yaml:{exc}") from exc
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        raise SkillWiringError("alias_map_invalid_root")
+    aliases_raw = data.get("aliases", {})
+    if not isinstance(aliases_raw, dict):
+        raise SkillWiringError("alias_map_invalid_aliases")
+    aliases: Dict[str, List[str]] = {}
+    for key, value in aliases_raw.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise SkillWiringError("alias_map_invalid_entry_type")
+        nk = _normalize_skill_id(key)
+        nv = value.strip()
+        if not nk or not nv:
+            raise SkillWiringError("alias_map_invalid_entry")
+        aliases.setdefault(nk, [])
+        if nv not in aliases[nk]:
+            aliases[nk].append(nv)
+    return aliases
+
+
+def _emit_alias_resolution_provenance(requested_id: str, resolved_id: str) -> None:
+    aliases_path = _aliases_path()
+    manifest_path = _resolve_root() / "skills" / "manifest.md"
+    execution_input = {
+        "phase": "phase15.4",
+        "event": "skill_alias_resolution",
+        "requested_id": requested_id,
+        "resolved_id": resolved_id,
+        "aliases_path": str(aliases_path),
+    }
+    base = {
+        "author": "skill_wiring",
+        "tool": "SkillAliasResolver",
+        "evidence_refs": [f"file:{aliases_path}", f"file:{manifest_path}"],
+    }
+    row = init_run_provenance(base, execution_input)
+    row = complete_run_provenance(
+        row,
+        {"status": "resolved", "requested_id": requested_id, "resolved_id": resolved_id},
+    )
+    row["requested_id"] = requested_id
+    row["resolved_id"] = resolved_id
+    append_provenance(row)
+
+
+def _encode_unknown_error(requested_id: str, normalized_id: str, attempted_aliases: List[str]) -> str:
+    return (
+        "skill_mapping_missing:"
+        f"requested_id={requested_id};"
+        f"normalized_id={normalized_id};"
+        f"attempted_aliases={','.join(attempted_aliases)};"
+        "hint=list available skills"
+    )
+
+
+def resolve_selected_skills(
+    selected_skills: Iterable[str], wiring_map: Dict[str, SkillWiringRow]
+) -> Tuple[List[str], List[Tuple[str, str]]]:
+    selected_raw = sorted({s.strip() for s in selected_skills if isinstance(s, str) and s.strip()})
+    if not selected_raw:
+        return ([], [])
+
+    aliases = _load_aliases()
+    manifest_skill_ids = _parse_manifest_skill_ids(_resolve_root() / "skills" / "manifest.md")
+
+    resolved: List[str] = []
+    alias_events: List[Tuple[str, str]] = []
+    unknown_errors: List[str] = []
+
+    for requested in selected_raw:
+        if requested in wiring_map:
+            resolved.append(requested)
+            continue
+
+        normalized = _normalize_skill_id(requested)
+        candidates = aliases.get(normalized, [])
+        if candidates:
+            missing = [candidate for candidate in candidates if candidate not in manifest_skill_ids]
+            if missing:
+                raise SkillWiringError(
+                    "skill_alias_invalid_target:"
+                    f"requested_id={requested};normalized_id={normalized};"
+                    f"attempted_aliases={','.join(candidates)};hint=list available skills"
+                )
+            if len(candidates) > 1:
+                raise SkillWiringError(
+                    "skill_alias_ambiguous:"
+                    f"requested_id={requested};normalized_id={normalized};"
+                    f"attempted_aliases={','.join(candidates)};hint=list available skills"
+                )
+            candidate = candidates[0]
+            if candidate in wiring_map:
+                resolved.append(candidate)
+                alias_events.append((requested, candidate))
+                continue
+
+        unknown_errors.append(_encode_unknown_error(requested, normalized, candidates))
+
+    if unknown_errors:
+        raise SkillWiringError("|".join(unknown_errors))
+
+    return (sorted(set(resolved)), alias_events)
 
 
 def load_wiring_map(manifest_path: Path) -> Dict[str, SkillWiringRow]:
@@ -97,17 +249,13 @@ def load_wiring_map(manifest_path: Path) -> Dict[str, SkillWiringRow]:
 
 
 def resolve_execution_contract(selected_skills: Iterable[str], wiring_map: Dict[str, SkillWiringRow]) -> Dict[str, object]:
-    selected = sorted({s.strip() for s in selected_skills if isinstance(s, str) and s.strip()})
+    selected, alias_events = resolve_selected_skills(selected_skills, wiring_map)
     if not selected:
         return {
             "required_preamble": [],
             "caps_profile": "",
             "retry_policy": {"max_retries": 0, "single_flight": True, "no_parallel": True},
         }
-
-    missing = [s for s in selected if s not in wiring_map]
-    if missing:
-        raise SkillWiringError(f"skill_mapping_missing:{','.join(missing)}")
 
     rows = [wiring_map[s] for s in selected]
     caps_profiles = {r.caps_profile for r in rows}
@@ -124,6 +272,9 @@ def resolve_execution_contract(selected_skills: Iterable[str], wiring_map: Dict[
         raise SkillWiringError("single_flight_conflict")
     if len(no_parallel_values) != 1:
         raise SkillWiringError("no_parallel_conflict")
+
+    for requested_id, resolved_id in alias_events:
+        _emit_alias_resolution_provenance(requested_id, resolved_id)
 
     return {
         "required_preamble": sorted({r.required_preamble for r in rows}),
