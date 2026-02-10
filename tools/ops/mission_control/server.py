@@ -27,9 +27,12 @@ class MissionControlHandler(http.server.SimpleHTTPRequestHandler):
         allowed_paths = [
             "/observability/activity/activity.jsonl",
             "/observability/audit/reasoning.jsonl",
+            "/observability/annotations/annotations.jsonl",
             "/observability/artifacts/dispatcher_heartbeat.json",
             "/observability/artifacts/dispatch_latest.json",
-            "/observability/artifacts/run_provenance.jsonl"
+            "/observability/artifacts/run_provenance.jsonl",
+            "/observability/metrics/phase14/system_kpis.jsonl",
+            "/observability/recommendations/policy_suggestions.jsonl",
         ]
         
         if self.path == "/":

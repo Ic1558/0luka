@@ -1,0 +1,6 @@
+{"kind":"activity","activity_id":"act-1","ts":"2026-02-10T00:00:00Z","status":"info","narrative":"Task accepted"}
+{"kind":"activity","activity_id":"act-2","ts":"2026-02-10T00:00:01Z","status":"requires-human-attention","narrative":"Request blocked by policy"}
+{"kind":"activity","activity_id":"act-3","ts":"2026-02-10T00:00:02Z","status":"info","narrative":"Task completed"}
+{"kind":"annotation","event_id":"act-1","action":"acknowledge","comment":"ok","author":"user_admin"}
+{"kind":"annotation","event_id":"act-2","action":"disagree","comment":"sentry too strict","author":"user_admin"}
+{"kind":"annotation","event_id":"act-2","action":"disagree","comment":"blocked too often","author":"user_admin"}
