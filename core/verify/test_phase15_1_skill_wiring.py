@@ -27,11 +27,18 @@ def _read_jsonl(path: Path):
 def _prepare_root(tmp_root: Path) -> None:
     _write(
         tmp_root / "skills" / "manifest.md",
-        """# skill manifest\n\n"
-        "| skill_id | purpose | Mandatory Read | MCPs used | Inputs | Outputs | Caps | Forbidden actions |\n"
-        "| :--- | :--- | :---: | :--- | :--- | :--- | :--- | :--- |\n"
-        "| `knowledge_recycling` | test | YES | fs | in | out | cap | forbid |\n"
-        """,
+        """# skill manifest
+
+## Core-Brain Owned Skills (Phase 15)
+| skill_id | purpose | Mandatory Read | MCPs used | Inputs | Outputs | Caps | Forbidden actions |
+| :--- | :--- | :---: | :--- | :--- | :--- | :--- | :--- |
+| `knowledge_recycling` | test | YES | fs | in | out | cap | forbid |
+
+## Codex Hand Wiring Map (Phase 15.2)
+| skill_id | required_preamble | caps_profile | max_retries | single_flight | no_parallel |
+| :--- | :--- | :--- | :---: | :---: | :---: |
+| `knowledge_recycling` | `verify-first` | `read_assist_only` | 0 | true | true |
+""",
     )
     _write(
         tmp_root / "skills" / "knowledge_recycling" / "SKILL.md",
@@ -66,6 +73,11 @@ def test_reject_missing_manifest_or_mandatory_ingest() -> None:
             "steps": [
                 {"tool": "read_file", "params": {"path": "README.md"}},
             ],
+            "execution_contract": {
+                "required_preamble": ["verify-first"],
+                "caps_profile": "read_assist_only",
+                "retry_policy": {"max_retries": 0, "single_flight": True, "no_parallel": True},
+            },
         }
         plan_path = root / "plan_missing.json"
         _write(plan_path, json.dumps(plan))
@@ -100,6 +112,11 @@ def test_pass_when_manifest_and_mandatory_ingest_present() -> None:
                 },
                 {"tool": "read_file", "params": {"path": "README.md"}},
             ],
+            "execution_contract": {
+                "required_preamble": ["verify-first"],
+                "caps_profile": "read_assist_only",
+                "retry_policy": {"max_retries": 0, "single_flight": True, "no_parallel": True},
+            },
         }
         plan_path = root / "plan_pass.json"
         _write(plan_path, json.dumps(plan))
@@ -133,6 +150,11 @@ def test_ingest_emits_skill_ingestrunner_provenance() -> None:
                 },
                 {"tool": "read_file", "params": {"path": "README.md"}},
             ],
+            "execution_contract": {
+                "required_preamble": ["verify-first"],
+                "caps_profile": "read_assist_only",
+                "retry_policy": {"max_retries": 0, "single_flight": True, "no_parallel": True},
+            },
         }
         plan_path = root / "plan_prov.json"
         _write(plan_path, json.dumps(plan))

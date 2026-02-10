@@ -13,6 +13,12 @@ from pathlib import Path
 from typing import Dict, List, Set
 
 from core.run_provenance import append_provenance, complete_run_provenance, init_run_provenance
+from core_brain.compiler.skill_wiring import (
+    SkillWiringError,
+    load_wiring_map,
+    resolve_execution_contract,
+    validate_execution_contract,
+)
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -179,6 +185,13 @@ def validate_plan_report(plan_json_path: str) -> Dict[str, object]:
     mandatory_skills = load_manifest_rules()
     selected = _selected_skills(plan, step_dicts)
     ingested = _collect_context_ingest(step_dicts)
+    try:
+        wiring_map = load_wiring_map(manifest_path)
+        expected_contract = resolve_execution_contract(selected, wiring_map)
+    except SkillWiringError as exc:
+        report["ok"] = False
+        report["why_not"] = [f"skill_wiring_invalid:{exc}"]
+        return report
 
     has_execution_steps = any((step.get("tool") or "") != "context_ingest" for step in step_dicts)
     if has_execution_steps and not ingested.get("__manifest__"):
@@ -188,6 +201,8 @@ def validate_plan_report(plan_json_path: str) -> Dict[str, object]:
         skill_path = skills_dir / skill_id / "SKILL.md"
         if skill_id in mandatory_skills and not ingested.get(skill_id):
             why_not.append(f"mandatory_read_missing:{skill_path}")
+
+    why_not.extend(validate_execution_contract(plan.get("execution_contract"), expected_contract))
 
     if why_not:
         report["ok"] = False
