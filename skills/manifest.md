@@ -35,7 +35,7 @@ This file is the single source of truth for Skill OS loading order and constrain
 
 | alias_id | canonical_skill_id | source |
 | :--- | :--- | :--- |
-| `extra-usage` | `verify-first` | `skills/aliases.yaml` |
+| `extra-usage` | `verify-first` | `skills/aliases/aliases_v1.yaml` |
 
 ## Legacy Catalog (Compatibility)
 

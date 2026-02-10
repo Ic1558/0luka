@@ -16,6 +16,7 @@ from core.run_provenance import append_provenance, complete_run_provenance, init
 from core_brain.compiler.skill_wiring import (
     SkillWiringError,
     load_wiring_map,
+    resolve_selected_skills,
     resolve_execution_contract,
     validate_execution_contract,
 )
@@ -185,8 +186,11 @@ def validate_plan_report(plan_json_path: str) -> Dict[str, object]:
     mandatory_skills = load_manifest_rules()
     selected = _selected_skills(plan, step_dicts)
     ingested = _collect_context_ingest(step_dicts)
+    selected_for_mandatory = set(selected)
     try:
         wiring_map = load_wiring_map(manifest_path)
+        resolved_selected, _alias_events = resolve_selected_skills(selected, wiring_map)
+        selected_for_mandatory = set(resolved_selected)
         expected_contract = resolve_execution_contract(selected, wiring_map)
     except SkillWiringError as exc:
         report["ok"] = False
@@ -197,7 +201,7 @@ def validate_plan_report(plan_json_path: str) -> Dict[str, object]:
     if has_execution_steps and not ingested.get("__manifest__"):
         why_not.append(f"manifest_not_ingested:{manifest_path}")
 
-    for skill_id in sorted(selected):
+    for skill_id in sorted(selected_for_mandatory):
         skill_path = skills_dir / skill_id / "SKILL.md"
         if skill_id in mandatory_skills and not ingested.get(skill_id):
             why_not.append(f"mandatory_read_missing:{skill_path}")
@@ -209,7 +213,7 @@ def validate_plan_report(plan_json_path: str) -> Dict[str, object]:
         report["why_not"] = why_not
         return report
 
-    for skill_id in sorted(selected):
+    for skill_id in sorted(selected_for_mandatory):
         if not ingested.get(skill_id):
             continue
         skill_path = skills_dir / skill_id / "SKILL.md"
