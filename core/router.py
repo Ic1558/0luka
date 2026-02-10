@@ -9,9 +9,16 @@ from core.verify.gates_registry import GATES
 from core.enforcement import RuntimeEnforcer, PermissionDenied
 from core.phase1d_result_gate import ResultGateError, gate_outbound_result
 from core.outbox_writer import OutboxWriterError, write_result_to_outbox
-from core.schema_registry import SchemaError, validate
+try:
+    from jsonschema import ValidationError, validate as jsonschema_validate
+except ImportError:
+    ValidationError = Exception  # type: ignore[assignment]
+    jsonschema_validate = None
 
 POLICY_PATH = "core/policy.yaml"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+ROUTER_AUDIT_SCHEMA_PATH = REPO_ROOT / "interface" / "schemas" / "router_audit_v1.json"
+_ROUTER_AUDIT_SCHEMA_CACHE = None
 
 def load_policy():
     with open(POLICY_PATH, 'r') as f:
@@ -32,6 +39,32 @@ def capabilities_subset(requested, allowed):
             if val and not allowed[category].get(cap, False):
                 return False
     return True
+
+
+def _load_router_audit_schema():
+    global _ROUTER_AUDIT_SCHEMA_CACHE
+    if jsonschema_validate is None:
+        raise RuntimeError("missing dependency: jsonschema (pip install jsonschema)")
+    if _ROUTER_AUDIT_SCHEMA_CACHE is None:
+        if not ROUTER_AUDIT_SCHEMA_PATH.exists():
+            raise RuntimeError(f"audit_schema_not_found:{ROUTER_AUDIT_SCHEMA_PATH}")
+        try:
+            _ROUTER_AUDIT_SCHEMA_CACHE = json.loads(
+                ROUTER_AUDIT_SCHEMA_PATH.read_text(encoding="utf-8")
+            )
+        except Exception as exc:
+            raise RuntimeError(f"audit_schema_invalid_json:{exc}") from exc
+        if not isinstance(_ROUTER_AUDIT_SCHEMA_CACHE, dict):
+            raise RuntimeError("audit_schema_invalid_root")
+    return _ROUTER_AUDIT_SCHEMA_CACHE
+
+
+def _validate_router_audit(payload: dict) -> None:
+    schema = _load_router_audit_schema()
+    try:
+        jsonschema_validate(instance=payload, schema=schema)
+    except ValidationError as exc:
+        raise RuntimeError(f"audit_schema_invalid:{exc.message}") from exc
 
 
 def _safe_rename(src: str, dst: str) -> bool:
@@ -89,10 +122,7 @@ def _write_audit(
         raise RuntimeError("audit_contains_hard_paths")
 
     # Schema validation (fail-closed)
-    try:
-        validate("router_audit", audit)
-    except SchemaError as exc:
-        raise RuntimeError(f"audit_schema_invalid:{exc}")
+    _validate_router_audit(audit)
 
     root_env = os.environ.get("ROOT", "").strip()
     root = Path(root_env).expanduser().resolve(strict=False) if root_env else Path(__file__).resolve().parents[1]

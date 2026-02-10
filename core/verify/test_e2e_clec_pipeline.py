@@ -10,8 +10,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from jsonschema import validate as jsonschema_validate
+
 import core.router as router_mod
-from core.schema_registry import SchemaError, validate
 from core.outbox_writer import write_result_to_outbox
 from core.phase1d_result_gate import gate_outbound_result
 from core.router import _safe_rename, _write_audit
@@ -333,10 +334,57 @@ def test_audit_written_before_outbox_on_ok_path() -> None:
         os.environ["0LUKA_ROOT"] = old_0luka_root
 
 
+def test_router_rejects_on_invalid_audit_payload() -> None:
+    """Router.audit must fail-closed when emitted audit payload is schema-invalid."""
+    old_root = os.environ.get("ROOT")
+    old_0luka_root = os.environ.get("0LUKA_ROOT")
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td).resolve()
+        os.environ["ROOT"] = str(root)
+        os.environ["0LUKA_ROOT"] = str(root)
+        (root / "artifacts/tasks/open").mkdir(parents=True, exist_ok=True)
+        (root / "artifacts/tasks/rejected").mkdir(parents=True, exist_ok=True)
+        (root / "artifacts/tasks/open/invalid_audit.yaml").write_text(
+            "id: invalid_audit\n", encoding="utf-8"
+        )
+
+        router = router_mod.Router()
+        router.policy["verification"]["required_gates_for_commit"] = []
+        task_spec = {
+            "id": "",
+            "intent": "schema.invalid.audit",
+            "actor": {"proposer": "codex"},
+            "verification": {"gates": []},
+        }
+        result_bundle = {
+            "task_id": "invalid_audit",
+            "status": "ok",
+            "summary": "ok",
+            "outputs": {"artifacts": []},
+            "evidence": {"logs": [], "commands": [], "effects": []},
+            "provenance": {"hashes": {}},
+        }
+        out = router.audit(task_spec, result_bundle)
+        assert out.get("status") == "rejected"
+        assert "audit_write_failed:audit_schema_invalid" in str(out.get("reason", ""))
+        print("test_router_rejects_on_invalid_audit_payload: ok")
+
+    if old_root is None:
+        os.environ.pop("ROOT", None)
+    else:
+        os.environ["ROOT"] = old_root
+    if old_0luka_root is None:
+        os.environ.pop("0LUKA_ROOT", None)
+    else:
+        os.environ["0LUKA_ROOT"] = old_0luka_root
+
+
 def test_audit_schema_conformance() -> None:
     """Emitted audit must conform to router_audit schema for all 3 decisions."""
     old_root = os.environ.get("ROOT")
     old_0luka_root = os.environ.get("0LUKA_ROOT")
+    schema_path = Path(__file__).resolve().parents[2] / "interface/schemas/router_audit_v1.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
         os.environ["ROOT"] = str(root)
@@ -352,9 +400,7 @@ def test_audit_schema_conformance() -> None:
                 executor="codex",
             )
             data = json.loads(Path(audit_path).read_text(encoding="utf-8"))
-            # validate() would have already run inside _write_audit,
-            # but double-check from consumer side:
-            validate("router_audit", data)
+            jsonschema_validate(instance=data, schema=schema)
 
         print("test_audit_schema_conformance: ok")
 
@@ -409,6 +455,7 @@ def main() -> int:
     test_audit_artifact_on_failure()
     test_audit_no_hardpaths()
     test_audit_written_before_outbox_on_ok_path()
+    test_router_rejects_on_invalid_audit_payload()
     test_audit_schema_conformance()
     test_audit_rejects_invalid_decision()
     print("test_e2e_clec_pipeline: all ok")
