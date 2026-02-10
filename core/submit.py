@@ -31,10 +31,13 @@ try:
 except ImportError:
     yaml = None
 
-ROOT = Path(os.environ.get("ROOT") or Path(__file__).resolve().parents[1])
-INBOX = ROOT / "interface" / "inbox"
-OUTBOX = ROOT / "interface" / "outbox" / "tasks"
-COMPLETED = ROOT / "interface" / "completed"
+try:
+    from core.config import COMPLETED, INBOX, OUTBOX_TASKS, ROOT
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from core.config import COMPLETED, INBOX, OUTBOX_TASKS, ROOT
+
+OUTBOX = OUTBOX_TASKS
 
 sys.path.insert(0, str(ROOT))
 

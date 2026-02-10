@@ -16,7 +16,12 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List
 
-ROOT = Path(os.environ.get("ROOT") or Path(__file__).resolve().parents[1])
+try:
+    from core.config import ROOT
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from core.config import ROOT
+
 sys.path.insert(0, str(ROOT))
 
 from core.submit import SubmitError, submit_task

@@ -14,12 +14,17 @@ from __future__ import annotations
 import json
 import os
 import time
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-ROOT = Path(os.environ.get("ROOT") or Path(__file__).resolve().parents[1])
-LEDGER_PATH = ROOT / "observability" / "artifacts" / "dispatch_ledger.json"
-DISPATCH_LOG = ROOT / "observability" / "logs" / "dispatcher.jsonl"
+try:
+    from core.config import DISPATCH_LEDGER, DISPATCH_LOG, ROOT
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from core.config import DISPATCH_LEDGER, DISPATCH_LOG, ROOT
+
+LEDGER_PATH = DISPATCH_LEDGER
 
 
 def _utc_now() -> str:

@@ -17,16 +17,36 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-ROOT = Path(os.environ.get("ROOT") or Path(__file__).resolve().parents[1])
+try:
+    from core.config import (
+        COMPLETED,
+        DISPATCH_LATEST as DISPATCH_LATEST_PATH,
+        DISPATCH_HEARTBEAT,
+        INBOX,
+        OUTBOX_TASKS,
+        REJECTED,
+        ROOT,
+        SCHEMA_REGISTRY,
+        VERIFY_DIR,
+    )
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from core.config import (
+        COMPLETED,
+        DISPATCH_LATEST as DISPATCH_LATEST_PATH,
+        DISPATCH_HEARTBEAT,
+        INBOX,
+        OUTBOX_TASKS,
+        REJECTED,
+        ROOT,
+        SCHEMA_REGISTRY,
+        VERIFY_DIR,
+    )
 
-HEARTBEAT = ROOT / "observability" / "artifacts" / "dispatcher_heartbeat.json"
-DISPATCH_LATEST = ROOT / "observability" / "artifacts" / "dispatch_latest.json"
-INBOX = ROOT / "interface" / "inbox"
-COMPLETED = ROOT / "interface" / "completed"
-REJECTED = ROOT / "interface" / "rejected"
-OUTBOX = ROOT / "interface" / "outbox" / "tasks"
-SCHEMA_PATH = ROOT / "core" / "contracts" / "v1" / "0luka_schemas.json"
-VERIFY_DIR = ROOT / "core" / "verify"
+HEARTBEAT = DISPATCH_HEARTBEAT
+DISPATCH_LATEST = DISPATCH_LATEST_PATH
+OUTBOX = OUTBOX_TASKS
+SCHEMA_PATH = SCHEMA_REGISTRY
 
 TEST_SUITES = [
     "test_ref_resolver.py",
