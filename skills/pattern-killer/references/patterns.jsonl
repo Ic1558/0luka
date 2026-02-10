@@ -1,0 +1,5 @@
+{"id":"pk_001","version":1,"regex":"\\bvery very\\b","replacement":"very","score_weight":2.0,"tags":["repetition"],"enabled":true}
+{"id":"pk_002","version":1,"regex":"\\bin order to\\b","replacement":"to","score_weight":1.2,"tags":["wordy"],"enabled":true}
+{"id":"pk_003","version":1,"regex":"\\bactually\\b","replacement":"","score_weight":0.8,"tags":["filler"],"enabled":true}
+{"id":"pk_004","version":1,"regex":"\\butilize\\b","replacement":"use","score_weight":1.1,"tags":["jargon"],"enabled":true}
+{"id":"pk_005","version":1,"regex":"\\bat this point in time\\b","replacement":"now","score_weight":1.5,"tags":["wordy"],"enabled":true}
