@@ -1,0 +1,7 @@
+version: 1
+normalize:
+  casefold: true
+  treat_underscore_as_dash: true
+aliases:
+  extra-usage: verify-first
+  extra_usage: verify-first

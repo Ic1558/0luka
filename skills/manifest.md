@@ -31,6 +31,12 @@ This file is the single source of truth for Skill OS loading order and constrain
 | `verify-first` | `verify-first` | `read_assist_only` | 0 | true | true |
 | `single-flight` | `single-flight` | `read_assist_only` | 0 | true | true |
 
+## Skill Aliases (Phase 15.4)
+
+| alias_id | canonical_skill_id | source |
+| :--- | :--- | :--- |
+| `extra-usage` | `verify-first` | `skills/aliases.yaml` |
+
 ## Legacy Catalog (Compatibility)
 
 The legacy catalog remains available for backward compatibility. Phase 15 does not change those skills.
