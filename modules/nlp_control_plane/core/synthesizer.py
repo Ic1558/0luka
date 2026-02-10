@@ -18,6 +18,8 @@ from core.task_dispatcher import dispatch_one
 # Integration with Phase 2 / 2.1
 from core.tool_selection_policy import sense_target, classify_risk, select_tool, enforce_before_execute, load_policy_memory
 from core.run_provenance import append_event
+from modules.linguist.core.analyzer import analyze_intent
+from modules.sentry.core.guard import SentryBlockedError, evaluate_request
 
 class NLPControlPlaneError(Exception):
     """Base exception for NLP Control Plane violations."""
@@ -95,11 +97,25 @@ def process_nlp_request(
 ) -> Dict[str, Any]:
     """
     Main Orchestration pipeline:
+    0. Phase 10 Linguist + Sentry
     1. Synthesize
     2. Sense & Select Tool (Phase 2.1)
     3. Enforce Policy
     4. Execute (or block)
     """
+    # 0. Phase 10 guards
+    analysis = analyze_intent(nl_command, actor="Phase10Linguist")
+    if analysis.get("ambiguity", {}).get("is_ambiguous"):
+        return {
+            "status": "blocked",
+            "reason": "human clarification required",
+            "details": analysis.get("ambiguity", {}),
+        }
+    try:
+        evaluate_request(nl_command, analysis, actor="Phase10Sentry")
+    except SentryBlockedError as exc:
+        raise NLPControlPlaneError(exc.code, exc.message) from exc
+
     # 1. Synthesis (Internal call gets the target)
     task_full = synthesize_to_canonical_task(nl_command, author)
     target_from_synth = str(ROOT) if task_full["risk_hint"] == "local" else (
