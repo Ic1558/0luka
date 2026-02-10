@@ -1,21 +1,33 @@
-# 0luka Skill Manifest
-Generated: 2026-01-26T21:13:45.122502Z
-Base Path: `/Users/icmini/ai-skills`
-Linked Path: `/Users/icmini/0luka/skills/shared`
+# 0luka Skill Manifest (SOT)
 
-| Skill Name | Description | Mandatory Read | Integrity Hash (SHA256) |
-| :--- | :--- | :---: | :--- |
-| `design` | Design | NO | `8cae4a222bcfcd8645067a5fc5c4f9c86944545f4d2d76d3bbb58e82cfc3be55` |
-| `development` | Hardened codebase evolution and runtime automation. | YES | `14cfae5b16e0e75319a4886f7dd3e7b112199ea7a904a967c5d5c4f7b197a69c` |
-| `document-processing` | Document Processing | NO | `1f1e25000e1e3f057fd022b1e5e42d81405d1c840775d6366be6f3b6f4f298e4` |
-| `enterprise` | Enterprise | NO | `23cb522f7595537e6a925f4c06e523ed42415b7afc60860e2b292d6031a54da2` |
-| `scripts` | Scripts | NO | `244f67d1eb96b9cbfc63d6e1cdcdeacaa6ecc84c828a8df15893009d7a97dfd3` |
-| `context7` | Knowledge Provider (Context7) | NO | `manual-managed` |
-| `theme-factory` | Theme Factory (Normalized) | NO | `manual-managed` |
-| `tailwind-css-expert` | Tailwind CSS Expert (The Speed) | NO | `4d0f592694e057290db1f133ee185f347c46f4767bd50d66f3cca8bafecc6f07` |
-| `component-engineer` | Component Engineer (The Logic) | NO | `a72d0bf840b2bbb19e19b0f2284d24c5dc279c7a2407ee7b81489b308f8744a3` |
+This file is the single source of truth for Skill OS loading order and constraints.
 
-## Usage
-- Refer to each skill's SKILL.md for instructions.
-- If Mandatory Read is YES, ingest full skill docs before execution.
-- Keep skill folder names stable to preserve hashes.
+## Chained Load Contract
+1. Read this `skills/manifest.md` before any skill-backed execution planning.
+2. For each selected skill with `Mandatory Read: YES`, ingest its `SKILL.md` before proposing steps.
+3. Enforce caps and forbidden actions from manifest and each `SKILL.md`.
+4. Skills in this manifest are read/assist only unless explicitly upgraded by governance.
+
+## Core-Brain Owned Skills (Phase 15)
+
+| skill_id | purpose | Mandatory Read | MCPs used | Inputs | Outputs | Caps | Forbidden actions |
+| :--- | :--- | :---: | :--- | :--- | :--- | :--- | :--- |
+| `notebooklm_grounding` | Distill lessons from success/failure artifacts using NotebookLM context grounding only. | YES | NotebookLM MCP | Failure logs, success logs, verification notes | `observability/lessons/*.md` | Create/list notebooks, ingest artifacts, query lessons, export distilled summary | Execute tasks, modify `core/`, mutate policy/runtime state |
+| `knowledge_recycling` | Convert failures into reusable lessons, constraints, and heuristics for future planning. | YES | Local FS MCP (read-only) | Incident logs, postmortems, prior lessons | Structured lesson entries + cross-reference map | Normalize lessons, classify confidence, map references | Auto-apply policy, direct execution, dispatcher/router calls |
+| `asset_fragment_manager` | Reuse deterministic small utilities/fragments with import-only discipline. | NO | Local FS MCP (read-only) | Existing utility fragments, helper snippets | Suggested imports and usage notes | Locate, validate, and suggest deterministic fragments | Mutate source fragments, execute external commands, auto-rewrite core |
+
+## Legacy Catalog (Compatibility)
+
+The legacy catalog remains available for backward compatibility. Phase 15 does not change those skills.
+
+| Skill Name | Mandatory Read |
+| :--- | :---: |
+| `development` | YES |
+| `design` | NO |
+| `document-processing` | NO |
+| `enterprise` | NO |
+| `scripts` | NO |
+| `context7` | NO |
+| `theme-factory` | NO |
+| `tailwind-css-expert` | NO |
+| `component-engineer` | NO |
