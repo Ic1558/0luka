@@ -7,6 +7,9 @@ from datetime import datetime
 from core.verify.gates_registry import GATES
 from core.enforcement import RuntimeEnforcer, PermissionDenied
 
+# KERNEL v1.x - FROZEN
+# Phase 1 complete. Feature changes prohibited.
+
 POLICY_PATH = "core/policy.yaml"
 
 def load_policy():

@@ -85,6 +85,8 @@ design-lane-macos/
 .venv/
 ~/
 node_modules/
+_trash/
+.worktrees/
 *.pcm
 *.swiftmodule
 *.mdb
