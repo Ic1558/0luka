@@ -18,6 +18,7 @@ This file is the single source of truth for Skill OS loading order and constrain
 | `scope-lock` | Prevent scope creep and enforce file/module boundaries for implementation lanes. | YES | Local FS MCP (read-only) | Task scope and changed file set | Scope compliance decision | Allowlist validation and fail-closed boundary checks | Out-of-scope edits and silent expansion |
 | `verify-first` | Require verification-first execution discipline with explicit evidence before/after changes. | YES | Local FS MCP (read-only) | Verify commands and outputs | Pass/fail evidence summary | Baseline + post-change verification enforcement | Shipping without evidence or suppressing failures |
 | `single-flight` | Enforce no-retry/single-flight policy for guarded operations to avoid retry storms. | YES | Local FS MCP (read-only) | Guarded operation metadata | Deterministic run policy decision | max_retries=0 and no_parallel enforcement | Blind retries, parallel fan-out on guarded paths |
+| `pattern-killer` | Deterministic text pattern cleanup pipeline (detect/rewrite/score) for reusable writing hygiene. | NO | Local FS MCP (read-only) | Plain text + JSONL patterns database | JSON findings, rewritten text preview/apply result, stable score | Local deterministic regex analysis and atomic rewrite output | Network calls, non-deterministic inference, execution path mutation |
 
 ## Codex Hand Wiring Map (Phase 15.2)
 
