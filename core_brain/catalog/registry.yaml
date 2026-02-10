@@ -134,6 +134,29 @@ tools:
   invoked_by: com.0luka.cole-reconcile
   status: active
   name: cole_reconcile
+- id: cole_run
+  path: cole/tools/cole_run.zsh
+  lane: ops
+  entrypoint: zsh
+  invoked_by: tools/run_tool.zsh
+  status: active
+  name: cole_run
+  caps:
+    mode: read_only
+    commands:
+    - list
+    - latest
+    - show
+    allowed_read_paths:
+    - cole/runs/**
+    - observability/**
+    forbidden:
+    - interface/inbox/**
+    - writes:any
+    - network:any
+  deny_notes:
+  - no execution authority
+  - no token/path leakage
 - id: consumer
   path: tools/bridge/consumer.py
   lane: bridge
