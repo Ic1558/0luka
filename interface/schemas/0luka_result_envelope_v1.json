@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "0luka.schemas/v1/result_envelope",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "v",
+    "type",
+    "task_id",
+    "status",
+    "summary",
+    "outputs",
+    "evidence",
+    "provenance"
+  ],
+  "properties": {
+    "v": { "type": "string", "const": "0luka.result/v1" },
+    "type": { "type": "string", "const": "task.result" },
+    "task_id": { "type": "string", "minLength": 1 },
+    "status": { "type": "string", "enum": ["ok", "error", "canceled", "partial"] },
+    "summary": { "type": "string" },
+    "outputs": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["json", "artifacts"],
+      "properties": {
+        "json": { "type": "object", "additionalProperties": true },
+        "artifacts": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["logs", "commands"],
+      "properties": {
+        "logs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "commands": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["trace_id", "started_at", "ended_at", "engine", "hashes"],
+      "properties": {
+        "trace_id": { "type": "string", "minLength": 1 },
+        "started_at": { "type": "string", "minLength": 1 },
+        "ended_at": { "type": "string", "minLength": 1 },
+        "engine": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["name", "version", "host"],
+          "properties": {
+            "name": { "type": "string" },
+            "version": { "type": "string" },
+            "host": { "type": "string" }
+          }
+        },
+        "hashes": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["inputs_sha256", "outputs_sha256"],
+          "properties": {
+            "inputs_sha256": { "type": "string", "minLength": 1 },
+            "outputs_sha256": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  }
+}
