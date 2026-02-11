@@ -33,9 +33,9 @@ def mock_paths(tmp_path):
 def test_proof_mode_synthetic(mock_paths):
     # Setup: 3 events, one is manual
     events = [
-        {"phase": "P1", "action": "started", "ts_utc": "2026-01-01T00:00:00Z", "emit_mode": EMIT_MODE_AUTO, "verifier_mode": "operational_proof", "ts_epoch_ms": 1},
-        {"phase": "P1", "action": "completed", "ts_utc": "2026-01-01T00:00:10Z", "emit_mode": EMIT_MODE_MANUAL, "verifier_mode": "synthetic_proof", "ts_epoch_ms": 2},
-        {"phase": "P1", "action": "verified", "ts_utc": "2026-01-01T00:00:20Z", "emit_mode": EMIT_MODE_AUTO, "verifier_mode": "operational_proof", "ts_epoch_ms": 3},
+        {"phase": "P1", "action": "started", "ts_utc": "2026-01-01T00:00:00Z", "emit_mode": EMIT_MODE_AUTO, "verifier_mode": "operational_proof", "ts_epoch_ms": 1, "tool": "test", "run_id": "r1"},
+        {"phase": "P1", "action": "completed", "ts_utc": "2026-01-01T00:00:10Z", "emit_mode": EMIT_MODE_MANUAL, "verifier_mode": "synthetic_proof", "ts_epoch_ms": 2, "tool": "test", "run_id": "r1"},
+        {"phase": "P1", "action": "verified", "ts_utc": "2026-01-01T00:00:20Z", "emit_mode": EMIT_MODE_AUTO, "verifier_mode": "operational_proof", "ts_epoch_ms": 3, "tool": "test", "run_id": "r1"},
     ]
     with mock_paths.activity_feed.open("w") as f:
         for e in events:
@@ -48,9 +48,9 @@ def test_proof_mode_synthetic(mock_paths):
 def test_proof_mode_operational(mock_paths):
     # Setup: 3 events, all auto
     events = [
-        {"phase": "P1", "action": "started", "ts_utc": "2026-01-01T00:00:00Z", "emit_mode": EMIT_MODE_AUTO, "verifier_mode": "operational_proof", "ts_epoch_ms": 1},
-        {"phase": "P1", "action": "completed", "ts_utc": "2026-01-01T00:00:10Z", "emit_mode": EMIT_MODE_AUTO, "verifier_mode": "operational_proof", "ts_epoch_ms": 2},
-        {"phase": "P1", "action": "verified", "ts_utc": "2026-01-01T00:00:20Z", "emit_mode": EMIT_MODE_AUTO, "verifier_mode": "operational_proof", "ts_epoch_ms": 3},
+        {"phase": "P1", "action": "started", "ts_utc": "2026-01-01T00:00:00Z", "emit_mode": EMIT_MODE_AUTO, "verifier_mode": "operational_proof", "ts_epoch_ms": 1, "tool": "test", "run_id": "r1"},
+        {"phase": "P1", "action": "completed", "ts_utc": "2026-01-01T00:00:10Z", "emit_mode": EMIT_MODE_AUTO, "verifier_mode": "operational_proof", "ts_epoch_ms": 2, "tool": "test", "run_id": "r1"},
+        {"phase": "P1", "action": "verified", "ts_utc": "2026-01-01T00:00:20Z", "emit_mode": EMIT_MODE_AUTO, "verifier_mode": "operational_proof", "ts_epoch_ms": 3, "tool": "test", "run_id": "r1"},
     ]
     with mock_paths.activity_feed.open("w") as f:
         for e in events:

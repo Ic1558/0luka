@@ -280,10 +280,17 @@ def check_activity_events(phase_id: str, paths: Paths) -> Dict[str, Any]:
     for e in evts:
         if not e:
             continue
-        missing_keys = [k for k in ("emit_mode", "verifier_mode", "ts_epoch_ms") if k not in e]
+        missing_keys = [k for k in ("emit_mode", "verifier_mode", "ts_epoch_ms", "tool", "run_id") if k not in e]
         if missing_keys:
             taxonomy_ok = False
             break
+
+    # 4. Consistency Check: run_id must match across chain
+    if taxonomy_ok and is_operational:
+        run_ids = {e.get("run_id") for e in evts if e}
+        if len(run_ids) > 1:
+            taxonomy_ok = False
+            missing.append("taxonomy.run_id_mismatch")
     if not taxonomy_ok:
         missing.append("taxonomy.incomplete_event")
 
