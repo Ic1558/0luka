@@ -1,0 +1,66 @@
+name: ci / retention-smoke
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  retention-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Checkout via git (no extra actions)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p repo
+          cd repo
+          git init .
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout FETCH_HEAD
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+
+      - name: Compile core
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd repo
+          python3 -m compileall core
+
+      - name: Retention tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd repo
+          python3 core/verify/test_retention.py
+
+      - name: Retention dry-run JSON smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd repo
+          python3 - <<'PY'
+          import json
+          import subprocess
+          p = subprocess.run(
+              ["python3", "core/retention.py", "--json", "--dry-run"],
+              check=True,
+              text=True,
+              capture_output=True,
+          )
+          data = json.loads(p.stdout)
+          assert data["schema_version"] == "retention_v1"
+          assert "policies" in data and isinstance(data["policies"], dict)
+          out = p.stdout
+          assert "/Users/" not in out
+          assert "file:///Users" not in out
+          print("retention_ci_smoke: ok")
+          PY
