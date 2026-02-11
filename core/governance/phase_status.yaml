@@ -35,3 +35,8 @@ phases:
     last_verified_ts: 2026-02-11T18:49:48Z
     commit_sha: 7d3bd6dc411371c6198feeca6d2596812083e333
     evidence_path: /Users/icmini/0luka/observability/reports/dod_checker/20260211T184948795658Z_dod.json
+  PHASE_15_5_3:
+    verdict: DESIGNED
+    requires:
+      - PHASE_8
+      - PHASE_2
