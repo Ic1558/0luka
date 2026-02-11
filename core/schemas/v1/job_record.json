@@ -48,6 +48,28 @@
         "metadata": {
             "type": "object"
         },
+        "run_provenance": {
+            "type": [
+                "object",
+                "null"
+            ],
+            "properties": {
+                "engine": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                },
+                "input_checksum": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "engine",
+                "version",
+                "input_checksum"
+            ]
+        },
         "created_at": {
             "type": "string",
             "format": "date-time"

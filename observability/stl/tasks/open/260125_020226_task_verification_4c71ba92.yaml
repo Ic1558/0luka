@@ -1,8 +1,0 @@
-intent:
-  rationale: Evidence check
-  success_definition: Audit passed
-  summary: Verify logic
-title: Verification Audit
-verification:
-  gates:
-  - gate.proc.purity

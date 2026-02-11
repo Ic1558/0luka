@@ -1,7 +1,0 @@
-{
-  "ts": "2026-01-28T22:08:10Z",
-  "module": "mls_file_watcher",
-  "event_type": "filesystem_change",
-  "path": "${ROOT}/agents/test_mls_trigger.txt",
-  "mode": "fswatch"
-}

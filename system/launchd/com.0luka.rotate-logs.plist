@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.0luka.rotate-logs</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>-c</string>
+        <string>$HOME/0luka/tools/ops/rotate_logs.zsh $HOME/0luka</string>
+    </array>
+    
+    <!-- Run daily at 03:00 local time -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>3</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    
+    <!-- Also run on load (catch up if missed) -->
+    <key>RunAtLoad</key>
+    <false/>
+    
+    <!-- Environment -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>KEEP_DAYS</key>
+        <string>14</string>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+    
+    <!-- Logging -->
+    <key>StandardOutPath</key>
+    <string>/tmp/0luka-rotate-logs.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/0luka-rotate-logs.stderr.log</string>
+</dict>
+</plist>

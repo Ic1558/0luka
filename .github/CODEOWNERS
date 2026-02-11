@@ -1,0 +1,14 @@
+# Default owners
+*       @Ic1558
+
+# ---- Critical contracts & trust boundaries ----
+/core/contracts/v1/*        @Ic1558
+/core/ref_resolver.py       @Ic1558
+
+# ---- CI / Governance ----
+/.github/workflows/*        @Ic1558
+/.github/pull_request_template_phase.md  @Ic1558
+/docs/review/*              @Ic1558
+
+# ---- Security-sensitive policies ----
+/core_brain/governance/*    @Ic1558

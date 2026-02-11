@@ -1,0 +1,25 @@
+# Delegation envelope template
+# Use this when Cole dispatches a long-run subtask to a worker/lane.
+
+to: "opencode"              # or Liam/Lisa/Codex/GMX
+from: "[Cole]"
+mode: "tracked"             # free|tracked
+
+tk_id: "tk_YYYYMMDD_HHMM_slug"
+run_id: "run_YYYYMMDD_HHMM_slug_r1"
+
+intent: ""
+title: ""
+
+context:
+  why_long_run: ""
+  links: []
+  constraints: []
+
+task: ""
+
+dod: []
+
+return:
+  - "patch diff"
+  - "evidence paths"

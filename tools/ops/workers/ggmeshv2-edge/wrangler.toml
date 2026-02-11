@@ -1,0 +1,4 @@
+name = "ggmeshv2-edge"
+main = "worker.js"
+compatibility_date = "2025-05-23"
+usage_model = "standard"

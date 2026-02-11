@@ -21,12 +21,40 @@ case $TOOL_VERB in
         ;;
     verify-core)
         echo "[0luka] Verifying Core Integrity..."
-        # Placeholder for verification logic
-        echo "Core Brain: OK"
+        EXIT_CODE=0
+        CORE_FILES=("core_brain/governance/agents.md" "core_brain/governance/router.md" "0luka.md")
+        for f in "${CORE_FILES[@]}"; do
+            if [[ -f "$f" ]]; then
+                echo "  ✅ $f: EXISTS"
+            else
+                echo "  ❌ $f: MISSING"
+                EXIT_CODE=1
+            fi
+        done
+        return $EXIT_CODE
+        ;;
+    verify-health)
+        echo "[0luka] Running Pre-Claim Health Gate..."
+        zsh tools/ops/pre_claim_gate.zsh
+        ;;
+    apply-patch)
+        PLAN=$1
+        echo "[0luka] Applying Patch Plan: $PLAN..."
+        python3 tools/patch/apply_patch.py "$PLAN"
+        ;;
+    cole-run)
+        SUBCMD="${1:-}"
+        if [[ -z "$SUBCMD" ]]; then
+            echo "Error: missing cole-run subcommand"
+            echo "Usage: run_tool.zsh cole-run {list|latest|show <run_id>}"
+            exit 2
+        fi
+        shift
+        zsh cole/tools/cole_run.zsh "$SUBCMD" "$@"
         ;;
     *)
         echo "Error: Unknown tool verb '$TOOL_VERB'"
-        echo "Available: save, discover, verify-core"
+        echo "Available: save, discover, verify-core, verify-health, apply-patch, cole-run"
         exit 1
         ;;
 esac

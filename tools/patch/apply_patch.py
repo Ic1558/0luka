@@ -48,7 +48,7 @@ def apply_diff(filepath, diff_content):
     try:
         # Try git apply first (safer context handling)
         # --ignore-space-change --ignore-whitespace could be optional args
-        cmd = ["git", "apply", "--recount", "--warn-binary", tmp_diff_path]
+        cmd = ["git", "apply", "--recount", tmp_diff_path]
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.getcwd())
         
         if result.returncode != 0:
@@ -64,14 +64,16 @@ def ensure_evidence_dir():
         os.makedirs(EVIDENCE_DIR)
 
 def document_evidence(plan_path, patch_data, results):
+    from datetime import timezone
     ensure_evidence_dir()
-    timestamp = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%S")
+    now = datetime.datetime.now(timezone.utc)
+    timestamp = now.strftime("%Y%m%dT%H%M%S")
     evi_id = f"EVID-{timestamp}-{os.path.basename(plan_path)}"
     
     evidence = {
         "evidence_id": evi_id,
         "plan_file": plan_path,
-        "applied_at_utc": datetime.datetime.utcnow().isoformat() + "Z",
+        "applied_at_utc": now.isoformat().replace("+00:00", "Z"),
         "author": patch_data.get("author", "unknown"),
         "intent": patch_data.get("intent", ""),
         "results": results

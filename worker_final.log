@@ -1,0 +1,24 @@
+{"timestamp": "2026-02-05 04:12:42,851", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-69519", "event": "Starting OPAL Massing Engine Worker (Real Adapter)..."}
+{"timestamp": "2026-02-05 04:12:42,851", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-69519", "event": "Running crash recovery scan..."}
+{"timestamp": "2026-02-05 04:12:42,852", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-69519", "event": "No zombie jobs found."}
+{"timestamp": "2026-02-05 04:12:42,852", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-69519", "event": "Polling JobsDB at /Users/icmini/0luka/observability/jobs_db.json..."}
+{"timestamp": "2026-02-05 04:12:46,862", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-69519", "event": "Picked up job job_5f68fba3703e"}
+{"timestamp": "2026-02-05 04:12:47,030", "level": "ERROR", "worker": "Ittipongs-Mac-mini.local-69519", "event": "Job job_5f68fba3703e FAILED: Engine failed: Usage: 
+nano_banana_engine.py 
+[OPTIONS] JOB_PATH
+Try 
+'nano_banana_engine.py 
+--help' for help.
+╭─ Error ─────────────╮
+│ Got unexpected      │
+│ extra argument      │
+│ (/Users/icmini/0luk │
+│ a/modules/studio/ou │
+│ tputs/input_job_5f6 │
+│ 8fba3703e.json)     │
+╰─────────────────────╯
+"}
+{"timestamp": "2026-02-05 04:15:59,476", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-69519", "event": "GC: Deleting expired job job_old_123"}
+{"timestamp": "2026-02-05 04:15:59,478", "level": "ERROR", "worker": "Ittipongs-Mac-mini.local-69519", "event": "Error in loop: type object 'JobsDB' has no attribute 'delete_job'"}
+{"timestamp": "2026-02-05 04:19:22,919", "level": "INFO", "worker": "Ittipongs-Mac-mini.local-69519", "event": "GC: Deleting expired job job_old_123"}
+{"timestamp": "2026-02-05 04:19:22,920", "level": "ERROR", "worker": "Ittipongs-Mac-mini.local-69519", "event": "Error in loop: type object 'JobsDB' has no attribute 'delete_job'"}

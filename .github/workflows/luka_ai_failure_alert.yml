@@ -1,0 +1,29 @@
+name: Luka AI Failure Alert
+
+on:
+  workflow_run:
+    workflows: ["*"]
+    types: [completed]
+
+jobs:
+  alert:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'failure'
+    steps:
+      - name: Send Failure Alert
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp-mail.outlook.com
+          server_port: 587
+          secure: true
+          username: ${{ secrets.AI_TEAM_EMAIL }}
+          password: ${{ secrets.AI_TEAM_EMAIL_PASS }}
+          subject: "❌ [0luka] Workflow Failed: ${{ github.event.workflow_run.name }}"
+          to: ${{ secrets.AI_TEAM_EMAIL }}
+          from: "Luka AI <${{ secrets.AI_TEAM_EMAIL }}>"
+          body: |
+            # Workflow Failure Alert
+            **Workflow:** ${{ github.event.workflow_run.name }}
+            **Branch:** ${{ github.event.workflow_run.head_branch }}
+            **Commit:** ${{ github.event.workflow_run.head_sha }}
+            [View Failed Run](${{ github.event.workflow_run.html_url }})
