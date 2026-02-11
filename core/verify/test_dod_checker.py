@@ -455,7 +455,7 @@ def test_proven_demo_fixture_exit_0() -> None:
         payload = json.loads(report_path.read_text(encoding="utf-8"))
         assert payload.get("schema_version") == "dod_report_v2", payload
         assert payload.get("blueprint_key") == "blueprint_ppr_dod_agentteams_v2_r1_tighten", payload
-        assert payload.get("blueprint_rev") == "Rev1.2", payload
+        assert payload.get("blueprint_rev") == "Rev1.3", payload
 
 
 def test_exit_code_designed() -> None:
@@ -516,6 +516,177 @@ def test_exit_code_internal_error() -> None:
     assert proc.returncode == 4, proc.stdout + "\n" + proc.stderr
 
 
+def test_update_status_phase_updates_only_target_phase() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    commit_sha = _head_sha(repo_root)
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        docs = tmp / "docs" / "dod"
+        (repo_root / "observability" / "reports").mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=str(repo_root / "observability" / "reports")) as rpt:
+            reports = Path(rpt) / "dod_checker"
+            activity = tmp / "observability" / "logs" / "activity.jsonl"
+            phase_status = tmp / "core" / "governance" / "phase_status.yaml"
+            evidence = tmp / "proof.log"
+            _write(evidence, "ok\n")
+            digest = subprocess.check_output(
+                [sys.executable, "-c", f"import hashlib, pathlib;print(hashlib.sha256(pathlib.Path(r'{evidence}').read_bytes()).hexdigest())"],
+                text=True,
+            ).strip()
+
+            _write(docs / "DOD__PHASE_15_5_3.md", _dod_text("PHASE_15_5_3", commit_sha))
+            _write_jsonl(
+                activity,
+                [
+                    {
+                        "phase_id": "PHASE_15_5_3",
+                        "action": "started",
+                        "ts": "2026-02-12T00:00:00Z",
+                        "ts_utc": "2026-02-12T00:00:00Z",
+                        "ts_epoch_ms": 1760150400000,
+                        "emit_mode": "runtime_auto",
+                        "verifier_mode": "operational_proof",
+                        "tool": "test_harness",
+                        "run_id": "run001",
+                        "evidence": [str(evidence)],
+                    },
+                    {
+                        "phase_id": "PHASE_15_5_3",
+                        "action": "completed",
+                        "ts": "2026-02-12T00:00:01Z",
+                        "ts_utc": "2026-02-12T00:00:01Z",
+                        "ts_epoch_ms": 1760150401000,
+                        "emit_mode": "runtime_auto",
+                        "verifier_mode": "operational_proof",
+                        "tool": "test_harness",
+                        "run_id": "run001",
+                        "evidence": [str(evidence)],
+                    },
+                    {
+                        "phase_id": "PHASE_15_5_3",
+                        "action": "verified",
+                        "ts": "2026-02-12T00:00:02Z",
+                        "ts_utc": "2026-02-12T00:00:02Z",
+                        "ts_epoch_ms": 1760150402000,
+                        "emit_mode": "runtime_auto",
+                        "verifier_mode": "operational_proof",
+                        "tool": "test_harness",
+                        "run_id": "run001",
+                        "evidence": [str(evidence)],
+                        "hashes": {str(evidence): f"sha256:{digest}"},
+                    },
+                ],
+            )
+            _write(
+                phase_status,
+                (
+                    "phases:\n"
+                    "  PHASE_15_5_3:\n"
+                    "    verdict: PARTIAL\n"
+                    "    requires:\n"
+                    "  PHASE_2:\n"
+                    "    verdict: DESIGNED\n"
+                    "    requires:\n"
+                    "    evidence_path: keep-me\n"
+                ),
+            )
+
+            env = _mk_env(repo_root, docs, reports, activity, phase_status)
+            env["LUKA_REQUIRE_OPERATIONAL_PROOF"] = "1"
+            proc = _run_cli(repo_root, ["--update-status-phase", "PHASE_15_5_3", "--json"], env)
+            assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
+            payload = json.loads(proc.stdout)
+            res = payload["results"][0]
+            assert res["phase_id"] == "PHASE_15_5_3", payload
+            assert res["verdict"] == "PROVEN", payload
+            assert "report_path" in payload and payload["report_path"], payload
+
+            status_text = phase_status.read_text(encoding="utf-8")
+            assert "PHASE_15_5_3:\n    verdict: PROVEN" in status_text, status_text
+            assert "PHASE_2:\n    verdict: DESIGNED" in status_text, status_text
+            assert "evidence_path: keep-me" in status_text, status_text
+
+            report_path = Path(payload["report_path"]).resolve(strict=False)
+            assert str(report_path).startswith(str(repo_root.resolve(strict=False))), payload
+            rel = report_path.relative_to(repo_root.resolve(strict=False)).as_posix()
+            assert f"evidence_path: {rel}" in status_text, status_text
+
+
+def test_update_status_phase_rejects_with_all() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    commit_sha = _head_sha(repo_root)
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        docs = tmp / "docs" / "dod"
+        reports = tmp / "observability" / "reports" / "dod_checker"
+        activity = tmp / "observability" / "logs" / "activity.jsonl"
+        phase_status = tmp / "core" / "governance" / "phase_status.yaml"
+
+        _write(docs / "DOD__PHASE_15_5_3.md", _dod_text("PHASE_15_5_3", commit_sha))
+        _write_jsonl(activity, [])
+        _write(phase_status, "phases:\n  PHASE_15_5_3:\n    verdict: DESIGNED\n    requires:\n")
+
+        env = _mk_env(repo_root, docs, reports, activity, phase_status)
+        proc = _run_cli(repo_root, ["--all", "--update-status-phase", "PHASE_15_5_3"], env)
+        assert proc.returncode == 4, proc.stdout + "\n" + proc.stderr
+
+
+def test_update_status_phase_rejects_phase_missing() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    commit_sha = _head_sha(repo_root)
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        docs = tmp / "docs" / "dod"
+        (repo_root / "observability" / "reports").mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=str(repo_root / "observability" / "reports")) as rpt:
+            reports = Path(rpt) / "dod_checker"
+            activity = tmp / "observability" / "logs" / "activity.jsonl"
+            phase_status = tmp / "core" / "governance" / "phase_status.yaml"
+
+            _write(docs / "DOD__PHASE_15_5_3.md", _dod_text("PHASE_15_5_3", commit_sha))
+            _write_jsonl(activity, [])
+            _write(phase_status, "phases:\n  PHASE_2:\n    verdict: DESIGNED\n    requires:\n")
+            env = _mk_env(repo_root, docs, reports, activity, phase_status)
+            proc = _run_cli(repo_root, ["--update-status-phase", "PHASE_15_5_3", "--json"], env)
+            assert proc.returncode == 4, proc.stdout + "\n" + proc.stderr
+            payload = json.loads(proc.stdout)
+            assert "registry.phase_missing:PHASE_15_5_3" in payload.get("error", ""), payload
+
+
+def test_update_status_phase_rejects_evidence_path_outside_repo() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    commit_sha = _head_sha(repo_root)
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        docs = tmp / "docs" / "dod"
+        reports = tmp / "outside_reports" / "dod_checker"
+        activity = tmp / "observability" / "logs" / "activity.jsonl"
+        phase_status = tmp / "core" / "governance" / "phase_status.yaml"
+        evidence = tmp / "proof.log"
+        _write(evidence, "ok\n")
+        digest = subprocess.check_output(
+            [sys.executable, "-c", f"import hashlib, pathlib;print(hashlib.sha256(pathlib.Path(r'{evidence}').read_bytes()).hexdigest())"],
+            text=True,
+        ).strip()
+
+        _write(docs / "DOD__PHASE_15_5_3.md", _dod_text("PHASE_15_5_3", commit_sha))
+        _write_jsonl(
+            activity,
+            [
+                {"phase_id": "PHASE_15_5_3", "action": "started", "ts": "2026-02-12T00:00:00Z", "ts_utc": "2026-02-12T00:00:00Z", "ts_epoch_ms": 1760150400000, "emit_mode": "runtime_auto", "verifier_mode": "operational_proof", "tool": "test_harness", "run_id": "run001", "evidence": [str(evidence)]},
+                {"phase_id": "PHASE_15_5_3", "action": "completed", "ts": "2026-02-12T00:00:01Z", "ts_utc": "2026-02-12T00:00:01Z", "ts_epoch_ms": 1760150401000, "emit_mode": "runtime_auto", "verifier_mode": "operational_proof", "tool": "test_harness", "run_id": "run001", "evidence": [str(evidence)]},
+                {"phase_id": "PHASE_15_5_3", "action": "verified", "ts": "2026-02-12T00:00:02Z", "ts_utc": "2026-02-12T00:00:02Z", "ts_epoch_ms": 1760150402000, "emit_mode": "runtime_auto", "verifier_mode": "operational_proof", "tool": "test_harness", "run_id": "run001", "evidence": [str(evidence)], "hashes": {str(evidence): f"sha256:{digest}"}},
+            ],
+        )
+        _write(phase_status, "phases:\n  PHASE_15_5_3:\n    verdict: PARTIAL\n    requires:\n")
+        env = _mk_env(repo_root, docs, reports, activity, phase_status)
+        env["LUKA_REQUIRE_OPERATIONAL_PROOF"] = "1"
+        proc = _run_cli(repo_root, ["--update-status-phase", "PHASE_15_5_3", "--json"], env)
+        assert proc.returncode == 4, proc.stdout + "\n" + proc.stderr
+        payload = json.loads(proc.stdout)
+        assert "registry.evidence_path_outside_repo" in payload.get("error", ""), payload
+
+
 if __name__ == "__main__":
     repo_root = Path(__file__).resolve().parents[2]
     if str(repo_root) not in sys.path:
@@ -533,4 +704,8 @@ if __name__ == "__main__":
     test_exit_code_designed()
     test_exit_code_partial()
     test_exit_code_internal_error()
+    test_update_status_phase_updates_only_target_phase()
+    test_update_status_phase_rejects_with_all()
+    test_update_status_phase_rejects_phase_missing()
+    test_update_status_phase_rejects_evidence_path_outside_repo()
     print("test_dod_checker: all ok")
