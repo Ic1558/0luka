@@ -3,13 +3,13 @@ set -euo pipefail
 
 # --- BASE: repo root auto-detect (0luka) ---
 SCRIPT_DIR="$(cd -- "$(dirname -- "${0:A}")" && pwd)"
-BASE="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
+BASE="$(cd -- "${SCRIPT_DIR}/../../.." && pwd)"
 # ------------------------------------------
 
 need_cmd() { command -v "$1" >/dev/null 2>&1; }
 
 say() { print -r -- "$*"; }
-die() { print -r -- "ERROR: $*" >&2; exit 1; }
+die() { print -r -- "ERROR: $*" >&2; exit 4; } # SOT: Exit 4 on violation
 
 [[ -d "$BASE" ]] || die "Base not found: $BASE"
 
@@ -25,7 +25,7 @@ fi
 # Illegal paths (hard fail if referenced by processes/logs/plists/code)
 typeset -a ILLEGAL=(
   "$BASE/g/tools/"
-  "$BASE/g/reports/"
+  "$BASE/g/report/"      # SOT: Explicitly banned
   "$BASE/g/telemetry/"
   "$BASE/g/logs/"
   "$BASE/g/core_history/"
@@ -34,6 +34,7 @@ typeset -a ILLEGAL=(
 # Runtime output must be confined here (informational guard; not a hard fail by itself)
 typeset -a RUNTIME_OK=(
   "$BASE/observability/"
+  "$BASE/g/reports/"     # SOT: Explicitly allowed
 )
 
 # Scan targets
@@ -85,6 +86,17 @@ scan_processes() {
   fi
 }
 
+# Explicit check for g/report/ filesystem presence
+check_legacy_path() {
+  if [[ -d "$BASE/g/report" ]]; then
+    say ""
+    say "=== VIOLATION: legacy directory exists"
+    say "path: $BASE/g/report"
+    say "action: remove it and use $BASE/g/reports/ instead"
+    fail=1
+  fi
+}
+
 check_git_hygiene() {
   [[ -d "$BASE/.git" ]] || return 0
   local st
@@ -92,7 +104,8 @@ check_git_hygiene() {
   if [[ -n "$st" ]]; then
     say ""
     say "=== WARNING: git status not clean in $BASE"
-    say "$st" | sed -n '1,200p'
+    try_head_status=$(echo "$st" | head -n 20)
+    say "$try_head_status"
     # Not hard-fail by default, because ignores may not be applied yet.
   fi
 }
@@ -135,12 +148,13 @@ main() {
     scan_processes "$p"
   done
 
+  check_legacy_path
   check_gitignore_rules
   check_git_hygiene
 
   if (( fail )); then
     say ""
-    die "FAILED: illegal path references detected"
+    die "FAILED: illegal path references or legacy artifacts detected"
   fi
 
   say "OK: no illegal path references detected"

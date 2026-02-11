@@ -8,6 +8,7 @@ Usage:
   python3 tools/ops/dod_checker.py --json
   python3 tools/ops/dod_checker.py --missing-only
   python3 tools/ops/dod_checker.py --update-status
+  python3 tools/ops/dod_checker.py --update-status-phase <ID>
 """
 
 from __future__ import annotations
@@ -598,6 +599,16 @@ def _atomic_write(path: Path, content: str) -> None:
     os.replace(tmp_path, path)
 
 
+def _normalize_evidence_path(paths: Paths, report_path: Path) -> str:
+    root = paths.root.resolve(strict=False)
+    rp = report_path.resolve(strict=False)
+    try:
+        rel = rp.relative_to(root)
+        return rel.as_posix()
+    except ValueError as exc:
+        raise RuntimeError("registry.evidence_path_outside_repo") from exc
+
+
 def check_gate(phase_id: str, status_data: Dict[str, Any]) -> Dict[str, Any]:
     phases = status_data.get("phases", {}) if isinstance(status_data.get("phases"), dict) else {}
     phase_entry = phases.get(phase_id, {}) if isinstance(phases.get(phase_id, {}), dict) else {}
@@ -783,23 +794,34 @@ def write_report(paths: Paths, phase_results: List[Dict[str, Any]]) -> Path:
     return report_path
 
 
-def update_phase_status(paths: Paths, phase_results: List[Dict[str, Any]], report_path: Path) -> None:
+def update_phase_status(
+    paths: Paths,
+    phase_results: List[Dict[str, Any]],
+    report_path: Path,
+    *,
+    scoped_phase: Optional[str] = None,
+) -> None:
     status = load_phase_status(paths.phase_status)
     phases = status.setdefault("phases", {})
     if not isinstance(phases, dict):
         phases = {}
         status["phases"] = phases
 
+    evidence_path = _normalize_evidence_path(paths, report_path)
+
     for res in phase_results:
         phase_id = res["phase_id"]
-        entry = phases.get(phase_id, {}) if isinstance(phases.get(phase_id, {}), dict) else {}
+        exists = phase_id in phases and isinstance(phases.get(phase_id), dict)
+        if scoped_phase and phase_id == scoped_phase and not exists:
+            raise RuntimeError(f"registry.phase_missing:{phase_id}")
+        entry = phases.get(phase_id, {}) if exists else {}
         entry["verdict"] = res["verdict"]
         if res["verdict"] == VERDICT_PROVEN:
             entry["last_verified_ts"] = _utc_now()
         commit_sha = str(res.get("meta", {}).get("commit_sha", "")).strip()
         if commit_sha:
             entry["commit_sha"] = commit_sha
-        entry["evidence_path"] = str(report_path)
+        entry["evidence_path"] = evidence_path
         # preserve requires if already present
         if not isinstance(entry.get("requires"), list):
             entry["requires"] = []
@@ -837,11 +859,26 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
     parser.add_argument("--missing-only", action="store_true", help="Only print phases with missing items")
     parser.add_argument("--update-status", action="store_true", help="Update core/governance/phase_status.yaml atomically")
+    parser.add_argument(
+        "--update-status-phase",
+        help="Evaluate and atomically update status for a single phase node (no --all required)",
+    )
     args = parser.parse_args()
 
     try:
+        if args.update_status_phase and args.all:
+            print("dod_checker_internal_error:ValueError:--update-status-phase cannot be used with --all", file=sys.stderr)
+            return 4
+        if args.update_status_phase and args.phase and args.update_status_phase != args.phase:
+            print(
+                "dod_checker_internal_error:ValueError:--phase and --update-status-phase must target the same phase",
+                file=sys.stderr,
+            )
+            return 4
+
         paths = resolve_paths()
-        phase_ids = collect_phase_ids(paths, args.phase, args.all)
+        selected_phase = args.update_status_phase or args.phase
+        phase_ids = collect_phase_ids(paths, selected_phase, args.all)
         if not phase_ids:
             parser.print_help()
             return 4
@@ -849,8 +886,8 @@ def main() -> int:
         results = [run_check(pid, paths) for pid in phase_ids]
         report_path = write_report(paths, results)
 
-        if args.update_status:
-            update_phase_status(paths, results, report_path)
+        if args.update_status or args.update_status_phase:
+            update_phase_status(paths, results, report_path, scoped_phase=args.update_status_phase)
 
         output_results = results
         if args.missing_only:
@@ -867,6 +904,8 @@ def main() -> int:
 
         return compute_exit_code(results)
     except Exception as exc:
+        if args.json:
+            print(json.dumps({"error": f"{type(exc).__name__}:{exc}"}, ensure_ascii=False))
         print(f"dod_checker_internal_error:{type(exc).__name__}:{exc}", file=sys.stderr)
         return 4
 
