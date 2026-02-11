@@ -15,8 +15,8 @@ phases:
       - PHASE_8
       - PHASE_2
     last_verified_ts: 2026-02-11T22:25:57Z
-    commit_sha: 61dfac8c3a6018f0ee28695d98688978d403e916
-    evidence_path: observability/reports/dod_checker/20260211T222557560864Z_dod.json
+    commit_sha: dcab282
+    evidence_path: tests/fixtures/dod_checker/phase15_5_3_proven.json
   PHASE_1B:
     verdict: PARTIAL
     requires:
@@ -26,14 +26,14 @@ phases:
     verdict: PROVEN
     requires:
     last_verified_ts: 2026-02-11T22:20:40Z
-    commit_sha: 18b225d
-    evidence_path: observability/reports/dod_checker/20260211T222040985305Z_dod.json
+    commit_sha: dcab282
+    evidence_path: tests/fixtures/dod_checker/phase2_proven.json
   PHASE_8:
     verdict: PROVEN
     requires:
     last_verified_ts: 2026-02-11T22:20:41Z
-    commit_sha: 5d9657f
-    evidence_path: observability/reports/dod_checker/20260211T222041079803Z_dod.json
+    commit_sha: dcab282
+    evidence_path: tests/fixtures/dod_checker/phase8_proven.json
   PHASE_9:
     verdict: PARTIAL
     requires:

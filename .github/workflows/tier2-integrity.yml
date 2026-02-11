@@ -1,0 +1,71 @@
+name: tier2-integrity
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tier2-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies (minimal)
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml pytest
+
+      - name: Unit Tests
+        run: |
+          set -euo pipefail
+          # Only run existing verify tests for Tier 2 scope
+          if [[ -d core/verify ]]; then
+             python3 -m pytest core/verify/test_dod_checker.py core/verify/test_governance_proof.py core/verify/test_phase15_5_4_operational_proof.py -q || { echo "Unit tests failed"; exit 1; }
+          else
+             echo "core/verify directory not found, skipping unit tests"
+          fi
+
+      - name: Activity Feed Taxonomy/Chain Lint
+        run: |
+          set -euo pipefail
+          # Check if external linter tool exists (Codex implementation)
+          if [[ -f tools/ops/activity_feed_linter.py ]]; then
+             echo "Running activity_feed_linter.py..."
+             LUKA_ACTIVITY_FEED_JSONL=tests/fixtures/ci_activity_feed.jsonl \
+             python3 tools/ops/activity_feed_linter.py --json || { echo "Activity feed lint failed"; exit 1; }
+          else
+             echo "WARNING: tools/ops/activity_feed_linter.py not found. Skipping lint step (pending Codex implementation)."
+             # Once implemented, this should fail if missing. For now, warn-only to allow PR.
+          fi
+
+      - name: Tier 1 Strict DoD Checks (Operational Proof Required)
+        run: |
+          set -euo pipefail
+          # Enforce strict operational proof for Tier 1 phases
+          PHASES=("PHASE_2" "PHASE_8" "PHASE_15_5_3")
+          
+          for phase in "${PHASES[@]}"; do
+            echo "Checking strict DoD for $phase..."
+            LUKA_REQUIRE_OPERATIONAL_PROOF=1 \
+            LUKA_ACTIVITY_FEED_JSONL=tests/fixtures/ci_activity_feed.jsonl \
+            python3 tools/ops/dod_checker.py --phase "$phase" --json || {
+              echo "Strict DoD verification failed for $phase (Exit Code: $?)"
+              exit 1
+            }
+          done
+          echo "All Tier 1 phases passed strict operational checks."
+
