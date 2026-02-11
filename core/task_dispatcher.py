@@ -107,6 +107,17 @@ def _emit_dispatch_start(task_id: str, trace_id: str, intent: str, module: str) 
             "module": module,
         }
     )
+    try:
+        _timeline_emit(
+            trace_id,
+            task_id,
+            "heartbeat.dispatcher",
+            phase="dispatch",
+            agent_id="dispatcher",
+            extra={"status": "start", "source": "dispatcher"},
+        )
+    except Exception:
+        pass
     return started
 
 
@@ -131,6 +142,17 @@ def _emit_dispatch_end(
             "outbox_ref": outbox_ref,
         }
     )
+    try:
+        _timeline_emit(
+            trace_id,
+            task_id,
+            "heartbeat.dispatcher",
+            phase="dispatch",
+            agent_id="dispatcher",
+            extra={"status": status, "source": "dispatcher"},
+        )
+    except Exception:
+        pass
 
 
 def _write_dispatch_pointer(
