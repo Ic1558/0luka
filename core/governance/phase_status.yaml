@@ -15,15 +15,17 @@ phases:
     commit_sha: TODO_SHA
     evidence_path: /Users/icmini/0luka/observability/reports/dod_checker/20260211T184948795658Z_dod.json
   PHASE_2:
-    verdict: PARTIAL
+    verdict: PROVEN
     requires:
-    commit_sha: TODO_SHA
-    evidence_path: /Users/icmini/0luka/observability/reports/dod_checker/20260211T184948795658Z_dod.json
+    last_verified_ts: 2026-02-11T19:18:47Z
+    commit_sha: 18b225d
+    evidence_path: observability/reports/dod_checker/20260211T191847871990Z_dod.json
   PHASE_8:
-    verdict: PARTIAL
+    verdict: PROVEN
     requires:
-    commit_sha: TODO_SHA
-    evidence_path: /Users/icmini/0luka/observability/reports/dod_checker/20260211T184948795658Z_dod.json
+    last_verified_ts: 2026-02-11T19:18:47Z
+    commit_sha: 5d9657f
+    evidence_path: observability/reports/dod_checker/20260211T191847949570Z_dod.json
   PHASE_9:
     verdict: PARTIAL
     requires:

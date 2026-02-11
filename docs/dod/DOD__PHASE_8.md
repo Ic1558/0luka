@@ -12,7 +12,7 @@
 - **Gate**: G8
 - **Related SOT Section**: §Tier1.Phase8
 - **Target Status**: DESIGNED → PARTIAL → PROVEN
-- **Commit SHA**: TODO_SHA
+- **Commit SHA**: 5d9657f
 - **Date**: 2026-02-12
 
 ## 4. Evidence (Fail-Closed Core)
