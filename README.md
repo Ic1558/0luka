@@ -14,3 +14,4 @@
 
 **Intent (The Future):**
 - [ROADMAP_v2.md](ROADMAP_v2.md)
+# Post-merge verification trigger
