@@ -1,0 +1,92 @@
+schema: clec.v1
+version: 1.1
+title: "CLEC TaskSpec v1.1 (0luka-match)"
+type: object
+required:
+  - schema_version
+  - task_id
+  - ts_utc
+  - author
+  - call_sign
+  - root
+  - intent
+  - ops
+properties:
+  schema_version:
+    type: string
+    enum: ["clec.v1"]
+  task_id:
+    type: string
+    minLength: 6
+  ts_utc:
+    type: string
+    description: "RFC3339 UTC timestamp"
+  author:
+    type: string
+    description: "liam|lisa|gmx|codex|shell"
+  call_sign:
+    type: string
+    description: "Must match author persona, e.g. [Lisa]"
+  root:
+    type: string
+    description: "Absolute root of repo, e.g. ${HOME}/0luka"
+  intent:
+    type: string
+  risk_hint:
+    type: string
+    enum: ["R0","R1","R2","R3"]
+  lane_hint:
+    type: string
+    enum: ["FAST","APPROVAL","FORBIDDEN"]
+  approval:
+    type: object
+    required: []
+    properties:
+      status:
+        type: string
+        enum: ["APPROVED","REJECTED"]
+      by:
+        type: string
+      ts_utc:
+        type: string
+  ops:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required: ["op_id","type"]
+      properties:
+        op_id: { type: string }
+        type:
+          type: string
+          enum: ["mkdir","write_text","copy","patch_apply","run"]
+        target_path:
+          type: string
+          description: "Relative path ONLY (no leading /, no ..)"
+        src_path:
+          type: string
+          description: "Relative path ONLY (copy source)"
+        content:
+          type: string
+        patch_ref:
+          type: string
+          description: "Path to patch plan or inline patch id"
+        command:
+          type: string
+          description: "run: allowlisted only (no shell by default)"
+  verify:
+    type: array
+    description: "Pre-claim verifications (no side effects)"
+    items:
+      type: object
+      required: ["check","target"]
+      properties:
+        check:
+          type: string
+          enum: ["gate.fs.exists","gate.test.run","gate.hash.present"]
+        target:
+          type: string
+          description: "Relative path for fs/hash checks"
+        command:
+          type: string
+          description: "Only for gate.test.run; allowlisted"

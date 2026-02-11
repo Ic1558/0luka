@@ -1,0 +1,5 @@
+name = "white-tree-02a1"
+main = "worker.js"
+compatibility_date = "2025-05-17"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+usage_model = "standard"

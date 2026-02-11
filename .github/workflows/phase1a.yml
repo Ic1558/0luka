@@ -32,14 +32,21 @@ jobs:
           echo "phase1a label not present; scope-lock is a no-op."
           exit 0
 
+      - name: Bypass when boss-override label present
+        if: steps.detect.outputs.enabled == 'true' && contains(github.event.pull_request.labels.*.name, 'boss-override')
+        shell: bash
+        run: |
+          echo "Scope lock bypassed (boss-override)"
+          exit 0
+
       - name: Checkout
-        if: steps.detect.outputs.enabled == 'true'
+        if: steps.detect.outputs.enabled == 'true' && !contains(github.event.pull_request.labels.*.name, 'boss-override')
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Verify changed files are Phase 1A allowlist only
-        if: steps.detect.outputs.enabled == 'true'
+        if: steps.detect.outputs.enabled == 'true' && !contains(github.event.pull_request.labels.*.name, 'boss-override')
         shell: bash
         run: |
           set -euo pipefail

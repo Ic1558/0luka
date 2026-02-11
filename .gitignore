@@ -85,9 +85,15 @@ design-lane-macos/
 .venv/
 ~/
 node_modules/
+_trash/
+.worktrees/
 *.pcm
 *.swiftmodule
 *.mdb
 *.dylib
 *.so
 *.wasm
+
+# local-only workspace noise
+**/node_modules/
+tools/ops/luka-cloud-bridge/local/.env

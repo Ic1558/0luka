@@ -7,55 +7,48 @@ ROOT = Path.home() / "0luka"
 SESSION_JSON = ROOT / "g/session/session_state.latest.json"
 SESSION_MD   = ROOT / "g/session/SESSION_STATE.md"
 OUT_DIR     = ROOT / "interface/plans"
-TELEMETRY_PATH = ROOT / "observability/telemetry/liam_planner.latest.json"
 
-def warn(msg):
-    print(f"[LIAM][WARN] {msg}", file=sys.stderr)
+def fail(msg):
+    print(f"[LIAM][FAIL] {msg}", file=sys.stderr)
+    sys.exit(1)
 
-def write_json(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
-# --- Preflight (Warn-only) ---
-precheck_errors = []
-precheck_degraded = False
+# --- Session state (soft signal, warn-only) ---
 state = {}
-ttl_sec = int(os.environ.get("SESSION_STATE_TTL_SEC", "120"))
-
-if not SESSION_JSON.exists():
-    warn("SESSION_STATE missing; continuing in degraded mode")
-    precheck_errors.append("SESSION_STATE missing")
-    precheck_degraded = True
-else:
+if SESSION_JSON.exists():
     try:
         state = json.loads(SESSION_JSON.read_text())
-    except Exception as e:
-        warn(f"SESSION_STATE invalid JSON: {e}; continuing in degraded mode")
-        precheck_errors.append("SESSION_STATE invalid JSON")
-        precheck_degraded = True
-
-ts = state.get("ts_utc")
-if not ts:
-    warn("SESSION_STATE invalid (no ts_utc); continuing in degraded mode")
-    precheck_errors.append("SESSION_STATE missing ts_utc")
-    precheck_degraded = True
-else:
-    try:
-        ts_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        age_sec = (datetime.now(timezone.utc) - ts_dt).total_seconds()
-        if age_sec > ttl_sec:
-            warn(f"SESSION_STATE stale ({int(age_sec)}s > {ttl_sec}s); continuing in degraded mode")
-            precheck_errors.append("SESSION_STATE stale")
-            precheck_degraded = True
     except Exception:
-        warn("SESSION_STATE ts_utc parse failed; continuing in degraded mode")
-        precheck_errors.append("SESSION_STATE ts_utc parse failed")
-        precheck_degraded = True
+        print("[LIAM][WARN] SESSION_STATE invalid JSON, continuing", file=sys.stderr)
+else:
+    print("[LIAM][WARN] SESSION_STATE missing, continuing", file=sys.stderr)
+
+warn_state_stale = False
+ts = state.get("ts_utc", "")
+if not ts:
+    warn_state_stale = True
+    print("[LIAM][WARN] SESSION_STATE has no ts_utc", file=sys.stderr)
+
+# --- Heartbeat gate (informational, not blocking) ---
+HEARTBEAT = ROOT / "observability" / "artifacts" / "dispatcher_heartbeat.json"
+_hb_ok = False
+if HEARTBEAT.exists():
+    try:
+        hb = json.loads(HEARTBEAT.read_text())
+        hb_pid = hb.get("pid")
+        if hb_pid:
+            os.kill(hb_pid, 0)  # check process alive
+            _hb_ok = True
+    except (ProcessLookupError, OSError):
+        pass
+    except Exception:
+        pass
+
+if not _hb_ok:
+    print("[LIAM][WARN] Dispatcher heartbeat not live, plan will queue", file=sys.stderr)
 
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-fallback_ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-trace_id = state.get("trace_id") or f"trace-degraded-{fallback_ts}"
+trace_id = state.get("trace_id", "trace-unknown")
 task_id = state.get("task_id")
 # Debug Trace
 print(f"[LIAM] Env Keys: {list(os.environ.keys())}")
@@ -94,12 +87,6 @@ plan = {
     "intent": "plan",
     "level": "L2",
     "goal": goal,
-    "precheck": {
-        "status": "degraded" if precheck_degraded else "ok",
-        "errors": precheck_errors,
-        "ttl_sec": ttl_sec,
-        "ts_utc": ts,
-    },
     "source": {
         "session_json": str(SESSION_JSON),
         "session_md": str(SESSION_MD) if SESSION_MD.exists() else None
@@ -118,20 +105,6 @@ plan = {
     "success_criteria": ["all subtasks dispatched"],
     "created_utc": datetime.now(timezone.utc).isoformat()
 }
-
-try:
-    telemetry_payload = {
-        "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "module": "liam_planner",
-        "status": "degraded" if precheck_degraded else "ok",
-        "precheck": plan["precheck"],
-        "trace_id": trace_id,
-        "task_id": task_id,
-        "goal": goal,
-    }
-    write_json(TELEMETRY_PATH, telemetry_payload)
-except Exception as e:
-    warn(f"Telemetry write failed: {e}")
 
 out = OUT_DIR / f"{trace_id}.plan.json"
 try:

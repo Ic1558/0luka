@@ -1,0 +1,4 @@
+name = "idx-02luka"
+main = "worker.js"
+compatibility_date = "2024-11-21"
+usage_model = "standard"

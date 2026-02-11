@@ -42,9 +42,19 @@ case $TOOL_VERB in
         echo "[0luka] Applying Patch Plan: $PLAN..."
         python3 tools/patch/apply_patch.py "$PLAN"
         ;;
+    cole-run)
+        SUBCMD="${1:-}"
+        if [[ -z "$SUBCMD" ]]; then
+            echo "Error: missing cole-run subcommand"
+            echo "Usage: run_tool.zsh cole-run {list|latest|show <run_id>}"
+            exit 2
+        fi
+        shift
+        zsh cole/tools/cole_run.zsh "$SUBCMD" "$@"
+        ;;
     *)
         echo "Error: Unknown tool verb '$TOOL_VERB'"
-        echo "Available: save, discover, verify-core"
+        echo "Available: save, discover, verify-core, verify-health, apply-patch, cole-run"
         exit 1
         ;;
 esac

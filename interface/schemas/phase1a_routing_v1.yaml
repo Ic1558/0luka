@@ -1,0 +1,76 @@
+version: "1.0"
+contract: "phase1a_ui_core_executor_routing"
+description: "Declarative intent routing for UI -> Core -> Executor contract."
+
+defaults:
+  lane: "task"
+  executor: "lisa"
+
+routes:
+  code.implement:
+    executor: "lisa"
+    lane: "task"
+    required_payload:
+      - "files"
+      - "goal"
+  code.review:
+    executor: "codex"
+    lane: "task"
+    required_payload:
+      - "range"
+      - "focus"
+  git.sync:
+    executor: "codex"
+    lane: "ops"
+    required_payload:
+      - "branch"
+  pr.create:
+    executor: "codex"
+    lane: "ops"
+    required_payload:
+      - "title"
+      - "body"
+  system.verify:
+    executor: "liam"
+    lane: "meta"
+    required_payload:
+      - "scope"
+  system.audit:
+    executor: "liam"
+    lane: "meta"
+    required_payload:
+      - "range"
+  task.emit:
+    executor: "bridge"
+    lane: "task"
+    required_payload:
+      - "schema_version"
+      - "task_id"
+      - "origin"
+      - "intent"
+      - "executor"
+      - "title"
+      - "level"
+  task.progress:
+    executor: "bridge"
+    lane: "task"
+    required_payload:
+      - "schema_version"
+      - "task_id"
+      - "status"
+  task.result:
+    executor: "bridge"
+    lane: "task"
+    required_payload:
+      - "schema_version"
+      - "executor"
+      - "dispatch_task_id"
+      - "task_id"
+      - "status"
+      - "summary"
+      - "artifacts"
+      - "diff_stat"
+      - "verify"
+      - "exit_code"
+      - "runtime_ms"
+      - "evidence_paths"
