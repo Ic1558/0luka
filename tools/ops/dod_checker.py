@@ -38,6 +38,17 @@ EMIT_MODE_AUTO = "runtime_auto"
 
 PROOF_MODE_SYNTHETIC = "synthetic"
 PROOF_MODE_OPERATIONAL = "operational"
+PHASE_OPERATIONAL_TARGET = "PHASE_15_5_3"
+
+REQUIRED_TAXONOMY_KEYS = (
+    "phase_id",
+    "emit_mode",
+    "verifier_mode",
+    "tool",
+    "run_id",
+    "ts_epoch_ms",
+    "ts_utc",
+)
 
 
 @dataclass(frozen=True)
@@ -69,9 +80,10 @@ def resolve_paths() -> Paths:
     reports_dir = Path(
         os.environ.get("DOD_REPORTS_DIR", str(root / "observability/reports/dod_checker"))
     ).expanduser().resolve(strict=False)
-    activity_feed = Path(
-        os.environ.get("LUKA_ACTIVITY_FEED_JSONL", str(root / "observability/logs/activity_feed.jsonl"))
-    ).expanduser().resolve(strict=False)
+    activity_raw = os.environ.get("LUKA_ACTIVITY_FEED_JSONL", str(root / "observability/logs/activity_feed.jsonl"))
+    if ".." in Path(activity_raw.replace("\\", "/")).parts:
+        raise RuntimeError(f"activity_feed_path_traversal:{activity_raw}")
+    activity_feed = Path(activity_raw).expanduser().resolve(strict=False)
     phase_status = Path(
         os.environ.get("DOD_PHASE_STATUS_PATH", str(root / "core/governance/phase_status.yaml"))
     ).expanduser().resolve(strict=False)
@@ -152,7 +164,7 @@ def parse_dod_metadata(file_path: Path) -> Dict[str, str]:
     return meta
 
 
-def _parse_jsonl(path: Path) -> List[Dict[str, Any]]:
+def _parse_jsonl(path: Path, *, strict: bool = False) -> List[Dict[str, Any]]:
     events: List[Dict[str, Any]] = []
     if not path.exists():
         return events
@@ -163,7 +175,9 @@ def _parse_jsonl(path: Path) -> List[Dict[str, Any]]:
                 continue
             try:
                 payload = json.loads(line)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as exc:
+                if strict:
+                    raise RuntimeError(f"activity_feed_parse_failure:{path}:{exc}") from exc
                 continue
             if isinstance(payload, dict):
                 events.append(payload)
@@ -240,8 +254,20 @@ def _latest_event_by_action(events: List[Dict[str, Any]], action: str) -> Option
     return best_evt
 
 
-def check_activity_events(phase_id: str, paths: Paths) -> Dict[str, Any]:
-    all_events = _parse_jsonl(paths.activity_feed)
+def _event_taxonomy_missing(event: Optional[Dict[str, Any]]) -> List[str]:
+    if not isinstance(event, dict) or not event:
+        return list(REQUIRED_TAXONOMY_KEYS)
+    return [k for k in REQUIRED_TAXONOMY_KEYS if k not in event]
+
+
+def check_activity_events(
+    phase_id: str,
+    paths: Paths,
+    *,
+    strict_parse: bool = False,
+    enforce_operational_taxonomy: bool = False,
+) -> Dict[str, Any]:
+    all_events = _parse_jsonl(paths.activity_feed, strict=strict_parse)
     phase_events = [e for e in all_events if _event_phase_match(e, phase_id)]
     started_evt, completed_evt, verified_evt = _pick_latest_chain(phase_events)
     latest_started = _latest_event_by_action(phase_events, "started")
@@ -271,8 +297,19 @@ def check_activity_events(phase_id: str, paths: Paths) -> Dict[str, Any]:
         missing.append("activity.order_invalid")
 
     evts = [started_evt, completed_evt, verified_evt]
+    taxonomy_missing = []
+    if enforce_operational_taxonomy:
+        for evt in evts:
+            taxonomy_missing.extend(_event_taxonomy_missing(evt))
     modes = [e.get("emit_mode") for e in evts if e]
-    is_operational = len(modes) == 3 and all(m == EMIT_MODE_AUTO for m in modes)
+    verifier_modes = [e.get("verifier_mode") for e in evts if e]
+    is_operational = (
+        len(modes) == 3
+        and all(m == EMIT_MODE_AUTO for m in modes)
+        and len(verifier_modes) == 3
+        and all(v == "operational_proof" for v in verifier_modes)
+        and not taxonomy_missing
+    )
     proof_mode = PROOF_MODE_OPERATIONAL if is_operational else PROOF_MODE_SYNTHETIC
 
     # 3. Activity Feed Audit Enhancer: Flag missing taxonomy
@@ -300,6 +337,7 @@ def check_activity_events(phase_id: str, paths: Paths) -> Dict[str, Any]:
             "completed": completed_evt,
             "verified": verified_evt,
         },
+        "taxonomy_missing": sorted(set(taxonomy_missing)),
         "event_count": len(phase_events),
         "missing": missing,
         "taxonomy_ok": taxonomy_ok,
@@ -623,7 +661,15 @@ def run_check(phase_id: str, paths: Paths) -> Dict[str, Any]:
         # mark as evidence requirement for machine readability
         pass
 
-    activity = check_activity_events(phase_id, paths)
+    require_operational = os.environ.get("LUKA_REQUIRE_OPERATIONAL_PROOF", "").strip() == "1"
+    strict_parse = require_operational and phase_id == PHASE_OPERATIONAL_TARGET
+    enforce_taxonomy = require_operational and phase_id == PHASE_OPERATIONAL_TARGET
+    activity = check_activity_events(
+        phase_id,
+        paths,
+        strict_parse=strict_parse,
+        enforce_operational_taxonomy=enforce_taxonomy,
+    )
     evidence = check_evidence(phase_id, dod_file, activity, paths)
     status_data = load_phase_status(paths.phase_status)
     gate = check_gate(phase_id, status_data)
@@ -659,10 +705,19 @@ def run_check(phase_id: str, paths: Paths) -> Dict[str, Any]:
     if blueprint_mismatch:
         missing.append("governance.blueprint_schema_mismatch")
     missing.extend(activity.get("missing", []))
+    taxonomy_missing = activity.get("taxonomy_missing", [])
     missing.extend(evidence.get("missing", []))
     missing.extend(gate.get("missing", []))
     if not commit_ok:
         missing.append("metadata.commit_sha_unreachable")
+
+    if require_operational and phase_id == PHASE_OPERATIONAL_TARGET:
+        if activity.get("proof_mode") != PROOF_MODE_OPERATIONAL:
+            missing.append("proof.synthetic_not_allowed")
+        if taxonomy_missing:
+            missing.append("taxonomy.incomplete_event")
+        if "proof.synthetic_not_allowed" in missing or "taxonomy.incomplete_event" in missing:
+            verdict = VERDICT_PARTIAL
 
     return {
         "phase_id": phase_id,
@@ -682,6 +737,7 @@ def run_check(phase_id: str, paths: Paths) -> Dict[str, Any]:
                 "event_count": activity.get("event_count"),
                 "proof_mode": activity.get("proof_mode"),
                 "taxonomy_ok": activity.get("taxonomy_ok", False),
+                "taxonomy_missing": sorted(set(taxonomy_missing)),
             },
             "evidence": evidence,
             "gate": gate,
