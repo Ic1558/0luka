@@ -84,6 +84,13 @@ def _run_cli(repo_root: Path, args: list[str], env: dict) -> subprocess.Complete
     )
 
 
+def _extract_report_path(stdout: str) -> Path:
+    for line in stdout.splitlines():
+        if line.startswith("DoD Report: "):
+            return Path(line.replace("DoD Report: ", "", 1).strip())
+    raise AssertionError(f"missing report path in stdout: {stdout}")
+
+
 def _mk_env(repo_root: Path, docs: Path, reports: Path, activity: Path, status: Path) -> dict:
     env = os.environ.copy()
     env["DOD_ROOT"] = str(repo_root)
@@ -442,9 +449,13 @@ def test_proven_demo_fixture_exit_0() -> None:
         _write(phase_status, "phases:\n  PHASE_DEMO_PROVEN:\n    verdict: DESIGNED\n    requires:\n")
         env = _mk_env(repo_root, docs, reports, activity, phase_status)
         proc = _run_cli(repo_root, ["--phase", "PHASE_DEMO_PROVEN"], env)
-
-    assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
-    assert "PHASE_DEMO_PROVEN" in proc.stdout and "PROVEN" in proc.stdout, proc.stdout
+        assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
+        assert "PHASE_DEMO_PROVEN" in proc.stdout and "PROVEN" in proc.stdout, proc.stdout
+        report_path = _extract_report_path(proc.stdout)
+        payload = json.loads(report_path.read_text(encoding="utf-8"))
+        assert payload.get("schema_version") == "dod_report_v2", payload
+        assert payload.get("blueprint_key") == "blueprint_ppr_dod_agentteams_v2_r1_tighten", payload
+        assert payload.get("blueprint_rev") == "Rev1.2", payload
 
 
 def test_exit_code_designed() -> None:

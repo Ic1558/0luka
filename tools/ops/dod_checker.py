@@ -26,7 +26,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-BLUEPRINT_VER = "blueprint_ppr_dod_agentteams_v2_r2"
+BLUEPRINT_KEY = "blueprint_ppr_dod_agentteams_v2_r1_tighten"
+BLUEPRINT_REV = "Rev1.2"
 VERDICT_DESIGNED = "DESIGNED"
 VERDICT_PARTIAL = "PARTIAL"
 VERDICT_PROVEN = "PROVEN"
@@ -75,6 +76,14 @@ def _utc_now() -> str:
 
 
 def _parse_iso(ts: Any) -> Optional[datetime]:
+    if ts is None:
+        return None
+    if isinstance(ts, (int, float)):
+        # Handle epoch ms
+        if ts > 10**12: # likely ms
+            return datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+        return datetime.fromtimestamp(ts, tz=timezone.utc)
+    
     if not isinstance(ts, str) or not ts.strip():
         return None
     raw = ts.strip()
@@ -195,6 +204,17 @@ def _pick_latest_chain(events: List[Dict[str, Any]]) -> Tuple[Optional[Dict[str,
     return best
 
 
+def _get_ts(evt: Dict[str, Any]) -> Optional[datetime]:
+    if not evt:
+        return None
+    # prioritize epoch ms for high resolution
+    if "ts_epoch_ms" in evt:
+        return _parse_iso(evt["ts_epoch_ms"])
+    if "timestamp" in evt and isinstance(evt["timestamp"], (int, float)):
+        return _parse_iso(evt["timestamp"])
+    return _parse_iso(evt.get("ts") or evt.get("ts_utc") or evt.get("timestamp"))
+
+
 def _latest_event_by_action(events: List[Dict[str, Any]], action: str) -> Optional[Dict[str, Any]]:
     target = action.lower()
     best_evt: Optional[Dict[str, Any]] = None
@@ -202,7 +222,7 @@ def _latest_event_by_action(events: List[Dict[str, Any]], action: str) -> Option
     for evt in events:
         if str(evt.get("action", "")).lower() != target:
             continue
-        ts = _parse_iso(evt.get("ts") or evt.get("ts_utc") or evt.get("timestamp"))
+        ts = _get_ts(evt)
         if ts is None:
             continue
         if best_ts is None or ts > best_ts:
@@ -219,12 +239,12 @@ def check_activity_events(phase_id: str, paths: Paths) -> Dict[str, Any]:
     latest_completed = _latest_event_by_action(phase_events, "completed")
     latest_verified = _latest_event_by_action(phase_events, "verified")
 
-    started_ts = _parse_iso((started_evt or {}).get("ts") or (started_evt or {}).get("ts_utc") or (started_evt or {}).get("timestamp"))
-    completed_ts = _parse_iso((completed_evt or {}).get("ts") or (completed_evt or {}).get("ts_utc") or (completed_evt or {}).get("timestamp"))
-    verified_ts = _parse_iso((verified_evt or {}).get("ts") or (verified_evt or {}).get("ts_utc") or (verified_evt or {}).get("timestamp"))
-    latest_started_ts = _parse_iso((latest_started or {}).get("ts") or (latest_started or {}).get("ts_utc") or (latest_started or {}).get("timestamp"))
-    latest_completed_ts = _parse_iso((latest_completed or {}).get("ts") or (latest_completed or {}).get("ts_utc") or (latest_completed or {}).get("timestamp"))
-    latest_verified_ts = _parse_iso((latest_verified or {}).get("ts") or (latest_verified or {}).get("ts_utc") or (latest_verified or {}).get("timestamp"))
+    started_ts = _get_ts(started_evt or {})
+    completed_ts = _get_ts(completed_evt or {})
+    verified_ts = _get_ts(verified_evt or {})
+    latest_started_ts = _get_ts(latest_started or {})
+    latest_completed_ts = _get_ts(latest_completed or {})
+    latest_verified_ts = _get_ts(latest_verified or {})
 
     order_ok = bool(started_ts and completed_ts and verified_ts and started_ts < completed_ts < verified_ts)
     latest_order_ok = bool(
@@ -263,18 +283,28 @@ def _collect_evidence_paths(meta_file: Path, chain_events: Iterable[Dict[str, An
 
     for evt in chain_events:
         ev = evt.get("evidence", [])
+        raw_paths = []
         if isinstance(ev, list):
-            for p in ev:
-                if isinstance(p, str) and p.strip():
-                    raw = p.strip()
-                    q = Path(raw)
-                    out.append(
-                        EvidencePathRef(
-                            raw=raw,
-                            path=(q if q.is_absolute() else (root / q)),
-                            traversal=_has_path_traversal(raw),
-                        )
+            raw_paths = [p for p in ev if isinstance(p, str)]
+        elif isinstance(ev, dict):
+            # Handle standard feed dict evidence
+            for k in ("file", "path", "report"):
+                if isinstance(ev.get(k), str):
+                    raw_paths.append(ev[k])
+        elif isinstance(ev, str):
+            raw_paths = [ev]
+
+        for p in raw_paths:
+            if p.strip():
+                raw = p.strip()
+                q = Path(raw)
+                out.append(
+                    EvidencePathRef(
+                        raw=raw,
+                        path=(q if q.is_absolute() else (root / q)),
+                        traversal=_has_path_traversal(raw),
                     )
+                )
 
     if meta_file.exists():
         text = meta_file.read_text(encoding="utf-8")
@@ -321,7 +351,7 @@ def _collect_hash_claims_from_dod(meta_file: Path, root: Path) -> List[Tuple[Pat
     dangling_paths: List[Path] = []
     dangling_hashes: List[str] = []
     for line in text.splitlines():
-        m_sha = re.search(r"sha256:([0-9a-fA-F]{64})", line)
+        m_sha = re.search(r"sha256:\s*([0-9a-fA-F]{40,64})", line)
         m_path = re.search(r"(?:path|file):\s*([^\s]+)", line)
         if m_sha and m_path:
             raw_path = m_path.group(1).strip()
@@ -521,6 +551,8 @@ def check_gate(phase_id: str, status_data: Dict[str, Any]) -> Dict[str, Any]:
 
 def evaluate_verdict(meta: Dict[str, str], activity: Dict[str, Any], evidence: Dict[str, Any], gate: Dict[str, Any], commit_ok: bool) -> str:
     has_metadata = bool(meta.get("phase_id") and meta.get("gate") is not None)
+    if not commit_ok:
+        return VERDICT_PARTIAL
 
     if (
         has_metadata
@@ -531,16 +563,24 @@ def evaluate_verdict(meta: Dict[str, str], activity: Dict[str, Any], evidence: D
     ):
         return VERDICT_PROVEN
 
+    has_started = bool(activity.get("started"))
     has_any_activity = bool(activity.get("started") or activity.get("completed") or activity.get("verified"))
     has_any_problem = bool(evidence.get("missing") or gate.get("missing"))
-    has_started = bool(activity.get("started"))
+
     if has_any_activity or has_any_problem:
-        if has_metadata and commit_ok and not has_started:
+        # If no activity yet, it stays DESIGNED (even if commit is wrong, it's a metadata issue)
+        if not has_started:
             return VERDICT_DESIGNED
         return VERDICT_PARTIAL
 
-    if has_metadata and commit_ok:
-        return VERDICT_DESIGNED
+    if has_metadata:
+        if commit_ok:
+            return VERDICT_DESIGNED
+        else:
+            # Metadata present but commit unreachable
+            if not has_started:
+                return VERDICT_DESIGNED
+            return VERDICT_PARTIAL
 
     return VERDICT_PARTIAL
 
@@ -607,10 +647,11 @@ def write_report(paths: Paths, phase_results: List[Dict[str, Any]]) -> Path:
         head = ""
 
     payload = {
-        "schema_version": "dod_checker_v2",
+        "schema_version": "dod_report_v2",
         "ts": _utc_now(),
         "git_head": head,
-        "blueprint_version": BLUEPRINT_VER,
+        "blueprint_key": BLUEPRINT_KEY,
+        "blueprint_rev": BLUEPRINT_REV,
         "phases": {r["phase_id"]: r for r in phase_results},
     }
     _atomic_write(report_path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
