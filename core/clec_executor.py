@@ -11,6 +11,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+from core.timeline import emit_event as _timeline_emit
+
 ROOT = Path(os.environ.get("ROOT") or Path(__file__).resolve().parents[1])
 ALLOWED_CLEC_COMMANDS = [
     "pytest",
@@ -88,6 +90,12 @@ def execute_clec_ops(
     execution_input = {"ops": ops, "verify": verify or []}
     task_id = str((run_provenance or {}).get("task_id") or "unknown")
     started_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    trace_id = str((run_provenance or {}).get("task_id") or task_id)
+    try:
+        _timeline_emit(trace_id, task_id, "RUNNING", phase="execute", agent_id="clec_executor")
+    except Exception:
+        pass
 
     provenance_event(
         {
@@ -221,4 +229,8 @@ def execute_clec_ops(
             "completed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
     )
+    try:
+        _timeline_emit(trace_id, task_id, "RESULT_RECEIVED", phase="execute", agent_id="clec_executor", detail=f"status={status}")
+    except Exception:
+        pass
     return status, out

@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "0luka.schemas/v1/combined",
+  "$defs": {
+    "Common.TimestampUTC": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "Common.Executor": {
+      "type": "string",
+      "minLength": 1
+    },
+    "Common.Intent": {
+      "type": "string",
+      "minLength": 1
+    },
+    "Phase1A.Task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "task_id",
+        "ts_utc",
+        "origin",
+        "intent",
+        "executor",
+        "title",
+        "level",
+        "payload"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "phase1a_task_v1"
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ts_utc": {
+          "$ref": "#/$defs/Common.TimestampUTC"
+        },
+        "origin": {
+          "type": "string",
+          "minLength": 1
+        },
+        "intent": {
+          "$ref": "#/$defs/Common.Intent"
+        },
+        "executor": {
+          "$ref": "#/$defs/Common.Executor"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "level": {
+          "type": "string",
+          "minLength": 1
+        },
+        "payload": {
+          "type": "object"
+        }
+      }
+    },
+    "Router.Audit.v1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "task_id",
+        "trace_id",
+        "ts_utc",
+        "intent",
+        "executor",
+        "decision",
+        "reason",
+        "resolved_refs",
+        "evidence_paths",
+        "gate_results"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "router_audit_v1"
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ts_utc": {
+          "$ref": "#/$defs/Common.TimestampUTC"
+        },
+        "intent": {
+          "type": "string"
+        },
+        "executor": {
+          "type": "string"
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "rejected",
+            "error"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "resolved_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^ref://"
+          }
+        },
+        "evidence_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[^/].*$"
+          }
+        },
+        "gate_results": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

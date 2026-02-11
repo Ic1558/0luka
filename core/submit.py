@@ -41,6 +41,8 @@ OUTBOX = OUTBOX_TASKS
 
 sys.path.insert(0, str(ROOT))
 
+from core.seal import sign_envelope as _seal_sign
+from core.timeline import emit_event as _timeline_emit
 from core.verify.no_hardpath_guard import find_hardpath_violations
 
 
@@ -131,6 +133,8 @@ def submit_task(task: Dict[str, Any], *, task_id: Optional[str] = None) -> Dict[
     if dup:
         raise SubmitError(f"duplicate:{dup}:{tid}")
 
+    envelope = _seal_sign(envelope)
+
     INBOX.mkdir(parents=True, exist_ok=True)
     out_path = INBOX / f"{tid}.yaml"
     tmp_path = INBOX / f".{tid}.tmp"
@@ -145,6 +149,11 @@ def submit_task(task: Dict[str, Any], *, task_id: Optional[str] = None) -> Dict[
     os.replace(tmp_path, out_path)
 
     trace_id = str((envelope.get("trace") or {}).get("trace_id", tid))
+
+    try:
+        _timeline_emit(trace_id, tid, "START", phase="submit", agent_id=str(inner_task.get("author", "unknown")))
+    except Exception:
+        pass
     return {
         "status": "submitted",
         "task_id": tid,

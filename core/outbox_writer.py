@@ -16,6 +16,8 @@ except ImportError:
     validate = None
 
 from core.ref_resolver import host_fingerprint, resolve_ref
+from core.seal import sign_envelope as _seal_sign
+from core.timeline import emit_event as _timeline_emit
 from core.verify.no_hardpath_guard import find_hardpath_violations
 
 ROOT = Path(os.environ.get("ROOT") or Path(__file__).resolve().parents[1])
@@ -168,7 +170,16 @@ def write_result_to_outbox(
     else:
         resolved = resolve_ref(outbox_ref, map_path=ref_map_path)
         outbox_root = _to_file_path(str(resolved.get("uri", "")))
+    envelope = _seal_sign(envelope)
+
     out_dir = outbox_root if outbox_root.name == "tasks" else outbox_root / "tasks"
     out_path = out_dir / f"{envelope['task_id']}.result.json"
     _write_atomic(out_path, envelope)
+
+    _trace_id = str(envelope.get("provenance", {}).get("trace_id", envelope["task_id"]))
+    try:
+        _timeline_emit(_trace_id, envelope["task_id"], "DONE", phase="outbox", agent_id="outbox_writer")
+    except Exception:
+        pass
+
     return out_path, envelope

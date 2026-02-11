@@ -15,6 +15,7 @@ import os
 import signal
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -59,6 +60,7 @@ _stats = {
 }
 
 sys.path.insert(0, str(ROOT))
+DISPATCHER_SESSION_RUN_ID = uuid.uuid4().hex
 
 from core.phase1a_resolver import Phase1AResolverError, gate_inbound_envelope
 from core.run_provenance import (
@@ -67,7 +69,17 @@ from core.run_provenance import (
     complete_run_provenance,
     init_run_provenance,
 )
+from core.circuit_breaker import CircuitBreaker, CircuitOpenError
 from core.router import Router
+from core.timeline import emit_event as _timeline_emit
+
+_dispatch_breaker = CircuitBreaker(
+    name="router.execute",
+    failure_threshold=3,
+    recovery_timeout_sec=60.0,
+    max_retries=0,
+    backoff_factor=1.5,
+)
 
 
 class DispatchError(RuntimeError):
@@ -85,6 +97,35 @@ def _log_event(event: Dict[str, Any]) -> None:
         f.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
+def _resolve_activity_feed_path() -> Path:
+    raw = os.environ.get("LUKA_ACTIVITY_FEED_JSONL", "observability/logs/activity_feed.jsonl").strip()
+    p = Path(raw).expanduser()
+    if p.is_absolute():
+        return p
+    return ROOT / p
+
+
+def _append_runtime_heartbeat_event() -> None:
+    # fail-open: observability append must never interrupt dispatch loop
+    try:
+        feed_path = _resolve_activity_feed_path()
+        feed_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "ts_utc": _utc_now(),
+            "action": "heartbeat",
+            "emit_mode": "runtime_auto",
+            "verifier_mode": "operational_proof",
+            "tool": "task_dispatcher",
+            "run_id": DISPATCHER_SESSION_RUN_ID,
+            "ts_epoch_ms": int(time.time_ns() // 1_000_000),
+        }
+        with feed_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False))
+            handle.write("\n")
+    except Exception:
+        pass
+
+
 def _emit_dispatch_start(task_id: str, trace_id: str, intent: str, module: str) -> float:
     started = time.monotonic()
     _log_event(
@@ -97,6 +138,17 @@ def _emit_dispatch_start(task_id: str, trace_id: str, intent: str, module: str) 
             "module": module,
         }
     )
+    try:
+        _timeline_emit(
+            trace_id,
+            task_id,
+            "heartbeat.dispatcher",
+            phase="dispatch",
+            agent_id="dispatcher",
+            extra={"status": "start", "source": "dispatcher"},
+        )
+    except Exception:
+        pass
     return started
 
 
@@ -121,6 +173,17 @@ def _emit_dispatch_end(
             "outbox_ref": outbox_ref,
         }
     )
+    try:
+        _timeline_emit(
+            trace_id,
+            task_id,
+            "heartbeat.dispatcher",
+            phase="dispatch",
+            agent_id="dispatcher",
+            extra={"status": status, "source": "dispatcher"},
+        )
+    except Exception:
+        pass
 
 
 def _write_dispatch_pointer(
@@ -178,6 +241,7 @@ def _write_heartbeat(
     tmp = HEARTBEAT_PATH.parent / ".dispatcher_heartbeat.tmp"
     tmp.write_text(json.dumps(hb, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     os.replace(tmp, HEARTBEAT_PATH)
+    _append_runtime_heartbeat_event()
 
 
 def _wrap_envelope(task: Dict[str, Any]) -> Dict[str, Any]:
@@ -348,6 +412,10 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
 
         envelope = _wrap_envelope(raw)
         dispatch_trace_id = str(envelope.get("trace", {}).get("trace_id", task_id))
+        try:
+            _timeline_emit(dispatch_trace_id, task_id, "PENDING", phase="dispatch")
+        except Exception:
+            pass
         dispatch_started_at = _emit_dispatch_start(
             task_id=task_id,
             trace_id=dispatch_trace_id,
@@ -357,6 +425,10 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
         try:
             gated = gate_inbound_envelope(envelope)
         except Phase1AResolverError as exc:
+            try:
+                _timeline_emit(dispatch_trace_id, task_id, "DROPPED", phase="gate", detail=str(exc))
+            except Exception:
+                pass
             result = {"task_id": task_id, "status": "rejected", "reason": f"gate_rejected:{exc}"}
             if not dry_run:
                 _move_file(file_path, REJECTED)
@@ -394,6 +466,10 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             )
             return result
 
+        try:
+            _timeline_emit(dispatch_trace_id, task_id, "DISPATCHED", phase="gate")
+        except Exception:
+            pass
         task = gated["payload"]["task"]
         schema_version = str(task.get("schema_version", "")).strip()
         if schema_version != "clec.v1":
@@ -428,7 +504,21 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             return result
 
         router = Router()
-        exec_result = router.execute(task)
+        try:
+            exec_result = _dispatch_breaker.call(router.execute, task)
+        except CircuitOpenError as exc:
+            try:
+                _timeline_emit(dispatch_trace_id, task_id, "DROPPED", phase="dispatch", detail=str(exc))
+            except Exception:
+                pass
+            result = {"task_id": task_id, "status": "error", "reason": f"circuit_open:{exc}"}
+            _stats["total_dispatched"] += 1
+            _stats["total_error"] += 1
+            counted_dispatch = True
+            _emit_dispatch_end(task_id=task_id, trace_id=dispatch_trace_id, status="error", started=dispatch_started_at)
+            prov_row = complete_run_provenance(prov_row, result)
+            append_provenance(prov_row)
+            return result
         if dry_run:
             _stats["total_skipped"] += 1
             _emit_dispatch_end(

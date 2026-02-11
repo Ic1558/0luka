@@ -48,7 +48,7 @@ tools:
   lane: librarian
   entrypoint: python3
   invoked_by: orphan
-  status: candidate
+  status: active
   name: apply
 - id: apply_patch
   path: tools/patch/apply_patch.py
@@ -134,6 +134,29 @@ tools:
   invoked_by: com.0luka.cole-reconcile
   status: active
   name: cole_reconcile
+- id: cole_run
+  path: cole/tools/cole_run.zsh
+  lane: ops
+  entrypoint: zsh
+  invoked_by: tools/run_tool.zsh
+  status: active
+  name: cole_run
+  caps:
+    mode: read_only
+    commands:
+    - list
+    - latest
+    - show
+    allowed_read_paths:
+    - cole/runs/**
+    - observability/**
+    forbidden:
+    - interface/inbox/**
+    - writes:any
+    - network:any
+  deny_notes:
+  - no execution authority
+  - no token/path leakage
 - id: consumer
   path: tools/bridge/consumer.py
   lane: bridge
@@ -148,6 +171,13 @@ tools:
   invoked_by: orphan
   status: candidate
   name: contract_validator
+- id: decision_box
+  path: tools/ops/decision_box.zsh
+  lane: ops
+  entrypoint: zsh
+  invoked_by: orphan
+  status: active
+  name: decision_box
 - id: discovery
   path: tools/discovery.zsh
   lane: root
@@ -155,6 +185,13 @@ tools:
   invoked_by: orphan
   status: candidate
   name: discovery
+- id: dod_checker
+  path: tools/ops/dod_checker.py
+  lane: ops
+  entrypoint: python3
+  invoked_by: orphan
+  status: active
+  name: dod_checker
 - id: dryrun_studio_spec
   path: tools/dryrun_studio_spec.zsh
   lane: root
@@ -190,6 +227,13 @@ tools:
   invoked_by: orphan
   status: candidate
   name: health_check
+- id: idle_drift_monitor
+  path: tools/ops/idle_drift_monitor.py
+  lane: ops
+  entrypoint: python3
+  invoked_by: orphan
+  status: active
+  name: idle_drift_monitor
 - id: inbox_to_pending
   path: tools/bridge/inbox_to_pending.py
   lane: bridge
@@ -267,6 +311,13 @@ tools:
   invoked_by: bridge/cli
   status: active
   name: pre_claim_gate
+- id: preflight_github
+  path: tools/ops/preflight_github.zsh
+  lane: ops
+  entrypoint: zsh
+  invoked_by: orphan
+  status: active
+  name: preflight_github
 - id: quick_api_health
   path: tools/quick/quick_api_health.sh
   lane: quick
@@ -356,7 +407,7 @@ tools:
   lane: librarian
   entrypoint: python3
   invoked_by: orphan
-  status: candidate
+  status: active
   name: scoring
 - id: studio
   path: tools/studio.zsh
