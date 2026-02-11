@@ -5,10 +5,10 @@ Usage: Copy to docs/dod/DOD__<PHASE_ID>.md and fill details.
 # DoD Template Standard
 
 ## Metadata & Revision History
-- **Version**: v1.1
+- **Version**: v1.2
 - **Edited By**: GMX (Agentic AI Assistant)
 - **Date**: 2026-02-12
-- **Reason**: Add governance metadata section for document tracking.
+- **Reason**: Add proof mode (synthetic/operational) expectations.
 
 # DoD — <PHASE_OR_TASK_ID>
 
@@ -94,6 +94,7 @@ Usage: Copy to docs/dod/DOD__<PHASE_ID>.md and fill details.
 - **DESIGNED** / **PARTIAL** / **PROVEN**
 
 ### Notes / Links (Evidence pointers)
-- Activity event ids:
-- Log paths:
-- Commands run:
+- **Proof Mode**: `operational` (runtime_auto) | `synthetic` (manual/tool)
+- **Evidence artifact**: `observability/reports/dod_checker/...`
+- **Activity Feed**: `observability/logs/activity_feed.jsonl`
+- **Verifier Mode**: `operational_proof` | `synthetic_proof`

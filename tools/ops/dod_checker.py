@@ -27,10 +27,17 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 BLUEPRINT_KEY = "blueprint_ppr_dod_agentteams_v2_r1_tighten"
-BLUEPRINT_REV = "Rev1.2"
+BLUEPRINT_REV = "Rev1.3"
 VERDICT_DESIGNED = "DESIGNED"
 VERDICT_PARTIAL = "PARTIAL"
 VERDICT_PROVEN = "PROVEN"
+
+EMIT_MODE_MANUAL = "manual_append"
+EMIT_MODE_TOOL = "tool_wrapped"
+EMIT_MODE_AUTO = "runtime_auto"
+
+PROOF_MODE_SYNTHETIC = "synthetic"
+PROOF_MODE_OPERATIONAL = "operational"
 
 
 @dataclass(frozen=True)
@@ -209,7 +216,9 @@ def _get_ts(evt: Dict[str, Any]) -> Optional[datetime]:
         return None
     # prioritize epoch ms for high resolution
     if "ts_epoch_ms" in evt:
-        return _parse_iso(evt["ts_epoch_ms"])
+        val = evt["ts_epoch_ms"]
+        if isinstance(val, (int, float)):
+            return datetime.fromtimestamp(val / 1000, tz=timezone.utc)
     if "timestamp" in evt and isinstance(evt["timestamp"], (int, float)):
         return _parse_iso(evt["timestamp"])
     return _parse_iso(evt.get("ts") or evt.get("ts_utc") or evt.get("timestamp"))
@@ -261,6 +270,11 @@ def check_activity_events(phase_id: str, paths: Paths) -> Dict[str, Any]:
     if latest_started and latest_completed and latest_verified and not latest_order_ok:
         missing.append("activity.order_invalid")
 
+    evts = [started_evt, completed_evt, verified_evt]
+    modes = [e.get("emit_mode") for e in evts if e]
+    is_operational = len(modes) == 3 and all(m == EMIT_MODE_AUTO for m in modes)
+    proof_mode = PROOF_MODE_OPERATIONAL if is_operational else PROOF_MODE_SYNTHETIC
+
     return {
         "started": latest_started is not None,
         "completed": latest_completed is not None,
@@ -268,6 +282,7 @@ def check_activity_events(phase_id: str, paths: Paths) -> Dict[str, Any]:
         "order_ok": order_ok,
         "latest_order_ok": latest_order_ok,
         "chain_valid": latest_order_ok,
+        "proof_mode": proof_mode,
         "events": {
             "started": started_evt,
             "completed": completed_evt,
@@ -625,6 +640,7 @@ def run_check(phase_id: str, paths: Paths) -> Dict[str, Any]:
                 "order_ok": activity.get("order_ok"),
                 "latest_order_ok": activity.get("latest_order_ok"),
                 "event_count": activity.get("event_count"),
+                "proof_mode": activity.get("proof_mode"),
             },
             "evidence": evidence,
             "gate": gate,
