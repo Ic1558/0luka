@@ -15,6 +15,7 @@ import os
 import signal
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -59,6 +60,7 @@ _stats = {
 }
 
 sys.path.insert(0, str(ROOT))
+DISPATCHER_SESSION_RUN_ID = uuid.uuid4().hex
 
 from core.phase1a_resolver import Phase1AResolverError, gate_inbound_envelope
 from core.run_provenance import (
@@ -93,6 +95,35 @@ def _log_event(event: Dict[str, Any]) -> None:
     DISPATCH_LOG.parent.mkdir(parents=True, exist_ok=True)
     with DISPATCH_LOG.open("a", encoding="utf-8") as f:
         f.write(json.dumps(event, ensure_ascii=False) + "\n")
+
+
+def _resolve_activity_feed_path() -> Path:
+    raw = os.environ.get("LUKA_ACTIVITY_FEED_JSONL", "observability/logs/activity_feed.jsonl").strip()
+    p = Path(raw).expanduser()
+    if p.is_absolute():
+        return p
+    return ROOT / p
+
+
+def _append_runtime_heartbeat_event() -> None:
+    # fail-open: observability append must never interrupt dispatch loop
+    try:
+        feed_path = _resolve_activity_feed_path()
+        feed_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "ts_utc": _utc_now(),
+            "action": "heartbeat",
+            "emit_mode": "runtime_auto",
+            "verifier_mode": "operational_proof",
+            "tool": "task_dispatcher",
+            "run_id": DISPATCHER_SESSION_RUN_ID,
+            "ts_epoch_ms": int(time.time_ns() // 1_000_000),
+        }
+        with feed_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False))
+            handle.write("\n")
+    except Exception:
+        pass
 
 
 def _emit_dispatch_start(task_id: str, trace_id: str, intent: str, module: str) -> float:
@@ -210,6 +241,7 @@ def _write_heartbeat(
     tmp = HEARTBEAT_PATH.parent / ".dispatcher_heartbeat.tmp"
     tmp.write_text(json.dumps(hb, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     os.replace(tmp, HEARTBEAT_PATH)
+    _append_runtime_heartbeat_event()
 
 
 def _wrap_envelope(task: Dict[str, Any]) -> Dict[str, Any]:
