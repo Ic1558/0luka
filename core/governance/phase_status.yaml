@@ -3,18 +3,18 @@ phases:
     verdict: PARTIAL
     requires:
     commit_sha: TODO_SHA
-    evidence_path: observability/reports/dod_checker/20260211T230320421704Z_dod.json
+    evidence_path: tests/fixtures/dod_checker/phase2_proven.json
   PHASE_11:
     verdict: PARTIAL
     requires:
     commit_sha: TODO_SHA
-    evidence_path: observability/reports/dod_checker/20260211T230320421704Z_dod.json
+    evidence_path: tests/fixtures/dod_checker/phase2_proven.json
   PHASE_15_4:
     verdict: PROVEN
     requires:
     last_verified_ts: 2026-02-11T23:03:34Z
     commit_sha: d53b02190eea90ad874fda25f8f2e1d765adf864
-    evidence_path: observability/reports/dod_checker/20260211T230334657806Z_dod.json
+    evidence_path: tests/fixtures/dod_checker/phase15_4_proven.json
   PHASE_15_5_3:
     verdict: PROVEN
     requires:
@@ -22,38 +22,38 @@ phases:
       - PHASE_2
     last_verified_ts: 2026-02-11T23:03:20Z
     commit_sha: 4c1f7bd
-    evidence_path: observability/reports/dod_checker/20260211T230320421704Z_dod.json
+    evidence_path: tests/fixtures/dod_checker/phase2_proven.json
   PHASE_1B:
     verdict: PARTIAL
     requires:
     commit_sha: TODO_SHA
-    evidence_path: observability/reports/dod_checker/20260211T230320421704Z_dod.json
+    evidence_path: tests/fixtures/dod_checker/phase2_proven.json
   PHASE_2:
     verdict: PROVEN
     requires:
     last_verified_ts: 2026-02-11T23:03:20Z
     commit_sha: 4c1f7bd
-    evidence_path: observability/reports/dod_checker/20260211T230320421704Z_dod.json
+    evidence_path: tests/fixtures/dod_checker/phase2_proven.json
   PHASE_8:
     verdict: PROVEN
     requires:
     last_verified_ts: 2026-02-11T23:03:20Z
     commit_sha: 4c1f7bd
-    evidence_path: observability/reports/dod_checker/20260211T230320421704Z_dod.json
+    evidence_path: tests/fixtures/dod_checker/phase2_proven.json
   PHASE_9:
     verdict: PARTIAL
     requires:
     commit_sha: TODO_SHA
-    evidence_path: observability/reports/dod_checker/20260211T230320421704Z_dod.json
+    evidence_path: tests/fixtures/dod_checker/phase2_proven.json
   PHASE_DEMO_PROVEN:
     verdict: DESIGNED
     requires:
     last_verified_ts: 2026-02-11T18:49:48Z
     commit_sha: 7d3bd6dc411371c6198feeca6d2596812083e333
-    evidence_path: observability/reports/dod_checker/20260211T230320421704Z_dod.json
+    evidence_path: tests/fixtures/dod_checker/phase2_proven.json
   PHASE_OPS:
     verdict: PROVEN
     requires:
     last_verified_ts: 2026-02-11T23:03:54Z
     commit_sha: d53b02190eea90ad874fda25f8f2e1d765adf864
-    evidence_path: observability/reports/dod_checker/20260211T230354764659Z_dod.json
+    evidence_path: tests/fixtures/dod_checker/phase_ops_proven.json
