@@ -25,7 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          python -m pip install pyyaml
+          python -m pip install pyyaml pytest
 
       - name: Unit Tests
         run: |
