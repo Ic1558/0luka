@@ -63,20 +63,29 @@ def _resolve_root() -> Path:
     env_root = os.environ.get("ROOT", "").strip()
     if env_root:
         return Path(env_root).expanduser().resolve(strict=False)
+    cur = Path(__file__).resolve()
+    for parent in [cur, *cur.parents]:
+        if (parent / ".git").exists():
+            return parent
     return Path(__file__).resolve().parents[2]
+
+
+def _resolve_repo_path(root: Path, raw: str) -> Path:
+    val = (raw or "").strip()
+    if val == "ref://activity_feed":
+        val = "observability/logs/activity_feed.jsonl"
+    p = Path(val).expanduser()
+    if p.is_absolute():
+        return p.resolve(strict=False)
+    return (root / p).resolve(strict=False)
 
 
 def _resolve_config() -> Config:
     root = _resolve_root()
-    source_log = Path(
-        os.environ.get("LUKA_ACTIVITY_FEED_JSONL", str(root / "observability" / "logs" / "activity_feed.jsonl"))
-    ).expanduser().resolve(strict=False)
-    report_dir = Path(
-        os.environ.get(
-            "LUKA_IDLE_DRIFT_REPORT_DIR",
-            str(root / "observability" / "reports" / "idle_drift_monitor"),
-        )
-    ).expanduser().resolve(strict=False)
+    source_raw = os.environ.get("LUKA_ACTIVITY_FEED_JSONL", "observability/logs/activity_feed.jsonl")
+    report_raw = os.environ.get("LUKA_IDLE_DRIFT_REPORT_DIR", "observability/reports/idle_drift_monitor")
+    source_log = _resolve_repo_path(root, source_raw)
+    report_dir = _resolve_repo_path(root, report_raw)
     idle_threshold_sec = int(os.environ.get("LUKA_IDLE_THRESHOLD_SEC", "900"))
     drift_threshold_sec = int(os.environ.get("LUKA_DRIFT_THRESHOLD_SEC", "120"))
     return Config(
