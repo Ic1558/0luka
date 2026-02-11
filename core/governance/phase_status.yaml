@@ -43,10 +43,11 @@ phases:
     commit_sha: 4c1f7bd
     evidence_path: tests/fixtures/dod_checker/phase2_proven.json
   PHASE_9:
-    verdict: PARTIAL
+    verdict: PROVEN
     requires:
-    commit_sha: TODO_SHA
-    evidence_path: tests/fixtures/dod_checker/phase2_proven.json
+    last_verified_ts: 2026-02-11T23:27:42Z
+    commit_sha: 0a79adcc080d68ecfccf407680a41c2f6d242ac8
+    evidence_path: observability/reports/dod_checker/20260211T232742609004Z_dod.json
   PHASE_DEMO_PROVEN:
     verdict: DESIGNED
     requires:

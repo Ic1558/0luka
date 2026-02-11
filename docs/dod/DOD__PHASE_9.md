@@ -12,7 +12,9 @@
 - **Gate**: G9
 - **Related SOT Section**: §Tier1.Phase9
 - **Target Status**: DESIGNED → PARTIAL → PROVEN
-- **Commit SHA**: TODO_SHA
+- **Commit SHA**: 0a79adcc080d68ecfccf407680a41c2f6d242ac8
+- **Evidence Path**: observability/reports/nlp/task_shape_audit.json
+- **Proof Mode**: operational
 - **Date**: 2026-02-12
 
 ## 4. Evidence (Fail-Closed Core)
@@ -29,3 +31,9 @@
   - `core/contracts/v1/task_schemas.json`
   - `observability/reports/nlp/task_shape_audit.json`
 - **Verification Command**: `python3 core/verify/prove_phase9_nlp.py`
+- **Strict Expectation**:
+  - `LUKA_REQUIRE_OPERATIONAL_PROOF=1`
+  - `proof_mode: operational`
+  - `synthetic_detected: false`
+  - `taxonomy_ok: true`
+  - `exit: 0`
