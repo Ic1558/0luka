@@ -1,47 +1,36 @@
-# Phase 15.5.4: Operational-Proof Operationalization
+# Phase 15.5.4 Specification - Operational Proof Mode
 
-## 1. Objective
-Establish "Operational Truth" for system heartbeats by transitioning from synthetic/manual log injection to fully automated runtime emissions from the Task Dispatcher.
+## Objective
+Promote `PHASE_15_5_3` proof from synthetic to operational by making `tools/ops/idle_drift_monitor.py` the runtime truth source for activity chain emission.
 
-## 2. Canonical Runtime Hook
-- **File Path**: `core/task_dispatcher.py`
-- **Rationale**: This file is the central authority for task execution. It already handles `dispatch.start` and `dispatch.end` events and maintains a stable heartbeat file.
-- **Safety**: The implementation must use `try/except` blocks to ensure that any failure in activity emission does not block the core dispatch logic (Fail-Open/Non-Blocking).
+## Source of Truth
+- Activity feed resolution order:
+  1. `LUKA_ACTIVITY_FEED_JSONL`
+  2. `observability/logs/activity_feed.jsonl`
+- Operational event emitter: `tools/ops/idle_drift_monitor.py`
+- Checker enforcement: `tools/ops/dod_checker.py`
 
-## 3. Operational Proof Contract (SOT)
-### Activity Event Schema
-All events emitted during runtime must include:
-- `emit_mode`: `runtime_auto`
-- `verifier_mode`: `operational_proof`
-- `ts_epoch_ms`: High-resolution integer timestamp.
-- `run_id`: A UUID or unique string consistent across the `started` -> `completed` -> `verified` chain.
+## Required Runtime Events
+For each `--once` run (non-fatal path), monitor appends:
+- `started`
+- `completed`
+- `verified`
 
-### Anti-Synthetic Rule
-- **Target**: `PHASE_15_5_3` (Idle/Drift Monitor)
-- **Constraint**: Once Phase 15.5.4 is active, any chain for `PHASE_15_5_3` containing `emit_mode != runtime_auto` MUST be downgraded.
-- **Enforcement**: `dod_checker.py` will return `verdict: PARTIAL` with `missing: ["proof.synthetic_not_allowed"]`.
+Each event includes:
+- `phase_id=PHASE_15_5_3`
+- `emit_mode=runtime_auto`
+- `verifier_mode=operational_proof`
+- `tool=idle_drift_monitor`
+- `run_id`
+- `ts_epoch_ms`
+- `ts_utc`
 
-## 4. Governance Guard Enforcement (`dod_checker.py`)
-### Enforcement Logic
-If `LUKA_REQUIRE_OPERATIONAL_PROOF=1`:
-1. Check `phase_id`.
-2. Inspect `activity_chain` for `proof_mode`.
-3. If `proof_mode == "synthetic"`, force `PARTIAL`.
-4. Append `proof.synthetic_not_allowed` to `missing` list.
+`completed` and `verified` include evidence path references to idle/drift artifacts.
 
-### Precisions
-- Exit codes must remain standard (0=PROVEN, 2=PARTIAL, 3=DESIGNED).
-- The enforcement is **opt-in** via environment variable to maintain backward compatibility with legacy phases.
+## Checker Enforcement
+When `LUKA_REQUIRE_OPERATIONAL_PROOF=1` for `PHASE_15_5_3`:
+- non-runtime chain => `proof.synthetic_not_allowed`
+- missing taxonomy keys => `taxonomy.incomplete_event`
+- malformed activity feed => exit code `4`
 
-## 5. Monitor Contract (`idle_drift_monitor.py`)
-- **Evidence Path**: Must reference the artifact (e.g., `heartbeat.json`) produced or touched by the `runtime_auto` event.
-- **Strict Parsing**:
-    - If log file is unreadable/corrupt: `EXIT: 4` (Runtime Error).
-    - If heartbeat timestamp is older than threshold: `EXIT: 2` (PARTIAL) with `drift.heartbeat.stale`.
-
-## 6. Implementation Checklist (For Codex)
-- [ ] Add `emit_activity_event()` utility to `core/timeline.py` or equivalent.
-- [ ] Inject hook in `core/task_dispatcher.py`'s `_write_heartbeat`.
-- [ ] Update `dod_checker.py` with `LUKA_REQUIRE_OPERATIONAL_PROOF` toggle.
-- [ ] Update `idle_drift_monitor.py` to validate `runtime_auto` evidence.
-- [ ] Attach `dod_report.latest.json` showing `proof_mode: operational`.
+Exit semantics remain `0/2/3/4`.
