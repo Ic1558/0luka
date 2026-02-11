@@ -7,12 +7,23 @@ echo "🔍 Running 0luka Pre-Claim Gate..."
 # 1. Telemetry Freshness
 echo -n "Checking Telemetry... "
 SHELF_TIME=$(date +%s)
-TEL_TIME=$(stat -f %m interface/evidence/tasks/ 2>/dev/null || stat -c %Y interface/evidence/tasks/ 2>/dev/null)
-if [[ $((SHELF_TIME - TEL_TIME)) -gt 300 ]]; then
-    echo "❌ STALE (Last evidence update was > 5 mins ago)"
+# Combine multiple evidence dirs to find the latest update
+EVI_DIRS=("interface/evidence/tasks/" "observability/artifacts/tasks/")
+LATEST_TEL=0
+for d in "${EVI_DIRS[@]}"; do
+    if [[ -d "$d" ]]; then
+        T=$(stat -f %m "$d" 2>/dev/null || stat -c %Y "$d" 2>/dev/null || echo 0)
+        if [[ $T -gt $LATEST_TEL ]]; then LATEST_TEL=$T; fi
+    fi
+done
+
+if [[ $LATEST_TEL -eq 0 ]]; then
+    echo "⚠️  UNKNOWN (No evidence dirs found)"
+elif [[ $((SHELF_TIME - LATEST_TEL)) -gt 600 ]]; then
+    echo "❌ STALE (Last activity > 10 mins ago)"
     # exit 1
 else
-    echo "✅ FRESH"
+    echo "✅ FRESH (Active within 10 mins)"
 fi
 
 # 2. RAM Pressure

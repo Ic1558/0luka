@@ -10,6 +10,7 @@
 | PLAN / DIAGNOSE | Liam (Architect) | TaskSpec |
 | EDIT / RUN / FIX | **CHAIN: Liam → Codex** | TaskSpec → Execution Report |
 | CONTEXT / SEARCH | Antigravity (Librarian) | ContextBundle |
+| LONG_RUN / ORCHESTRATE | [Cole] (Hybrid) | TaskSpec / Audit |
 
 ## Fail-Fast Rules
 

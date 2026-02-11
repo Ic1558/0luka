@@ -89,6 +89,17 @@ private struct JobInputForm: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
+                    Text("Engine Configuration")
+                        .font(.headline)
+                    Picker("Select Engine", selection: $model.selectedEngine) {
+                        ForEach(model.availableEngines, id: \.self) { engine in
+                            Text(engine).tag(engine)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
                     Text("2. Target Artifact")
                         .font(.headline)
                     
@@ -180,6 +191,12 @@ private struct JobResultView: View {
                     Text("Job ID: \(detail.id)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    
+                    if let completed = detail.completedAt {
+                        Text("Completed: \(completed)")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
 
@@ -196,27 +213,71 @@ private struct JobResultView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
 
+            // Provenance Section
+            if let prov = detail.runProvenance {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Run Provenance", systemImage: "signature")
+                        .font(.headline)
+                    
+                    Grid(alignment: .leading, horizontalSpacing: 20) {
+                        GridRow {
+                            Text("Engine").foregroundStyle(.secondary)
+                            Text(prov.engine).font(.system(.body, design: .monospaced))
+                        }
+                        if let ver = prov.version {
+                            GridRow {
+                                Text("Version").foregroundStyle(.secondary)
+                                Text(ver).font(.system(.body, design: .monospaced))
+                            }
+                        }
+                        if let sum = prov.inputChecksum {
+                            GridRow {
+                                Text("Input SHA").foregroundStyle(.secondary)
+                                Text(String(sum.prefix(12)) + "...").font(.system(.body, design: .monospaced))
+                            }
+                        }
+                    }
+                }
+                .padding()
+                .background(Color(nsColor: .windowBackgroundColor).opacity(0.5))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
             if let outputs = detail.outputs, !outputs.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Generated Artifacts")
                         .font(.headline)
                     
-                    ForEach(outputs, id: \.path) { output in
+                    ForEach(outputs, id: \.id) { output in
                         HStack {
                             Image(systemName: icon(for: output.kind))
-                            Text(output.path.split(separator: "/").last ?? "")
+                                .font(.title2)
+                                .foregroundStyle(.blue)
+                            
+                            VStack(alignment: .leading) {
+                                Text(output.name)
+                                    .fontWeight(.medium)
+                                Text(output.mime)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            
                             Spacer()
-                            Text(output.kind)
-                                .font(.caption)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.secondary.opacity(0.2))
-                                .clipShape(Capsule())
+                            
+                            if let url = URL(string: "http://localhost:7001\(output.href)") {
+                                Link(destination: url) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "arrow.down.circle.fill")
+                                        Text("Download")
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
                         }
-                        .font(.system(.body, design: .monospaced))
-                        .padding(8)
+                        .padding(10)
                         .background(Color(nsColor: .windowBackgroundColor).opacity(0.5))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
                 }
             }

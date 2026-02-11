@@ -1,0 +1,136 @@
+name: phase1a
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  phase1a-scope-lock:
+    name: phase1a-scope-lock
+    runs-on: ubuntu-latest
+    steps:
+      - name: Detect phase1a label
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          LABELS_JSON='${{ toJSON(github.event.pull_request.labels.*.name) }}'
+          if echo "$LABELS_JSON" | grep -q '"phase1a"'; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: No-op when phase1a label missing
+        if: steps.detect.outputs.enabled != 'true'
+        shell: bash
+        run: |
+          echo "phase1a label not present; scope-lock is a no-op."
+          exit 0
+
+      - name: Bypass when boss-override label present
+        if: steps.detect.outputs.enabled == 'true' && contains(github.event.pull_request.labels.*.name, 'boss-override')
+        shell: bash
+        run: |
+          echo "Scope lock bypassed (boss-override)"
+          exit 0
+
+      - name: Checkout
+        if: steps.detect.outputs.enabled == 'true' && !contains(github.event.pull_request.labels.*.name, 'boss-override')
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify changed files are Phase 1A allowlist only
+        if: steps.detect.outputs.enabled == 'true' && !contains(github.event.pull_request.labels.*.name, 'boss-override')
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          echo "BASE=$BASE"
+          echo "HEAD=$HEAD"
+
+          # Deterministic comparison on CI
+          git diff --name-only "$BASE" "$HEAD" | sort > /tmp/changed.txt
+          echo "Changed files:"
+          cat /tmp/changed.txt
+
+          # Allowlist: Phase 1A-only (Indented to satisfy YAML parser)
+          cat > /tmp/allow.txt <<'EOF'
+          core/contracts/v1/ref_resolution.map.yaml
+          core/ref_resolver.py
+          core/verify/test_ref_resolver.py
+          EOF
+          
+          # Clean up indentation from HEREDOC before comparison
+          sed -i 's/^[[:space:]]*//' /tmp/allow.txt
+          sort /tmp/allow.txt > /tmp/allow_sorted.txt
+
+          # Fail if any changed file is outside allowlist
+          if comm -23 /tmp/changed.txt /tmp/allow_sorted.txt | grep -q .; then
+            echo "ERROR: Found files outside Phase 1A allowlist:"
+            comm -23 /tmp/changed.txt /tmp/allow_sorted.txt || true
+            exit 1
+          fi
+
+          # Require at least one allowlist file when label is present
+          if ! comm -12 /tmp/changed.txt /tmp/allow_sorted.txt | grep -q .; then
+            echo "ERROR: phase1a label present but no Phase 1A files changed."
+            exit 1
+          fi
+
+          echo "OK: Phase 1A scope locked."
+
+  phase1a-smoke:
+    name: phase1a-smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Detect phase1a label
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          LABELS_JSON='${{ toJSON(github.event.pull_request.labels.*.name) }}'
+          if echo "$LABELS_JSON" | grep -q '"phase1a"'; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: No-op when phase1a label missing
+        if: steps.detect.outputs.enabled != 'true'
+        shell: bash
+        run: |
+          echo "phase1a label not present; smoke is a no-op."
+          exit 0
+
+      - name: Checkout
+        if: steps.detect.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        if: steps.detect.outputs.enabled == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps (minimal)
+        if: steps.detect.outputs.enabled == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml
+
+      - name: Phase 1A smoke
+        if: steps.detect.outputs.enabled == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m compileall core/ref_resolver.py
+          python3 core/verify/test_ref_resolver.py

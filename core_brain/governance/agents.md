@@ -59,11 +59,18 @@
 - **Strict Binding**: Use only tools defined in the catalog. No ad-hoc scripts unless sanctioned by `task_boundary`.
 - **Firecrawl**: Read-Only (Safety Guard).
 
-### 3.3 Preflight (MANDATORY)
-- Read `g/session/session_state.latest.json` before any plan execution.
+### 3.3 Preflight
+- Read `g/session/session_state.latest.json` for UI context (OPTIONAL, warn-only).
 - If present, also read `g/session/SESSION_STATE.md` for human context.
-- Fail-closed: if JSON missing/invalid/stale -> stop and report `DEGRADED_PRECHECK`.
-- Staleness: if `now_utc - ts_utc > SESSION_STATE_TTL_SEC` (default 120s).
+- Session state is a **soft signal**: missing/invalid/stale -> log warning, continue execution.
+- **Session state is NOT an execution permit.**
+
+#### 3.3.1 Async Execution Model
+- 0luka execution is **asynchronous and non-blocking by design**: planner → inbox (queue) → dispatcher → executor.
+- Plan generation and task submission MUST NOT be blocked by liveness signals.
+- All liveness signals (session_state, heartbeat, health) are **advisory** unless a specific gate explicitly states otherwise.
+- If the dispatcher is not running, plans and tasks queue to inbox for later dispatch.
+- **session_state != execution permit**: session freshness does not gate any execution path.
 
 ## 4. Execution Policy (Liam Write Policy)
 ### 4.1 Level Definitions

@@ -1,0 +1,265 @@
+{
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "properties": {
+          "service": {
+            "default": "opal_api",
+            "title": "Service",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "version": {
+            "default": "1.0.0",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "timestamp"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "JobCreateRequest": {
+        "properties": {
+          "file": {
+            "description": "Target artifact (.obj, .zip, .pdf, .dwg)",
+            "format": "binary",
+            "type": "string"
+          },
+          "metadata": {
+            "description": "Optional job metadata",
+            "type": "object"
+          },
+          "prompt": {
+            "description": "Processing instructions / goal",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt",
+          "file"
+        ],
+        "type": "object"
+      },
+      "JobDetail": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/JobError"
+          },
+          "id": {
+            "type": "string"
+          },
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/JobOutput"
+            },
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ],
+        "type": "object"
+      },
+      "JobError": {
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
+      "JobInfo": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ],
+        "type": "object"
+      },
+      "JobOutput": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "model",
+              "image",
+              "log",
+              "artifact"
+            ],
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "JobStatus": {
+        "description": "Deterministic state of the job. See core/semantics/job_lifecycle.md for rules.",
+        "enum": [
+          "queued",
+          "running",
+          "succeeded",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "StatusResponse": {
+        "properties": {
+          "port": {
+            "default": 7001,
+            "title": "Port",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "uptime": {
+            "default": "running",
+            "title": "Uptime",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "StatusResponse",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Telemetry & Health Service for 02luka OPAL V4 Pipeline",
+    "title": "OPAL API",
+    "version": "1.1.0",
+    "x-opal-authoritative": true
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/health": {
+      "get": {
+        "description": "Basic health check endpoint.",
+        "operationId": "health_check_api_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Check"
+      }
+    },
+    "/api/jobs": {
+      "post": {
+        "description": "Submit a new design pipeline job involving a prompt and an optional artifact.",
+        "operationId": "create_job_api_jobs_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/JobCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobInfo"
+                }
+              }
+            },
+            "description": "Job created"
+          }
+        },
+        "summary": "Create Job"
+      }
+    },
+    "/api/jobs/{id}": {
+      "get": {
+        "description": "Retrieve the current status and outputs of a specific job.",
+        "operationId": "get_job_api_jobs_id_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Poll Job"
+      }
+    },
+    "/api/status": {
+      "get": {
+        "description": "Quick status for other health checks (avoids recursion).",
+        "operationId": "quick_status_api_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Quick Status"
+      }
+    }
+  }
+}

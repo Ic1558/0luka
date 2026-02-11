@@ -167,6 +167,7 @@
 | **[Vera]** | Validator | Forensic Audit | Read-only verification | NO execution |
 | **[Rio]** | Explorer | R&D, Experiments | Sandbox-only | NO production touch |
 | **[Codex]** | Librarian | Documentation, Git Ops | Manages SOT | Review/docs/git only |
+| **[Cole]** | Assistant | Hybrid Helper | Long-Run Orchestration | Free/Tracked Modes |
 
 ### 3.2 Identity Invariant (Global)
 ```
@@ -178,6 +179,7 @@ Violation = Immediate Rejection.
 - **Architect Brain (Liam)**: Abstract, cautious, read-only, refuses ambiguity
 - **Executor Brain (Lisa)**: Procedural, deterministic, no interpretation
 - **Verifier Brain (Codex)**: Skeptical, evidence-driven, long-context reader
+- **Hybrid Brain (Cole)**: Free Mode by default; Tracked Mode only when explicitly requested
 
 ---
 

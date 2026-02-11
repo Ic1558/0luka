@@ -1,0 +1,5 @@
+- [x] Create run folder and manifest
+- [x] Copy opencode/ artifacts into cole/_legacy
+- [x] Copy g/reports/opencode into cole/_legacy
+- [x] Copy g/manuals/opencode into cole/_legacy
+- [x] Update tk index

@@ -1,0 +1,4 @@
+name = "mary-agent"
+main = "worker.js"
+compatibility_date = "2025-05-17"
+usage_model = "standard"

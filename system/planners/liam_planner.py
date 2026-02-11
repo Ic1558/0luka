@@ -12,18 +12,39 @@ def fail(msg):
     print(f"[LIAM][FAIL] {msg}", file=sys.stderr)
     sys.exit(1)
 
-# --- Preflight ---
-if not SESSION_JSON.exists():
-    fail("SESSION_STATE missing")
+# --- Session state (soft signal, warn-only) ---
+state = {}
+if SESSION_JSON.exists():
+    try:
+        state = json.loads(SESSION_JSON.read_text())
+    except Exception:
+        print("[LIAM][WARN] SESSION_STATE invalid JSON, continuing", file=sys.stderr)
+else:
+    print("[LIAM][WARN] SESSION_STATE missing, continuing", file=sys.stderr)
 
-try:
-    state = json.loads(SESSION_JSON.read_text())
-except Exception as e:
-    fail(f"SESSION_STATE invalid JSON: {e}")
-
-ts = state.get("ts_utc")
+warn_state_stale = False
+ts = state.get("ts_utc", "")
 if not ts:
-    fail("SESSION_STATE invalid (no ts_utc)")
+    warn_state_stale = True
+    print("[LIAM][WARN] SESSION_STATE has no ts_utc", file=sys.stderr)
+
+# --- Heartbeat gate (informational, not blocking) ---
+HEARTBEAT = ROOT / "observability" / "artifacts" / "dispatcher_heartbeat.json"
+_hb_ok = False
+if HEARTBEAT.exists():
+    try:
+        hb = json.loads(HEARTBEAT.read_text())
+        hb_pid = hb.get("pid")
+        if hb_pid:
+            os.kill(hb_pid, 0)  # check process alive
+            _hb_ok = True
+    except (ProcessLookupError, OSError):
+        pass
+    except Exception:
+        pass
+
+if not _hb_ok:
+    print("[LIAM][WARN] Dispatcher heartbeat not live, plan will queue", file=sys.stderr)
 
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 

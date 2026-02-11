@@ -22,6 +22,17 @@ if [[ "$*" == *"--copy"* ]]; then
     COPY_ONLY=true
 fi
 
+# Clipboard policy:
+# - Raycast runs: allow clipboard
+# - System/agent runs: clipboard only with explicit opt-in (--copy or ATG_COPY=1)
+WANT_CLIPBOARD=false
+if [[ -n "${RAYCAST_EXTENSION:-}" || -n "${RAYCAST_COMMAND_NAME:-}" || -n "${RAYCAST_SCRIPT_NAME:-}" ]]; then
+    WANT_CLIPBOARD=true
+fi
+if [[ "$*" == *"--copy"* || "${ATG_COPY:-0}" == "1" ]]; then
+    WANT_CLIPBOARD=true
+fi
+
 FINAL_OUTPUT="# ATG MULTI-REPO SNAPSHOT v1.9.1\nTimestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")\n\n"
 
 # 1. Find last snapshot for diff analysis (handle empty directory)
@@ -119,14 +130,18 @@ if [[ "$COPY_ONLY" == "false" ]]; then
     printf "%b" "$FINAL_OUTPUT"
 fi
 
-# Clipboard delivery (hardened)
-printf "%b" "$FINAL_OUTPUT" | /usr/bin/pbcopy 2>/dev/null || true
-printf "%b" "$FINAL_OUTPUT" | /usr/bin/osascript -e 'set the clipboard to (read (POSIX file "/dev/stdin") as «class utf8»)' 2>/dev/null || true
+# Clipboard delivery (opt-in)
+DID_COPY=false
+if [[ "$WANT_CLIPBOARD" == "true" ]]; then
+    printf "%b" "$FINAL_OUTPUT" | /usr/bin/pbcopy 2>/dev/null || true
+    printf "%b" "$FINAL_OUTPUT" | /usr/bin/osascript -e 'set the clipboard to (read (POSIX file "/dev/stdin") as «class utf8»)' 2>/dev/null || true
+    DID_COPY=true
+fi
 
 if [[ "$COPY_ONLY" == "false" ]]; then
-    echo "\n✅ v1.9.1 Complete: Snapshot saved to $(basename "$NEW_SNAP_PATH") and copied to clipboard."
+    if [[ "${DID_COPY:-false}" == "true" ]]; then echo "\n✅ v1.9.1 Complete: Snapshot saved to $(basename "$NEW_SNAP_PATH") and copied to clipboard."; else echo "\n✅ v1.9.1 Complete: Snapshot saved to $(basename "$NEW_SNAP_PATH") (clipboard unchanged)."; fi
 else
-    echo "✅ Snapshot v1.9.1 copied to clipboard."
+    if [[ "${DID_COPY:-false}" == "true" ]]; then echo "✅ Snapshot v1.9.1 copied to clipboard."; else echo "✅ Snapshot v1.9.1 done (no clipboard; use --copy or ATG_COPY=1)."; fi
 fi
 
 # --- PHASE D: REMEDIATION TRIGGER ---
