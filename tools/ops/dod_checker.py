@@ -275,6 +275,18 @@ def check_activity_events(phase_id: str, paths: Paths) -> Dict[str, Any]:
     is_operational = len(modes) == 3 and all(m == EMIT_MODE_AUTO for m in modes)
     proof_mode = PROOF_MODE_OPERATIONAL if is_operational else PROOF_MODE_SYNTHETIC
 
+    # 3. Activity Feed Audit Enhancer: Flag missing taxonomy
+    taxonomy_ok = True
+    for e in evts:
+        if not e:
+            continue
+        missing_keys = [k for k in ("emit_mode", "verifier_mode", "ts_epoch_ms") if k not in e]
+        if missing_keys:
+            taxonomy_ok = False
+            break
+    if not taxonomy_ok:
+        missing.append("taxonomy.incomplete_event")
+
     return {
         "started": latest_started is not None,
         "completed": latest_completed is not None,
@@ -290,6 +302,7 @@ def check_activity_events(phase_id: str, paths: Paths) -> Dict[str, Any]:
         },
         "event_count": len(phase_events),
         "missing": missing,
+        "taxonomy_ok": taxonomy_ok,
     }
 
 
@@ -617,7 +630,34 @@ def run_check(phase_id: str, paths: Paths) -> Dict[str, Any]:
 
     verdict = evaluate_verdict(meta, activity, evidence, gate, commit_ok)
 
+    # 1. Synthetic Lock Guard
+    synthetic_detected = (phase_id == "PHASE_15_5_3" and activity.get("proof_mode") == PROOF_MODE_SYNTHETIC)
+
+    # 2. Phase Status Protection: Integrity check
+    registry_integrity_ok = True
+    phase_entry = status_data.get("phases", {}).get(phase_id, {})
+    if phase_entry.get("verdict") == VERDICT_PROVEN:
+        ev_path_raw = phase_entry.get("evidence_path")
+        if ev_path_raw:
+            ev_path = Path(ev_path_raw)
+            if not ev_path.is_absolute():
+                ev_path = paths.root / ev_path
+            if not ev_path.exists():
+                registry_integrity_ok = False
+        else:
+            registry_integrity_ok = False
+
+    if not registry_integrity_ok:
+        verdict = VERDICT_PARTIAL
+    
+    # 4. Blueprint Alignment Check (preflight)
+    blueprint_mismatch = (BLUEPRINT_REV != "Rev1.3")
+
     missing: List[str] = []
+    if not registry_integrity_ok:
+        missing.append("registry.verdict_without_artifact")
+    if blueprint_mismatch:
+        missing.append("governance.blueprint_schema_mismatch")
     missing.extend(activity.get("missing", []))
     missing.extend(evidence.get("missing", []))
     missing.extend(gate.get("missing", []))
@@ -641,9 +681,13 @@ def run_check(phase_id: str, paths: Paths) -> Dict[str, Any]:
                 "latest_order_ok": activity.get("latest_order_ok"),
                 "event_count": activity.get("event_count"),
                 "proof_mode": activity.get("proof_mode"),
+                "taxonomy_ok": activity.get("taxonomy_ok", False),
             },
             "evidence": evidence,
             "gate": gate,
+            "synthetic_detected": synthetic_detected,
+            "registry_integrity_ok": registry_integrity_ok,
+            "blueprint_mismatch": blueprint_mismatch,
         },
         "missing": sorted(set(missing)),
     }
