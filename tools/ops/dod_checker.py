@@ -599,6 +599,16 @@ def _atomic_write(path: Path, content: str) -> None:
     os.replace(tmp_path, path)
 
 
+def _normalize_evidence_path(paths: Paths, report_path: Path) -> str:
+    root = paths.root.resolve(strict=False)
+    rp = report_path.resolve(strict=False)
+    try:
+        rel = rp.relative_to(root)
+        return rel.as_posix()
+    except ValueError as exc:
+        raise RuntimeError("registry.evidence_path_outside_repo") from exc
+
+
 def check_gate(phase_id: str, status_data: Dict[str, Any]) -> Dict[str, Any]:
     phases = status_data.get("phases", {}) if isinstance(status_data.get("phases"), dict) else {}
     phase_entry = phases.get(phase_id, {}) if isinstance(phases.get(phase_id, {}), dict) else {}
@@ -784,23 +794,34 @@ def write_report(paths: Paths, phase_results: List[Dict[str, Any]]) -> Path:
     return report_path
 
 
-def update_phase_status(paths: Paths, phase_results: List[Dict[str, Any]], report_path: Path) -> None:
+def update_phase_status(
+    paths: Paths,
+    phase_results: List[Dict[str, Any]],
+    report_path: Path,
+    *,
+    scoped_phase: Optional[str] = None,
+) -> None:
     status = load_phase_status(paths.phase_status)
     phases = status.setdefault("phases", {})
     if not isinstance(phases, dict):
         phases = {}
         status["phases"] = phases
 
+    evidence_path = _normalize_evidence_path(paths, report_path)
+
     for res in phase_results:
         phase_id = res["phase_id"]
-        entry = phases.get(phase_id, {}) if isinstance(phases.get(phase_id, {}), dict) else {}
+        exists = phase_id in phases and isinstance(phases.get(phase_id), dict)
+        if scoped_phase and phase_id == scoped_phase and not exists:
+            raise RuntimeError(f"registry.phase_missing:{phase_id}")
+        entry = phases.get(phase_id, {}) if exists else {}
         entry["verdict"] = res["verdict"]
         if res["verdict"] == VERDICT_PROVEN:
             entry["last_verified_ts"] = _utc_now()
         commit_sha = str(res.get("meta", {}).get("commit_sha", "")).strip()
         if commit_sha:
             entry["commit_sha"] = commit_sha
-        entry["evidence_path"] = str(report_path)
+        entry["evidence_path"] = evidence_path
         # preserve requires if already present
         if not isinstance(entry.get("requires"), list):
             entry["requires"] = []
@@ -866,7 +887,7 @@ def main() -> int:
         report_path = write_report(paths, results)
 
         if args.update_status or args.update_status_phase:
-            update_phase_status(paths, results, report_path)
+            update_phase_status(paths, results, report_path, scoped_phase=args.update_status_phase)
 
         output_results = results
         if args.missing_only:
@@ -883,6 +904,8 @@ def main() -> int:
 
         return compute_exit_code(results)
     except Exception as exc:
+        if args.json:
+            print(json.dumps({"error": f"{type(exc).__name__}:{exc}"}, ensure_ascii=False))
         print(f"dod_checker_internal_error:{type(exc).__name__}:{exc}", file=sys.stderr)
         return 4
 
