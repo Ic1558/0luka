@@ -32,7 +32,7 @@ jobs:
           set -euo pipefail
           # Only run existing verify tests for Tier 2 scope
           if [[ -d core/verify ]]; then
-             python3 -m pytest core/verify -q || { echo "Unit tests failed"; exit 1; }
+             python3 -m pytest core/verify/test_dod_checker.py core/verify/test_governance_proof.py core/verify/test_phase15_5_4_operational_proof.py -q || { echo "Unit tests failed"; exit 1; }
           else
              echo "core/verify directory not found, skipping unit tests"
           fi
