@@ -43,7 +43,7 @@ jobs:
           # Check if external linter tool exists (Codex implementation)
           if [[ -f tools/ops/activity_feed_linter.py ]]; then
              echo "Running activity_feed_linter.py..."
-             LUKA_ACTIVITY_FEED_JSONL=observability/logs/activity_feed.jsonl \
+             LUKA_ACTIVITY_FEED_JSONL=tests/fixtures/ci_activity_feed.jsonl \
              python3 tools/ops/activity_feed_linter.py --json || { echo "Activity feed lint failed"; exit 1; }
           else
              echo "WARNING: tools/ops/activity_feed_linter.py not found. Skipping lint step (pending Codex implementation)."
@@ -59,7 +59,7 @@ jobs:
           for phase in "${PHASES[@]}"; do
             echo "Checking strict DoD for $phase..."
             LUKA_REQUIRE_OPERATIONAL_PROOF=1 \
-            LUKA_ACTIVITY_FEED_JSONL=observability/logs/activity_feed.jsonl \
+            LUKA_ACTIVITY_FEED_JSONL=tests/fixtures/ci_activity_feed.jsonl \
             python3 tools/ops/dod_checker.py --phase "$phase" --json || {
               echo "Strict DoD verification failed for $phase (Exit Code: $?)"
               exit 1
