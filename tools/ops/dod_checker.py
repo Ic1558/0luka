@@ -8,6 +8,7 @@ Usage:
   python3 tools/ops/dod_checker.py --json
   python3 tools/ops/dod_checker.py --missing-only
   python3 tools/ops/dod_checker.py --update-status
+  python3 tools/ops/dod_checker.py --update-status-phase <ID>
 """
 
 from __future__ import annotations
@@ -837,11 +838,26 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
     parser.add_argument("--missing-only", action="store_true", help="Only print phases with missing items")
     parser.add_argument("--update-status", action="store_true", help="Update core/governance/phase_status.yaml atomically")
+    parser.add_argument(
+        "--update-status-phase",
+        help="Evaluate and atomically update status for a single phase node (no --all required)",
+    )
     args = parser.parse_args()
 
     try:
+        if args.update_status_phase and args.all:
+            print("dod_checker_internal_error:ValueError:--update-status-phase cannot be used with --all", file=sys.stderr)
+            return 4
+        if args.update_status_phase and args.phase and args.update_status_phase != args.phase:
+            print(
+                "dod_checker_internal_error:ValueError:--phase and --update-status-phase must target the same phase",
+                file=sys.stderr,
+            )
+            return 4
+
         paths = resolve_paths()
-        phase_ids = collect_phase_ids(paths, args.phase, args.all)
+        selected_phase = args.update_status_phase or args.phase
+        phase_ids = collect_phase_ids(paths, selected_phase, args.all)
         if not phase_ids:
             parser.print_help()
             return 4
@@ -849,7 +865,7 @@ def main() -> int:
         results = [run_check(pid, paths) for pid in phase_ids]
         report_path = write_report(paths, results)
 
-        if args.update_status:
+        if args.update_status or args.update_status_phase:
             update_phase_status(paths, results, report_path)
 
         output_results = results
