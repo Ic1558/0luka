@@ -1,77 +1,74 @@
-# Phase 15.5.3 Spec: Idle/Drift Monitor (MVB)
+# Phase 15.5.3 Spec: Idle/Drift Monitor (SOT-Correct)
 
-## Metadata & Revision History
-- **Version**: v1.0
-- **Edited By**: GMX (Agentic AI Assistant)
-- **Date**: 2026-02-12
-- **Reason**: Initial design for freeze-safe system observability monitor.
+## Source of Truth (SOT)
 
-## 1. Objective
-Establish a non-invasive daemon/tool that detects if the system has stopped moving (Idle) or if components are diverging from their promised pulse (Drift), for fail-closed diagnosis without modifying core runtime.
+The monitor is **observer-only** and reads a single authoritative JSONL feed.
 
-## 2. Scope Lock
-- **Binary**: `tools/ops/idle_drift_monitor.py`
-- **Tests**: `core/verify/test_idle_drift_monitor.py`
-- **Authority Logs (Read-Only)**: 
-  - `observability/activity/activity.jsonl` (General pulse)
-  - `observability/logs/dispatcher.jsonl` (Dispatcher pulse)
-- **Output Artifacts**: 
-  - `observability/reports/idle_drift_monitor/monitor.latest.json`
-  - `observability/reports/idle_drift_monitor/<ts>_monitor.json`
+**Resolution order (no hard paths):**
+1. `LUKA_ACTIVITY_FEED_JSONL` (env) — preferred
+2. `observability/logs/activity_feed.jsonl` — repo fallback
 
-## 3. Decision Logic & Authoritative Logs
+If the resolved file is missing, unreadable, or contains invalid JSON lines, the monitor must **fail closed** with exit code `4` and must still attempt to emit an error report artifact (see Output Artifacts).
 
-### A. Idle Detection (Total System Inactivity)
-- **Authoritative Log**: `observability/activity/activity.jsonl`
-- **Rule**: `NOW - MAX(ts_all_events) > LUKA_IDLE_THRESHOLD_SEC`
-- **Default Threshold**: 900s (15 min)
-- **Taxonomy Key**: `idle.system.stale`
+## Constraints (Freeze-safe)
 
-### B. Drift Detection (Heartbeat Pulsing)
-- **Authoritative Log**: `activity.jsonl` (filtering for `action: heartbeat` or `event: heartbeat`)
-- **Rule**: `NOW - MAX(ts_heartbeat) > LUKA_DRIFT_THRESHOLD_SEC`
-- **Default Threshold**: 120s (2 min)
-- **Taxonomy Key**: `drift.heartbeat.stale`
+- stdlib only (no external deps)
+- observer-only (no network required)
+- do **not** modify dispatcher/runtime/gate
+- read from logs; write only to `observability/reports/idle_drift_monitor/`
 
-## 4. Report JSON Schema (`idle_drift_report_v1`)
+## Configuration (Env)
+
+- `LUKA_ACTIVITY_FEED_JSONL` — path to authoritative JSONL feed (preferred)
+- `LUKA_IDLE_THRESHOLD_SEC` — default `900`
+- `LUKA_DRIFT_THRESHOLD_SEC` — default `120`
+
+All thresholds are **seconds**.
+
+## Exit Codes
+
+- `0` — OK (no idle/drift detected)
+- `2` — WARNING (idle and/or drift detected)
+- `4` — ERROR (missing/unreadable log, parse failure, or artifact write failure)
+
+## Output Artifacts (Non-negotiable)
+
+Every run must emit:
+
+- `observability/reports/idle_drift_monitor/<ts>_idle_drift.json`
+- `observability/reports/idle_drift_monitor/idle_drift.latest.json` (atomic replace)
+
+Schema:
+
 ```json
 {
   "schema_version": "idle_drift_report_v1",
-  "ts": "2026-02-12T01:30:00Z",
-  "status": "OK | WARNING | ERROR",
-  "metrics": {
-    "last_activity_sec": 45,
-    "last_heartbeat_sec": 10,
-    "idle_threshold": 900,
-    "drift_threshold": 120
+  "ts": "2026-02-12T00:00:00Z",
+  "source_log": "observability/logs/activity_feed.jsonl",
+  "checks": {
+    "idle": {
+      "ok": true,
+      "last_activity_ts": "...",
+      "age_sec": 12,
+      "threshold_sec": 900
+    },
+    "drift": {
+      "ok": true,
+      "last_heartbeat_ts": "...",
+      "age_sec": 12,
+      "threshold_sec": 120
+    }
   },
-  "missing": [],
-  "evidence": {
-    "feed_path": "observability/activity/activity.jsonl",
-    "dispatcher_path": "observability/logs/dispatcher.jsonl"
-  }
+  "missing": []
 }
 ```
 
-## 5. CLI & Exit Codes
-- `--once`: Single check and exit.
-- `--json`: Output report JSON to stdout.
-- `--update-latest`: Atomically update `monitor.latest.json`.
-- **Exit Codes (SOT-LOCKED)**:
-  - `0`: OK (All pulses fresh)
-  - `2`: WARNING (Idle or Drift detected)
-  - `4`: ERROR (Cannot read/parse logs or write report)
+If artifact writing fails, the run must exit `4`.
 
-## 6. Test Vectors (Mock JSONL)
-- **Healthy**: Events and heartbeats both sub-10s old.
-- **Idle Only**: Last heartbeat 30s ago (OK), but last generic activity 2000s ago (WARNING).
-- **Drift Only**: Last generic activity 5s ago (OK), but last heartbeat 600s ago (WARNING).
-- **Parse Error**: Feed exists but contains non-JSON junk (ERROR).
+## Taxonomy Keys (Machine-Stable)
 
-## 7. Acceptance Checklist
-- [ ] `idle_drift_monitor.py` exists (stdlib only).
-- [ ] `LAST_ACTIVITY` logic covers all actions (started, completed, tool_call, etc).
-- [ ] `LAST_HEARTBEAT` logic specifically filters for pulse events.
-- [ ] Exit codes 0/2/4 verified via test suite.
-- [ ] Path traversal guard on log resolution.
-- [ ] Atomic write for reports.
+- `idle.system.stale`
+- `drift.heartbeat.stale`
+- `error.log_missing_or_unreadable`
+- `error.log_parse_failure`
+- `error.artifact_write_failure`
