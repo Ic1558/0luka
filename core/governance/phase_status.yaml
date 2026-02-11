@@ -1,1 +1,7 @@
 phases:
+  PHASE_DEMO_PROVEN:
+    verdict: PROVEN
+    requires:
+    last_verified_ts: 2026-02-11T18:31:10Z
+    commit_sha: 7d3bd6dc411371c6198feeca6d2596812083e333
+    evidence_path: /Users/icmini/0luka/observability/reports/dod_checker/20260211T183110413481Z_dod.json
