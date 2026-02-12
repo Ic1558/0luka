@@ -1,14 +1,16 @@
 phases:
   PHASE_10:
-    verdict: PARTIAL
+    verdict: PROVEN
     requires:
-    commit_sha: TODO_SHA
-    evidence_path: observability/reports/dod_checker/20260212T062052829652Z_dod.json
+    last_verified_ts: 2026-02-11T23:17:45Z
+    commit_sha: e4be90ae7719925c1a7cce5d5bc17ba2a0a78694
+    evidence_path: observability/reports/dod_checker/20260211T231745808068Z_dod.json
   PHASE_11:
-    verdict: PARTIAL
+    verdict: PROVEN
     requires:
-    commit_sha: TODO_SHA
-    evidence_path: observability/reports/dod_checker/20260212T062052829652Z_dod.json
+    last_verified_ts: 2026-02-11T23:24:56Z
+    commit_sha: 9bca4027c27a1b9edd69894524db3b5966a27d2a
+    evidence_path: observability/reports/dod_checker/20260211T232456423560Z_dod.json
   PHASE_15_3:
     verdict: PROVEN
     requires:
@@ -71,10 +73,11 @@ phases:
     commit_sha: 5d9657f
     evidence_path: observability/reports/dod_checker/20260212T062052829652Z_dod.json
   PHASE_9:
-    verdict: PARTIAL
+    verdict: PROVEN
     requires:
-    commit_sha: TODO_SHA
-    evidence_path: observability/reports/dod_checker/20260212T062052829652Z_dod.json
+    last_verified_ts: 2026-02-11T23:27:42Z
+    commit_sha: 0a79adcc080d68ecfccf407680a41c2f6d242ac8
+    evidence_path: observability/reports/dod_checker/20260211T232742609004Z_dod.json
   PHASE_DEMO_PROVEN:
     verdict: DESIGNED
     requires:
