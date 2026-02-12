@@ -14,7 +14,7 @@
 - **Gate**: G1
 - **Related SOT Section**: §Tier3.Phase3E
 - **Target Status**: DESIGNED → PARTIAL → PROVEN
-- **Commit SHA**: 0fbb74ff974b8effb8b54c93c32c06b40ac5a650
+- **Commit SHA**: 843d7e28f684a14059da718c0e448f8d7e2d06bb
 - **Evidence Path**: observability/reports/agents/phase_3e_cost_router_proof.json
 - **Proof Mode**: operational
 - **Date**: 2026-02-12
