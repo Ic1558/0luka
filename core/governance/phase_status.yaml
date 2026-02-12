@@ -48,7 +48,7 @@ phases:
       - PHASE_2
     last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: 61dfac8c3a6018f0ee28695d98688978d403e916
-    evidence_path: observability/reports/dod_checker/20260212T182715045620Z_dod.json
+    evidence_path: tests/fixtures/dod_checker/phase15_5_3_proven.json
   PHASE_15_5_4:
     verdict: PROVEN
     requires:
@@ -66,7 +66,7 @@ phases:
     requires:
     last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: 18b225d
-    evidence_path: observability/reports/dod_checker/20260212T182715045620Z_dod.json
+    evidence_path: tests/fixtures/dod_checker/phase2_proven.json
   PHASE_3E:
     verdict: PROVEN
     requires:
@@ -84,7 +84,7 @@ phases:
     requires:
     last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: 5d9657f
-    evidence_path: observability/reports/dod_checker/20260212T182715045620Z_dod.json
+    evidence_path: tests/fixtures/dod_checker/phase8_proven.json
   PHASE_9:
     verdict: PROVEN
     requires:

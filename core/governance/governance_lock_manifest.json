@@ -34,7 +34,7 @@
     },
     {
       "path": "core/governance/phase_status.yaml",
-      "sha256": "4bbfb544c94552fcb3eeca5b7fb4840c535b7fb1b45e13ac4151983958719b3f"
+      "sha256": "c528edff90752caf28fb3078110722754ea678ad376ab7210ef7d8f90d6ea118"
     },
     {
       "path": "core/governance/prps.md",
@@ -129,6 +129,6 @@
       "sha256": "5d1149dcb7acfdb4485f1b69cd462a3a441020a4c31256fe2a99f338aa5d888a"
     }
   ],
-  "generated_at_utc": "2026-02-12T18:27:23Z",
+  "generated_at_utc": "2026-02-12T19:05:50Z",
   "required_label": "governance-change"
 }
