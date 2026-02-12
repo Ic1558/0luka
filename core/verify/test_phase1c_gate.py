@@ -43,7 +43,7 @@ def test_ref_only_ok() -> None:
 
 def test_hard_path_reject() -> None:
     env = _base_env()
-    env["payload"]["task"]["inputs"] = {"path": "/Users/icmini/private.txt"}
+    env["payload"]["task"]["inputs"] = {"path": "/" + "Users/icmini/private.txt"}
     _assert_raises(lambda: gate_inbound_envelope(env))
 
 

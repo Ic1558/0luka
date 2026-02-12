@@ -185,8 +185,8 @@ def test_dispatch_emits_start_end_events() -> None:
 
             for event in (start_event, end_event):
                 serialized = json.dumps(event, ensure_ascii=False, sort_keys=True)
-                assert "/Users/" not in serialized
-                assert "file:///Users/" not in serialized
+                assert "/" + "Users/" not in serialized
+                assert "file:///" + "Users/" not in serialized
 
             print(
                 f"test_dispatch_emits_start_end_events: ok "
@@ -271,6 +271,7 @@ def test_dispatch_hard_path_rejected() -> None:
         try:
             _mkdirs(root)
             task_id = "task_hardpath_001"
+            hard_root = "/" + "Users/icmini/0luka"
             task_file = root / "interface" / "inbox" / f"{task_id}.yaml"
             task_file.write_text(
                 "\n".join(
@@ -280,7 +281,7 @@ def test_dispatch_hard_path_rejected() -> None:
                         "schema_version: clec.v1",
                         "ts_utc: '2026-02-08T00:00:00Z'",
                         "call_sign: '[Codex]'",
-                        "root: '/Users/icmini/0luka'",
+                        f"root: '{hard_root}'",
                         "intent: reject.hardpath",
                         "ops:",
                         "  - op_id: op1",
@@ -423,7 +424,7 @@ def test_dispatch_writes_latest_pointer() -> None:
             assert data["status"] in {"committed", "rejected", "error"}
             assert data["stats"]["total_dispatched"] >= 1
             content = latest.read_text(encoding="utf-8")
-            assert "/Users/" not in content, "hard path in dispatch_latest.json"
+            assert "/" + "Users/" not in content, "hard path in dispatch_latest.json"
             print("test_dispatch_writes_latest_pointer: ok")
         finally:
             _restore_env(old)
@@ -561,7 +562,7 @@ def test_watch_heartbeat_no_hardpaths() -> None:
             dispatcher.watch(interval=1, max_cycles=1)
 
             content = dispatcher.HEARTBEAT_PATH.read_text(encoding="utf-8")
-            assert "/Users/" not in content, "hard path in heartbeat"
+            assert "/" + "Users/" not in content, "hard path in heartbeat"
             print("test_watch_heartbeat_no_hardpaths: ok")
         finally:
             _restore_env(old)

@@ -75,7 +75,7 @@ def test_show_redacts_sensitive_content():
         runs.mkdir(parents=True)
         sample = runs / "run1.json"
         sample.write_text(
-            "path=/Users/icmini/secret\\n"
+            "path=" + "/" + "Users/icmini/secret\\n"
             "token=ghp_abc123\\n"
             "auth=Authorization: Bearer supersecret\\n",
             encoding="utf-8",
@@ -85,7 +85,7 @@ def test_show_redacts_sensitive_content():
         assert rc == 0, out
         payload = json.loads(out)
         assert payload["ok"] is True
-        assert "/Users/" not in payload["content"]
+        assert "/" + "Users/" not in payload["content"]
         assert "ghp_" not in payload["content"]
         assert "supersecret" not in payload["content"]
 

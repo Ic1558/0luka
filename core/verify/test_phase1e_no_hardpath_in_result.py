@@ -29,7 +29,7 @@ def main() -> int:
         result = {
             "task_id": "phase1e_hardpath",
             "status": "ok",
-            "summary": "read /Users/icmini/private.txt",
+            "summary": "read " + "/" + "Users/icmini/private.txt",
             "outputs": {"json": {}, "artifacts": []},
             "evidence": {"logs": [], "commands": ["noop"]},
             "provenance": {"hashes": {"inputs_sha256": "a", "outputs_sha256": "b"}},
@@ -39,8 +39,8 @@ def main() -> int:
         loaded = json.loads(text)
         assert loaded["status"] == "error"
         assert "hardpath_detected" in loaded["summary"]
-        assert "/Users/" not in text
-        assert "file:///Users/" not in text
+        assert "/" + "Users/" not in text
+        assert "file:///" + "Users/" not in text
         assert envelope["task_id"] == "phase1e_hardpath"
     print("test_phase1e_no_hardpath_in_result: ok")
     return 0

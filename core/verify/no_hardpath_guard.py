@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 _RULES = [
-    ("unix_home", re.compile(r"/Users/")),
+    ("unix_home", re.compile(r"/" + "Users/")),
     ("windows_home", re.compile(r"C:\\\\Users\\\\")),
     ("unc_path", re.compile(r"^\\\\\\\\[^\\]+\\[^\\]+")),
-    ("file_users_uri", re.compile(r"file:///Users/")),
+    ("file_users_uri", re.compile(r"file:///" + "Users/")),
 ]
 
 

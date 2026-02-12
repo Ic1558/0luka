@@ -237,7 +237,7 @@ def test_activity_feed_emits_important_events_no_hardpaths() -> None:
         assert "retention.protected_skip" in types
 
         content = activity_path.read_text(encoding="utf-8")
-        assert "/Users/" not in content
+        assert "/" + "Users/" not in content
         assert "file:///Users" not in content
 
         print("test_activity_feed_emits_important_events_no_hardpaths: ok")

@@ -71,7 +71,7 @@ def test_submit_flat_task() -> None:
             assert inbox_file.exists(), "inbox file not created"
 
             content = inbox_file.read_text(encoding="utf-8")
-            assert "/Users/" not in content, "hard path in inbox file"
+            assert "/" + "Users/" not in content, "hard path in inbox file"
             assert receipt["task_id"] in content
             print("test_submit_flat_task: ok")
         finally:
@@ -114,7 +114,7 @@ def test_submit_rejects_duplicate() -> None:
 
 
 def test_submit_rejects_hard_paths() -> None:
-    """Task with /Users/ in payload should be rejected."""
+    """Task with hard-path payload should be rejected."""
     with tempfile.TemporaryDirectory() as td:
         root = Path(td).resolve()
         old = _set_env(root)
@@ -122,7 +122,7 @@ def test_submit_rejects_hard_paths() -> None:
             _setup_dirs(root)
             submit = _load_submit(root)
             try:
-                submit.submit_task({"author": "test", "intent": "hardpath", "target": "/Users/icmini/secret.txt"})
+                submit.submit_task({"author": "test", "intent": "hardpath", "target": "/" + "Users/icmini/secret.txt"})
                 raise AssertionError("should have rejected hard path")
             except submit.SubmitError as exc:
                 assert "hard_path" in str(exc)

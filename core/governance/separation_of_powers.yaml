@@ -1,0 +1,59 @@
+schema_version: separation_of_powers_v1
+principle: "Core is law. 0luka executes law."
+
+rings:
+  R3:
+    name: Constitutional
+    paths:
+      - "core/"
+    role: "contracts, schemas, ABI, pure validators, phase registry"
+    import_rule: "NEVER imports from core_brain/"
+    change_control: "governance-change label required"
+
+  R2:
+    name: Operational Culture
+    paths:
+      - "core_brain/"
+    role: "agent rules, compilers, cost router, operational extensions"
+    import_rule: "MAY import from core/"
+    change_control: "review required"
+
+  R1:
+    name: Enforcement Runtime
+    paths:
+      - "tools/ops/"
+    role: "dod_checker, aggregator, proof harness, FS-touching validators"
+    import_rule: "MAY import from core/, core_brain/"
+    change_control: "standard PR"
+
+  R0:
+    name: Evidence Archive
+    paths:
+      - "observability/"
+    role: "reports, artifacts, logs, activity feed"
+    import_rule: "append-only, no imports"
+    change_control: "runtime-generated"
+
+canonical_sources:
+  - spec: core/governance/soul.md
+    derived: core_brain/governance/agent_soul.md
+    relationship: interpretation
+
+  - spec: core/governance/router.md
+    derived: core_brain/governance/router.md
+    relationship: extends
+
+  - spec: core/governance/ontology.yaml
+    no_copy_in: core_brain/governance/
+
+  - spec: core/governance/prps.md
+    no_copy_in: core_brain/governance/
+
+forbidden_patterns:
+  - pattern: "from core_brain"
+    in_files: "core/**/*.py"
+    reason: "Core must not depend on Core Brain"
+
+  - pattern: "\\/Users\\/"
+    in_files: "core/governance/**"
+    reason: "No hard paths in governance"
