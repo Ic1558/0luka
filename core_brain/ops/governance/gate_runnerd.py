@@ -13,7 +13,7 @@ class GateRunnerDaemon:
     EVID_BASE = ROOT / "observability/stl/evidence"
     BEACON_PATH = ROOT / "observability/stl/ledger/global_beacon.jsonl"
     SOCK_PATH = ROOT / "runtime/sock/gate_runner.sock"
-    ONTOLOGY_PATH = ROOT / "core_brain/governance/ontology.yaml"
+    ONTOLOGY_PATH = ROOT / "core/governance/ontology.yaml"
     MAX_FRAME_BYTES = 1024 * 1024
     LOG_THROTTLE_SEC = 30
     JSON_ERROR_BACKOFF_SEC = 0.2
@@ -33,6 +33,8 @@ class GateRunnerDaemon:
     }
 
     def __init__(self):
+        if not self.ONTOLOGY_PATH.exists():
+            raise FileNotFoundError(f"Missing canonical ontology: {self.ONTOLOGY_PATH}")
         self.counter = IDCounter()
         self.ALARM_ACTIVE = False
         self._owner_uid = os.geteuid()

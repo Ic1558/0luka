@@ -1,0 +1,12 @@
+repos:
+  - id: 0luka
+    local_path: ~/0luka
+    branch: main
+  - id: 02luka
+    git_url: git@github.com:Ic1558/02luka.git
+    branch: main
+
+rules:
+  require_operational_proof: true
+  ignore_kinds_in_all:
+    - fixture
