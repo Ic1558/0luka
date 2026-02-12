@@ -56,10 +56,11 @@ phases:
     commit_sha: 9544d7f7ac3e63cdf7882f6cad26bead8b3dd797
     evidence_path: observability/reports/dod_checker/20260212T062314681316Z_dod.json
   PHASE_1B:
-    verdict: PARTIAL
+    verdict: PROVEN
     requires:
-    commit_sha: TODO_SHA
-    evidence_path: observability/reports/dod_checker/20260212T062052829652Z_dod.json
+    last_verified_ts: 2026-02-12T06:17:01Z
+    commit_sha: c666b2f048a335c1fd6e1748c81e769c994024c9
+    evidence_path: observability/reports/dod_checker/20260212T061701920340Z_dod.json
   PHASE_2:
     verdict: PROVEN
     requires:
