@@ -16,6 +16,7 @@ Exit Codes:
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -92,17 +93,17 @@ class GovernorRouter:
             # Check if any path matches scope and contains pattern
             for path in paths:
                 if path.startswith(scope):
-                    # Check for hard path pattern
-                    if pattern == "/Users/" and "/Users/" in path:
+                    # DELETE is an operation-level control.
+                    if pattern == "DELETE" and "DELETE" in operations:
                         return {
                             'reason': pattern_rule['reason'],
                             'exit_code': pattern_rule['exit_code'],
                             'path': path,
                             'pattern': pattern
                         }
-                    
-                    # Check for DELETE operation
-                    if pattern == "DELETE" and "DELETE" in operations:
+
+                    # Other patterns are matched against the path as regex.
+                    if pattern != "DELETE" and re.search(pattern, path):
                         return {
                             'reason': pattern_rule['reason'],
                             'exit_code': pattern_rule['exit_code'],
