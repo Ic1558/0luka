@@ -13,6 +13,8 @@
 - **Related SOT Section**: §Phase15.5.4
 - **Target Status**: DESIGNED → PARTIAL → PROVEN
 - **Commit SHA**: 9544d7f7ac3e63cdf7882f6cad26bead8b3dd797
+- **Evidence Path**: observability/reports/phase15_5_4/operational_proof.json
+- **Proof Mode**: operational
 - **Date**: 2026-02-12
 
 ---
@@ -50,7 +52,7 @@
   3. Verdict Guard: synthetic + strict → force PARTIAL
 - **Verification Commands**:
   - `python3 -m pytest core/verify/test_phase15_5_4_operational_proof.py -v`
-  - `LUKA_REQUIRE_OPERATIONAL_PROOF=1 python3 tools/ops/dod_checker.py --phase PHASE_15_5_3 --json`
+  - `LUKA_REQUIRE_OPERATIONAL_PROOF=1 python3 tools/ops/dod_checker.py --phase PHASE_15_5_4 --json`
   - `python3 tools/ops/dod_checker.py --phase PHASE_15_5_4 --json`
 
 ---
