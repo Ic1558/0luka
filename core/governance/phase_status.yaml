@@ -68,7 +68,7 @@ phases:
     commit_sha: 18b225d
     evidence_path: observability/reports/dod_checker/20260212T062052829652Z_dod.json
   PHASE_3E:
-    verdict: DESIGNED
+    verdict: PROVEN
     requires:
       - PHASE_1B
       - PHASE_2
@@ -76,7 +76,9 @@ phases:
       - PHASE_10
       - PHASE_15_4
       - PHASE_OPS
-    commit_sha: TODO_SHA
+    last_verified_ts: 2026-02-12T08:03:23Z
+    commit_sha: 843d7e28f684a14059da718c0e448f8d7e2d06bb
+    evidence_path: observability/reports/dod_checker/20260212T080323816429Z_dod.json
   PHASE_8:
     verdict: PROVEN
     requires:
