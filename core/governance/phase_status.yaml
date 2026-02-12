@@ -2,69 +2,69 @@ phases:
   PHASE_10:
     verdict: PROVEN
     requires:
-    last_verified_ts: 2026-02-11T23:17:45Z
+    last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: e4be90ae7719925c1a7cce5d5bc17ba2a0a78694
-    evidence_path: observability/reports/dod_checker/20260211T231745808068Z_dod.json
+    evidence_path: observability/reports/dod_checker/20260212T182715045620Z_dod.json
   PHASE_11:
     verdict: PROVEN
     requires:
-    last_verified_ts: 2026-02-11T23:24:56Z
+    last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: 9bca4027c27a1b9edd69894524db3b5966a27d2a
-    evidence_path: observability/reports/dod_checker/20260211T232456423560Z_dod.json
+    evidence_path: observability/reports/dod_checker/20260212T182715045620Z_dod.json
   PHASE_15_3:
     verdict: PROVEN
     requires:
-    last_verified_ts: 2026-02-12T06:24:29Z
+    last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: c2ddbca33e2d846c7c9a1d73f91cf0ae639b444c
-    evidence_path: observability/reports/dod_checker/20260212T062429704659Z_dod.json
+    evidence_path: observability/reports/dod_checker/20260212T182715045620Z_dod.json
   PHASE_15_4:
     verdict: PROVEN
     requires:
-    last_verified_ts: 2026-02-12T06:20:52Z
+    last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: d53b02190eea90ad874fda25f8f2e1d765adf864
-    evidence_path: observability/reports/dod_checker/20260212T062052829652Z_dod.json
+    evidence_path: observability/reports/dod_checker/20260212T182715045620Z_dod.json
   PHASE_15_5_0:
     verdict: PROVEN
     requires:
-    last_verified_ts: 2026-02-12T06:26:06Z
+    last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: 7d3bd6dc411371c6198feeca6d2596812083e333
-    evidence_path: observability/reports/dod_checker/20260212T062606007441Z_dod.json
+    evidence_path: observability/reports/dod_checker/20260212T182715045620Z_dod.json
   PHASE_15_5_1:
     verdict: PROVEN
     requires:
-    last_verified_ts: 2026-02-12T06:26:20Z
+    last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: d55a50d045e54227b24ebd3aaed4197421e473d3
-    evidence_path: observability/reports/dod_checker/20260212T062620395914Z_dod.json
+    evidence_path: observability/reports/dod_checker/20260212T182715045620Z_dod.json
   PHASE_15_5_2:
     verdict: PROVEN
     requires:
-    last_verified_ts: 2026-02-12T06:26:31Z
+    last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: c28d9c1cc52cf05c5060ab70773b3963d0419350
-    evidence_path: observability/reports/dod_checker/20260212T062631947989Z_dod.json
+    evidence_path: observability/reports/dod_checker/20260212T182715045620Z_dod.json
   PHASE_15_5_3:
     verdict: PROVEN
     requires:
       - PHASE_8
       - PHASE_2
-    last_verified_ts: 2026-02-12T06:20:52Z
+    last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: 61dfac8c3a6018f0ee28695d98688978d403e916
     evidence_path: tests/fixtures/dod_checker/phase15_5_3_proven.json
   PHASE_15_5_4:
     verdict: PROVEN
     requires:
-    last_verified_ts: 2026-02-12T06:23:14Z
+    last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: 9544d7f7ac3e63cdf7882f6cad26bead8b3dd797
-    evidence_path: observability/reports/dod_checker/20260212T062314681316Z_dod.json
+    evidence_path: observability/reports/dod_checker/20260212T182715045620Z_dod.json
   PHASE_1B:
     verdict: PROVEN
     requires:
-    last_verified_ts: 2026-02-12T06:17:01Z
+    last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: c666b2f048a335c1fd6e1748c81e769c994024c9
-    evidence_path: observability/reports/dod_checker/20260212T061701920340Z_dod.json
+    evidence_path: observability/reports/dod_checker/20260212T182715045620Z_dod.json
   PHASE_2:
     verdict: PROVEN
     requires:
-    last_verified_ts: 2026-02-12T06:20:52Z
+    last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: 18b225d
     evidence_path: tests/fixtures/dod_checker/phase2_proven.json
   PHASE_3E:
@@ -76,31 +76,31 @@ phases:
       - PHASE_10
       - PHASE_15_4
       - PHASE_OPS
-    last_verified_ts: 2026-02-12T08:07:59Z
+    last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: 843d7e28f684a14059da718c0e448f8d7e2d06bb
-    evidence_path: observability/reports/dod_checker/20260212T080759326089Z_dod.json
+    evidence_path: observability/reports/dod_checker/20260212T182715045620Z_dod.json
   PHASE_8:
     verdict: PROVEN
     requires:
-    last_verified_ts: 2026-02-12T06:20:52Z
+    last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: 5d9657f
     evidence_path: tests/fixtures/dod_checker/phase8_proven.json
   PHASE_9:
     verdict: PROVEN
     requires:
-    last_verified_ts: 2026-02-11T23:27:42Z
+    last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: 0a79adcc080d68ecfccf407680a41c2f6d242ac8
-    evidence_path: observability/reports/dod_checker/20260211T232742609004Z_dod.json
+    evidence_path: observability/reports/dod_checker/20260212T182715045620Z_dod.json
   PHASE_DEMO_PROVEN:
     verdict: DESIGNED
     requires:
     last_verified_ts: 2026-02-11T18:49:48Z
     commit_sha: 7d3bd6dc411371c6198feeca6d2596812083e333
-    evidence_path: observability/reports/dod_checker/20260212T062052829652Z_dod.json
+    evidence_path: observability/reports/dod_checker/20260212T182715045620Z_dod.json
     kind: fixture
   PHASE_OPS:
     verdict: PROVEN
     requires:
-    last_verified_ts: 2026-02-12T06:20:52Z
+    last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: 6ac93c6
-    evidence_path: observability/reports/dod_checker/20260212T062052829652Z_dod.json
+    evidence_path: observability/reports/dod_checker/20260212T182715045620Z_dod.json

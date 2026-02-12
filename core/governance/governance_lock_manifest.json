@@ -1,0 +1,134 @@
+{
+  "algorithm": "sha256",
+  "critical_specs": [
+    "core/governance/**",
+    "docs/dod/**",
+    "tools/ops/dod_checker.py",
+    "phase_status.yaml",
+    "core/governance/phase_status.yaml"
+  ],
+  "files": [
+    {
+      "path": "core/governance/BOUNDARY_MANIFESTO.md",
+      "sha256": "6d7376ec88fd131eb0a6e3782390c0289fffb53ab206a0e4a11ad58e48fbfd0d"
+    },
+    {
+      "path": "core/governance/README.md",
+      "sha256": "adebcc57b0dac1d401fe2e001f8d5808d435ad44e98269c710a1bf7327c2999b"
+    },
+    {
+      "path": "core/governance/decisions/003_post_mortem_llm_geometry.md",
+      "sha256": "358f4d82ee0a078ac3211ba5db7bf70999da0fdf15fd0312885f8bd8a79437fe"
+    },
+    {
+      "path": "core/governance/decisions/DECISION_3E_DIRECTORY_PLACEMENT.md",
+      "sha256": "6149413e31155cbe5a2c9b79d95ced6e04d87fdb7086e67f2173b60627ebb441"
+    },
+    {
+      "path": "core/governance/decisions/DECISION_3E_STABILIZATION_SEAL_20260212.md",
+      "sha256": "aaded604e05c6e89bf109c662571e30556385ddf5789174ec4cfa491a4b68aef"
+    },
+    {
+      "path": "core/governance/ontology.yaml",
+      "sha256": "26d9f9ceaec6c7a04826c1870c0a5b2a9dd046f896545d5457805b1a87b3e054"
+    },
+    {
+      "path": "core/governance/phase_status.yaml",
+      "sha256": "c528edff90752caf28fb3078110722754ea678ad376ab7210ef7d8f90d6ea118"
+    },
+    {
+      "path": "core/governance/prps.md",
+      "sha256": "b7d023f90a6f7945d7e699ba35266fb5cbc4d95f039ea2351fbe77b47612baa3"
+    },
+    {
+      "path": "core/governance/router.md",
+      "sha256": "2eac7d6b737c884a24c5d1e492b789616b1144f6be437151d839de487360e711"
+    },
+    {
+      "path": "core/governance/soul.md",
+      "sha256": "a3dc3bc6b2984f464ff427fec21f8b7989e294082179a99814ecd5380da54695"
+    },
+    {
+      "path": "core/governance/tier3_abi.yaml",
+      "sha256": "29d0bab647917feed354502221954eabedbf8f6e3805db421412c2a4c605ba9f"
+    },
+    {
+      "path": "docs/dod/DOD_TEMPLATE.md",
+      "sha256": "f2eb8fc127185e3707c8b670dff36ef62e470575b628bbddd7a6e1823f87fa77"
+    },
+    {
+      "path": "docs/dod/DOD__PHASE_10.md",
+      "sha256": "fbbbeb66afb52c6c5c131ffa8d1ca6cafd6fef3a9c04219d609331255a33cfdd"
+    },
+    {
+      "path": "docs/dod/DOD__PHASE_11.md",
+      "sha256": "f6411097986f08f054a2eb1d9103d90c43f89dd1e4dcab7797966752e83bc783"
+    },
+    {
+      "path": "docs/dod/DOD__PHASE_15_3.md",
+      "sha256": "23df204b5ce547000d6ea94584664bb2c6cf8010ab07b3a109eea81cbc45cd8b"
+    },
+    {
+      "path": "docs/dod/DOD__PHASE_15_4.md",
+      "sha256": "2ad0f5460df034b33ecda3b2e5d7d5fe2832f86310e4474c798e40b2bfd29b0b"
+    },
+    {
+      "path": "docs/dod/DOD__PHASE_15_5_0.md",
+      "sha256": "4a474e887955f47def6277eef5f31e0cead0fd4eececca278af76f76f4ff5a23"
+    },
+    {
+      "path": "docs/dod/DOD__PHASE_15_5_1.md",
+      "sha256": "771719d90fdec2fbf929b533c9759964eb276523486d9466915fb07aacfd55b4"
+    },
+    {
+      "path": "docs/dod/DOD__PHASE_15_5_2.md",
+      "sha256": "439c83ca7cb8b09fde50564358cfec1232f2dcaeaca158db95d9c9d7c381b02b"
+    },
+    {
+      "path": "docs/dod/DOD__PHASE_15_5_3.md",
+      "sha256": "e4f63e1b820dea12b811281393f118e15bda63eff146496e1817542dc23aeed1"
+    },
+    {
+      "path": "docs/dod/DOD__PHASE_15_5_4.md",
+      "sha256": "bf47db2dbbc5b3b120f21a810a938828078ab5ab122f882207118004b97e921a"
+    },
+    {
+      "path": "docs/dod/DOD__PHASE_1B.md",
+      "sha256": "66fe5e6a3f7a036cfac5f7df724698319ccd6e119e62725067d8067080636b9b"
+    },
+    {
+      "path": "docs/dod/DOD__PHASE_2.md",
+      "sha256": "4b13389ec580f6d124d8d5e0fe2239e6f039c9d261e879b561fa2afc880ef3a1"
+    },
+    {
+      "path": "docs/dod/DOD__PHASE_3E.md",
+      "sha256": "fe7f6d6853734012b50f7475e5222e3f284ac1d928cf9405df70623b358e407d"
+    },
+    {
+      "path": "docs/dod/DOD__PHASE_8.md",
+      "sha256": "a88e5208762d0aac32b0ba1cd5956d8d6973834c6b8f74e2f325e934a084cc59"
+    },
+    {
+      "path": "docs/dod/DOD__PHASE_9.md",
+      "sha256": "ebd154a25ee83494aeac1c5024a15fb62af0bf8e7580e7c80db55844368aaa1c"
+    },
+    {
+      "path": "docs/dod/DOD__PHASE_DEMO_PROVEN.md",
+      "sha256": "5da1483e9240fa778af9945870fa85a7d791f6e5f3b958ca8b11e0951a3582f1"
+    },
+    {
+      "path": "docs/dod/DOD__PHASE_OPS.md",
+      "sha256": "9adda54bd06df8595192b3ee035046fec2a358aa34007a2107b8d516d8f1fa8f"
+    },
+    {
+      "path": "docs/dod/_examples/DOD__PHASE_MOCK.md",
+      "sha256": "270be62b13eca6a59f069754dd4c9dd78d896a5fc06c9dd1a0d415e455269d93"
+    },
+    {
+      "path": "tools/ops/dod_checker.py",
+      "sha256": "5d1149dcb7acfdb4485f1b69cd462a3a441020a4c31256fe2a99f338aa5d888a"
+    }
+  ],
+  "generated_at_utc": "2026-02-12T19:05:50Z",
+  "required_label": "governance-change"
+}

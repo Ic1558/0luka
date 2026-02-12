@@ -1,0 +1,36 @@
+# Object Inventory (forensic snapshot)
+
+Snapshot directory:
+- reports/recovery_20260212T094141Z
+
+Key counters:
+count: 0
+size: 0
+in-pack: 3436
+packs: 1
+size-pack: 29254
+prune-packable: 0
+garbage: 0
+size-garbage: 0
+
+
+Diagnosis summary:
+recovery_dir=reports/recovery_20260212T094141Z
+reachable_commits=234
+reflog_walk_commits=4
+dangling_commits=0
+
+
+Tracked vs ignored summary:
+tracked_count=1460
+ignored_untracked_count=18
+ignored_tracked_count=325
+
+
+Artifacts:
+- fsck output: reports/recovery_20260212T094141Z/fsck_unreachable.txt
+- reachable commits: reports/recovery_20260212T094141Z/rev_list_all.txt
+- reflog walk commits: reports/recovery_20260212T094141Z/rev_list_reflog_walk.txt
+- dangling commit IDs: reports/recovery_20260212T094141Z/dangling_commit_ids.txt
+- commit inventory: reports/recovery_20260212T094141Z/commit_inventory.txt
+- checksum list: reports/recovery_20260212T094141Z/snapshot_checksums.txt
