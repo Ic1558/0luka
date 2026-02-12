@@ -12,7 +12,9 @@
 - **Gate**: G10
 - **Related SOT Section**: §Tier1.Phase10
 - **Target Status**: DESIGNED → PARTIAL → PROVEN
-- **Commit SHA**: TODO_SHA
+- **Commit SHA**: e4be90ae7719925c1a7cce5d5bc17ba2a0a78694
+- **Evidence Path**: observability/reports/linguist/ambiguity_report.json
+- **Proof Mode**: operational
 - **Date**: 2026-02-12
 
 ## 4. Evidence (Fail-Closed Core)
@@ -29,3 +31,9 @@
   - `core/linguist.py`
   - `observability/reports/linguist/ambiguity_report.json`
 - **Verification Command**: `python3 core/verify/prove_phase10_linguist_sentry.py`
+- **Strict Expectation**:
+  - `LUKA_REQUIRE_OPERATIONAL_PROOF=1`
+  - `proof_mode: operational`
+  - `synthetic_detected: false`
+  - `taxonomy_ok: true`
+  - `exit: 0`
