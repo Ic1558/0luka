@@ -1,0 +1,727 @@
+{
+  "report_path": "/Users/icmini/0luka/observability/reports/dod_checker/20260212T182537644061Z_dod.json",
+  "results": [
+    {
+      "phase_id": "PHASE_10",
+      "verdict": "PROVEN",
+      "meta": {
+        "phase_id": "PHASE_10",
+        "commit_sha": "e4be90ae7719925c1a7cce5d5bc17ba2a0a78694",
+        "gate": "G10",
+        "related_sot": "§Tier1.Phase10",
+        "dod_file": "/Users/icmini/0luka/docs/dod/DOD__PHASE_10.md",
+        "commit_sha_reachable": true
+      },
+      "checks": {
+        "activity_chain": {
+          "started": true,
+          "completed": true,
+          "verified": true,
+          "order_ok": true,
+          "latest_order_ok": true,
+          "event_count": 3,
+          "proof_mode": "operational",
+          "taxonomy_ok": true,
+          "taxonomy_missing": []
+        },
+        "evidence": {
+          "paths": [],
+          "exists": {},
+          "readable": {},
+          "hash_checks": {},
+          "ok": true,
+          "missing": []
+        },
+        "gate": {
+          "requires": [],
+          "prereq_verdicts": {},
+          "ok": true,
+          "missing": []
+        },
+        "synthetic_detected": false,
+        "registry_integrity_ok": true,
+        "blueprint_mismatch": false
+      },
+      "missing": []
+    },
+    {
+      "phase_id": "PHASE_11",
+      "verdict": "PROVEN",
+      "meta": {
+        "phase_id": "PHASE_11",
+        "commit_sha": "9bca4027c27a1b9edd69894524db3b5966a27d2a",
+        "gate": "G11",
+        "related_sot": "§Tier1.Phase11",
+        "dod_file": "/Users/icmini/0luka/docs/dod/DOD__PHASE_11.md",
+        "commit_sha_reachable": true
+      },
+      "checks": {
+        "activity_chain": {
+          "started": true,
+          "completed": true,
+          "verified": true,
+          "order_ok": true,
+          "latest_order_ok": true,
+          "event_count": 3,
+          "proof_mode": "operational",
+          "taxonomy_ok": true,
+          "taxonomy_missing": []
+        },
+        "evidence": {
+          "paths": [],
+          "exists": {},
+          "readable": {},
+          "hash_checks": {},
+          "ok": true,
+          "missing": []
+        },
+        "gate": {
+          "requires": [],
+          "prereq_verdicts": {},
+          "ok": true,
+          "missing": []
+        },
+        "synthetic_detected": false,
+        "registry_integrity_ok": true,
+        "blueprint_mismatch": false
+      },
+      "missing": []
+    },
+    {
+      "phase_id": "PHASE_15_3",
+      "verdict": "PROVEN",
+      "meta": {
+        "phase_id": "PHASE_15_3",
+        "commit_sha": "c2ddbca33e2d846c7c9a1d73f91cf0ae639b444c",
+        "gate": "G15",
+        "related_sot": "§Phase15.3",
+        "dod_file": "/Users/icmini/0luka/docs/dod/DOD__PHASE_15_3.md",
+        "commit_sha_reachable": true
+      },
+      "checks": {
+        "activity_chain": {
+          "started": true,
+          "completed": true,
+          "verified": true,
+          "order_ok": true,
+          "latest_order_ok": true,
+          "event_count": 3,
+          "proof_mode": "operational",
+          "taxonomy_ok": true,
+          "taxonomy_missing": []
+        },
+        "evidence": {
+          "paths": [],
+          "exists": {},
+          "readable": {},
+          "hash_checks": {},
+          "ok": true,
+          "missing": []
+        },
+        "gate": {
+          "requires": [],
+          "prereq_verdicts": {},
+          "ok": true,
+          "missing": []
+        },
+        "synthetic_detected": false,
+        "registry_integrity_ok": true,
+        "blueprint_mismatch": false
+      },
+      "missing": []
+    },
+    {
+      "phase_id": "PHASE_15_4",
+      "verdict": "PROVEN",
+      "meta": {
+        "phase_id": "PHASE_15_4",
+        "commit_sha": "d53b02190eea90ad874fda25f8f2e1d765adf864",
+        "gate": "G15",
+        "related_sot": "§Tier2.Phase15.4",
+        "dod_file": "/Users/icmini/0luka/docs/dod/DOD__PHASE_15_4.md",
+        "commit_sha_reachable": true
+      },
+      "checks": {
+        "activity_chain": {
+          "started": true,
+          "completed": true,
+          "verified": true,
+          "order_ok": true,
+          "latest_order_ok": true,
+          "event_count": 3,
+          "proof_mode": "operational",
+          "taxonomy_ok": true,
+          "taxonomy_missing": []
+        },
+        "evidence": {
+          "paths": [],
+          "exists": {},
+          "readable": {},
+          "hash_checks": {},
+          "ok": true,
+          "missing": []
+        },
+        "gate": {
+          "requires": [],
+          "prereq_verdicts": {},
+          "ok": true,
+          "missing": []
+        },
+        "synthetic_detected": false,
+        "registry_integrity_ok": true,
+        "blueprint_mismatch": false
+      },
+      "missing": []
+    },
+    {
+      "phase_id": "PHASE_15_5_0",
+      "verdict": "PROVEN",
+      "meta": {
+        "phase_id": "PHASE_15_5_0",
+        "commit_sha": "7d3bd6dc411371c6198feeca6d2596812083e333",
+        "gate": "G1",
+        "related_sot": "§Phase15.5.0",
+        "dod_file": "/Users/icmini/0luka/docs/dod/DOD__PHASE_15_5_0.md",
+        "commit_sha_reachable": true
+      },
+      "checks": {
+        "activity_chain": {
+          "started": true,
+          "completed": true,
+          "verified": true,
+          "order_ok": true,
+          "latest_order_ok": true,
+          "event_count": 3,
+          "proof_mode": "operational",
+          "taxonomy_ok": true,
+          "taxonomy_missing": []
+        },
+        "evidence": {
+          "paths": [],
+          "exists": {},
+          "readable": {},
+          "hash_checks": {},
+          "ok": true,
+          "missing": []
+        },
+        "gate": {
+          "requires": [],
+          "prereq_verdicts": {},
+          "ok": true,
+          "missing": []
+        },
+        "synthetic_detected": false,
+        "registry_integrity_ok": true,
+        "blueprint_mismatch": false
+      },
+      "missing": []
+    },
+    {
+      "phase_id": "PHASE_15_5_1",
+      "verdict": "PROVEN",
+      "meta": {
+        "phase_id": "PHASE_15_5_1",
+        "commit_sha": "d55a50d045e54227b24ebd3aaed4197421e473d3",
+        "gate": "G1",
+        "related_sot": "§Phase15.5.1",
+        "dod_file": "/Users/icmini/0luka/docs/dod/DOD__PHASE_15_5_1.md",
+        "commit_sha_reachable": true
+      },
+      "checks": {
+        "activity_chain": {
+          "started": true,
+          "completed": true,
+          "verified": true,
+          "order_ok": true,
+          "latest_order_ok": true,
+          "event_count": 3,
+          "proof_mode": "operational",
+          "taxonomy_ok": true,
+          "taxonomy_missing": []
+        },
+        "evidence": {
+          "paths": [],
+          "exists": {},
+          "readable": {},
+          "hash_checks": {},
+          "ok": true,
+          "missing": []
+        },
+        "gate": {
+          "requires": [],
+          "prereq_verdicts": {},
+          "ok": true,
+          "missing": []
+        },
+        "synthetic_detected": false,
+        "registry_integrity_ok": true,
+        "blueprint_mismatch": false
+      },
+      "missing": []
+    },
+    {
+      "phase_id": "PHASE_15_5_2",
+      "verdict": "PROVEN",
+      "meta": {
+        "phase_id": "PHASE_15_5_2",
+        "commit_sha": "c28d9c1cc52cf05c5060ab70773b3963d0419350",
+        "gate": "G1",
+        "related_sot": "§Phase15.5.2",
+        "dod_file": "/Users/icmini/0luka/docs/dod/DOD__PHASE_15_5_2.md",
+        "commit_sha_reachable": true
+      },
+      "checks": {
+        "activity_chain": {
+          "started": true,
+          "completed": true,
+          "verified": true,
+          "order_ok": true,
+          "latest_order_ok": true,
+          "event_count": 3,
+          "proof_mode": "operational",
+          "taxonomy_ok": true,
+          "taxonomy_missing": []
+        },
+        "evidence": {
+          "paths": [],
+          "exists": {},
+          "readable": {},
+          "hash_checks": {},
+          "ok": true,
+          "missing": []
+        },
+        "gate": {
+          "requires": [],
+          "prereq_verdicts": {},
+          "ok": true,
+          "missing": []
+        },
+        "synthetic_detected": false,
+        "registry_integrity_ok": true,
+        "blueprint_mismatch": false
+      },
+      "missing": []
+    },
+    {
+      "phase_id": "PHASE_15_5_3",
+      "verdict": "PROVEN",
+      "meta": {
+        "phase_id": "PHASE_15_5_3",
+        "commit_sha": "61dfac8c3a6018f0ee28695d98688978d403e916",
+        "gate": "G1",
+        "related_sot": "§Tier1.Phase15.5.3",
+        "dod_file": "/Users/icmini/0luka/docs/dod/DOD__PHASE_15_5_3.md",
+        "commit_sha_reachable": true
+      },
+      "checks": {
+        "activity_chain": {
+          "started": true,
+          "completed": true,
+          "verified": true,
+          "order_ok": true,
+          "latest_order_ok": true,
+          "event_count": 3,
+          "proof_mode": "operational",
+          "taxonomy_ok": true,
+          "taxonomy_missing": []
+        },
+        "evidence": {
+          "paths": [],
+          "exists": {},
+          "readable": {},
+          "hash_checks": {},
+          "ok": true,
+          "missing": []
+        },
+        "gate": {
+          "requires": [
+            "PHASE_8",
+            "PHASE_2"
+          ],
+          "prereq_verdicts": {
+            "PHASE_8": "PROVEN",
+            "PHASE_2": "PROVEN"
+          },
+          "ok": true,
+          "missing": []
+        },
+        "synthetic_detected": false,
+        "registry_integrity_ok": true,
+        "blueprint_mismatch": false
+      },
+      "missing": []
+    },
+    {
+      "phase_id": "PHASE_15_5_4",
+      "verdict": "PROVEN",
+      "meta": {
+        "phase_id": "PHASE_15_5_4",
+        "commit_sha": "9544d7f7ac3e63cdf7882f6cad26bead8b3dd797",
+        "gate": "G1",
+        "related_sot": "§Phase15.5.4",
+        "dod_file": "/Users/icmini/0luka/docs/dod/DOD__PHASE_15_5_4.md",
+        "commit_sha_reachable": true
+      },
+      "checks": {
+        "activity_chain": {
+          "started": true,
+          "completed": true,
+          "verified": true,
+          "order_ok": true,
+          "latest_order_ok": true,
+          "event_count": 3,
+          "proof_mode": "operational",
+          "taxonomy_ok": true,
+          "taxonomy_missing": []
+        },
+        "evidence": {
+          "paths": [],
+          "exists": {},
+          "readable": {},
+          "hash_checks": {},
+          "ok": true,
+          "missing": []
+        },
+        "gate": {
+          "requires": [],
+          "prereq_verdicts": {},
+          "ok": true,
+          "missing": []
+        },
+        "synthetic_detected": false,
+        "registry_integrity_ok": true,
+        "blueprint_mismatch": false
+      },
+      "missing": []
+    },
+    {
+      "phase_id": "PHASE_1B",
+      "verdict": "PROVEN",
+      "meta": {
+        "phase_id": "PHASE_1B",
+        "commit_sha": "c666b2f048a335c1fd6e1748c81e769c994024c9",
+        "gate": "G1",
+        "related_sot": "§Tier1.Phase1B",
+        "dod_file": "/Users/icmini/0luka/docs/dod/DOD__PHASE_1B.md",
+        "commit_sha_reachable": true
+      },
+      "checks": {
+        "activity_chain": {
+          "started": true,
+          "completed": true,
+          "verified": true,
+          "order_ok": true,
+          "latest_order_ok": true,
+          "event_count": 3,
+          "proof_mode": "operational",
+          "taxonomy_ok": true,
+          "taxonomy_missing": []
+        },
+        "evidence": {
+          "paths": [],
+          "exists": {},
+          "readable": {},
+          "hash_checks": {},
+          "ok": true,
+          "missing": []
+        },
+        "gate": {
+          "requires": [],
+          "prereq_verdicts": {},
+          "ok": true,
+          "missing": []
+        },
+        "synthetic_detected": false,
+        "registry_integrity_ok": true,
+        "blueprint_mismatch": false
+      },
+      "missing": []
+    },
+    {
+      "phase_id": "PHASE_2",
+      "verdict": "PROVEN",
+      "meta": {
+        "phase_id": "PHASE_2",
+        "commit_sha": "18b225d",
+        "gate": "G2",
+        "related_sot": "§Tier1.Phase2",
+        "dod_file": "/Users/icmini/0luka/docs/dod/DOD__PHASE_2.md",
+        "commit_sha_reachable": true
+      },
+      "checks": {
+        "activity_chain": {
+          "started": true,
+          "completed": true,
+          "verified": true,
+          "order_ok": true,
+          "latest_order_ok": true,
+          "event_count": 3,
+          "proof_mode": "operational",
+          "taxonomy_ok": true,
+          "taxonomy_missing": []
+        },
+        "evidence": {
+          "paths": [],
+          "exists": {},
+          "readable": {},
+          "hash_checks": {},
+          "ok": true,
+          "missing": []
+        },
+        "gate": {
+          "requires": [],
+          "prereq_verdicts": {},
+          "ok": true,
+          "missing": []
+        },
+        "synthetic_detected": false,
+        "registry_integrity_ok": true,
+        "blueprint_mismatch": false
+      },
+      "missing": []
+    },
+    {
+      "phase_id": "PHASE_3E",
+      "verdict": "PARTIAL",
+      "meta": {
+        "phase_id": "PHASE_3E",
+        "commit_sha": "843d7e28f684a14059da718c0e448f8d7e2d06bb",
+        "gate": "G1",
+        "related_sot": "§Tier3.Phase3E",
+        "dod_file": "/Users/icmini/0luka/docs/dod/DOD__PHASE_3E.md",
+        "commit_sha_reachable": true
+      },
+      "checks": {
+        "activity_chain": {
+          "started": true,
+          "completed": true,
+          "verified": true,
+          "order_ok": true,
+          "latest_order_ok": true,
+          "event_count": 3,
+          "proof_mode": "operational",
+          "taxonomy_ok": true,
+          "taxonomy_missing": []
+        },
+        "evidence": {
+          "paths": [],
+          "exists": {},
+          "readable": {},
+          "hash_checks": {},
+          "ok": true,
+          "missing": []
+        },
+        "gate": {
+          "requires": [
+            "PHASE_1B",
+            "PHASE_2",
+            "PHASE_8",
+            "PHASE_10",
+            "PHASE_15_4",
+            "PHASE_OPS"
+          ],
+          "prereq_verdicts": {
+            "PHASE_1B": "PARTIAL",
+            "PHASE_2": "PROVEN",
+            "PHASE_8": "PROVEN",
+            "PHASE_10": "PARTIAL",
+            "PHASE_15_4": "PARTIAL",
+            "PHASE_OPS": "PARTIAL"
+          },
+          "ok": false,
+          "missing": [
+            "gate.requires_not_proven:PHASE_1B",
+            "gate.requires_not_proven:PHASE_10",
+            "gate.requires_not_proven:PHASE_15_4",
+            "gate.requires_not_proven:PHASE_OPS"
+          ]
+        },
+        "synthetic_detected": false,
+        "registry_integrity_ok": true,
+        "blueprint_mismatch": false
+      },
+      "missing": [
+        "gate.requires_not_proven:PHASE_10",
+        "gate.requires_not_proven:PHASE_15_4",
+        "gate.requires_not_proven:PHASE_1B",
+        "gate.requires_not_proven:PHASE_OPS"
+      ]
+    },
+    {
+      "phase_id": "PHASE_8",
+      "verdict": "PROVEN",
+      "meta": {
+        "phase_id": "PHASE_8",
+        "commit_sha": "5d9657f",
+        "gate": "G8",
+        "related_sot": "§Tier1.Phase8",
+        "dod_file": "/Users/icmini/0luka/docs/dod/DOD__PHASE_8.md",
+        "commit_sha_reachable": true
+      },
+      "checks": {
+        "activity_chain": {
+          "started": true,
+          "completed": true,
+          "verified": true,
+          "order_ok": true,
+          "latest_order_ok": true,
+          "event_count": 3,
+          "proof_mode": "operational",
+          "taxonomy_ok": true,
+          "taxonomy_missing": []
+        },
+        "evidence": {
+          "paths": [],
+          "exists": {},
+          "readable": {},
+          "hash_checks": {},
+          "ok": true,
+          "missing": []
+        },
+        "gate": {
+          "requires": [],
+          "prereq_verdicts": {},
+          "ok": true,
+          "missing": []
+        },
+        "synthetic_detected": false,
+        "registry_integrity_ok": true,
+        "blueprint_mismatch": false
+      },
+      "missing": []
+    },
+    {
+      "phase_id": "PHASE_9",
+      "verdict": "PROVEN",
+      "meta": {
+        "phase_id": "PHASE_9",
+        "commit_sha": "0a79adcc080d68ecfccf407680a41c2f6d242ac8",
+        "gate": "G9",
+        "related_sot": "§Tier1.Phase9",
+        "dod_file": "/Users/icmini/0luka/docs/dod/DOD__PHASE_9.md",
+        "commit_sha_reachable": true
+      },
+      "checks": {
+        "activity_chain": {
+          "started": true,
+          "completed": true,
+          "verified": true,
+          "order_ok": true,
+          "latest_order_ok": true,
+          "event_count": 3,
+          "proof_mode": "operational",
+          "taxonomy_ok": true,
+          "taxonomy_missing": []
+        },
+        "evidence": {
+          "paths": [],
+          "exists": {},
+          "readable": {},
+          "hash_checks": {},
+          "ok": true,
+          "missing": []
+        },
+        "gate": {
+          "requires": [],
+          "prereq_verdicts": {},
+          "ok": true,
+          "missing": []
+        },
+        "synthetic_detected": false,
+        "registry_integrity_ok": true,
+        "blueprint_mismatch": false
+      },
+      "missing": []
+    },
+    {
+      "phase_id": "PHASE_DEMO_PROVEN",
+      "verdict": "DESIGNED",
+      "meta": {
+        "phase_id": "PHASE_DEMO_PROVEN",
+        "commit_sha": "7d3bd6dc411371c6198feeca6d2596812083e333",
+        "gate": "G1",
+        "related_sot": "§Tier1.Phase2",
+        "dod_file": "/Users/icmini/0luka/docs/dod/DOD__PHASE_DEMO_PROVEN.md",
+        "commit_sha_reachable": true
+      },
+      "checks": {
+        "activity_chain": {
+          "started": false,
+          "completed": false,
+          "verified": false,
+          "order_ok": false,
+          "latest_order_ok": false,
+          "event_count": 0,
+          "proof_mode": "synthetic",
+          "taxonomy_ok": true,
+          "taxonomy_missing": []
+        },
+        "evidence": {
+          "paths": [],
+          "exists": {},
+          "readable": {},
+          "hash_checks": {},
+          "ok": true,
+          "missing": []
+        },
+        "gate": {
+          "requires": [],
+          "prereq_verdicts": {},
+          "ok": true,
+          "missing": []
+        },
+        "synthetic_detected": false,
+        "registry_integrity_ok": true,
+        "blueprint_mismatch": false
+      },
+      "missing": [
+        "activity.completed",
+        "activity.started",
+        "activity.verified"
+      ]
+    },
+    {
+      "phase_id": "PHASE_OPS",
+      "verdict": "PROVEN",
+      "meta": {
+        "phase_id": "PHASE_OPS",
+        "commit_sha": "6ac93c6",
+        "gate": "G1",
+        "related_sot": "§Tier1.OpsHardening",
+        "dod_file": "/Users/icmini/0luka/docs/dod/DOD__PHASE_OPS.md",
+        "commit_sha_reachable": true
+      },
+      "checks": {
+        "activity_chain": {
+          "started": true,
+          "completed": true,
+          "verified": true,
+          "order_ok": true,
+          "latest_order_ok": true,
+          "event_count": 3,
+          "proof_mode": "operational",
+          "taxonomy_ok": true,
+          "taxonomy_missing": []
+        },
+        "evidence": {
+          "paths": [],
+          "exists": {},
+          "readable": {},
+          "hash_checks": {},
+          "ok": true,
+          "missing": []
+        },
+        "gate": {
+          "requires": [],
+          "prereq_verdicts": {},
+          "ok": true,
+          "missing": []
+        },
+        "synthetic_detected": false,
+        "registry_integrity_ok": true,
+        "blueprint_mismatch": false
+      },
+      "missing": []
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "changed_files": 15,
+  "critical_changed": [
+    "core/governance/decisions/DECISION_3E_STABILIZATION_SEAL_20260212.md",
+    "core/governance/governance_lock_manifest.json"
+  ],
+  "errors": [],
+  "ok": true
+}
