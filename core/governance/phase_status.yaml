@@ -10,10 +10,11 @@ phases:
     commit_sha: TODO_SHA
     evidence_path: observability/reports/dod_checker/20260212T062052829652Z_dod.json
   PHASE_15_3:
-    verdict: DESIGNED
+    verdict: PROVEN
     requires:
+    last_verified_ts: 2026-02-12T06:24:29Z
     commit_sha: c2ddbca33e2d846c7c9a1d73f91cf0ae639b444c
-    evidence_path: observability/reports/dod_checker/20260212T062052829652Z_dod.json
+    evidence_path: observability/reports/dod_checker/20260212T062429704659Z_dod.json
   PHASE_15_4:
     verdict: PROVEN
     requires:

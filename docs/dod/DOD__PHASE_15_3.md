@@ -13,6 +13,8 @@
 - **Related SOT Section**: §Phase15.3
 - **Target Status**: DESIGNED → PARTIAL → PROVEN
 - **Commit SHA**: c2ddbca33e2d846c7c9a1d73f91cf0ae639b444c
+- **Evidence Path**: observability/reports/phase15_3/pattern_killer_proof.json
+- **Proof Mode**: operational
 - **Date**: 2026-02-12
 
 ---
@@ -46,6 +48,7 @@
 - **Test Suite**: `core/verify/test_phase15_3_pattern_killer.py` (5 tests)
 - **Verification Commands**:
   - `python3 -m pytest core/verify/test_phase15_3_pattern_killer.py -v`
+  - `LUKA_REQUIRE_OPERATIONAL_PROOF=1 python3 tools/ops/dod_checker.py --phase PHASE_15_3 --json`
   - `python3 tools/ops/dod_checker.py --phase PHASE_15_3 --json`
 
 ---
