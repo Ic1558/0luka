@@ -85,6 +85,7 @@ phases:
     last_verified_ts: 2026-02-11T18:49:48Z
     commit_sha: 7d3bd6dc411371c6198feeca6d2596812083e333
     evidence_path: observability/reports/dod_checker/20260212T062052829652Z_dod.json
+    kind: fixture
   PHASE_OPS:
     verdict: PROVEN
     requires:

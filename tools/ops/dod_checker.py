@@ -587,8 +587,28 @@ def _dump_phase_status_yaml(data: Dict[str, Any]) -> str:
             out.append(f"    commit_sha: {phase['commit_sha']}")
         if "evidence_path" in phase:
             out.append(f"    evidence_path: {phase['evidence_path']}")
+        if "kind" in phase:
+            out.append(f"    kind: {phase['kind']}")
+        if "is_fixture" in phase:
+            out.append(f"    is_fixture: {phase['is_fixture']}")
     out.append("")
     return "\n".join(out)
+
+
+def _is_fixture_phase(phase_entry: Dict[str, Any]) -> bool:
+    if not isinstance(phase_entry, dict):
+        return False
+    kind = str(phase_entry.get("kind", "")).strip().lower()
+    if kind == "fixture":
+        return True
+    raw = phase_entry.get("is_fixture")
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, (int, float)):
+        return bool(raw)
+    if isinstance(raw, str):
+        return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
+    return False
 
 
 def _atomic_write(path: Path, content: str) -> None:
@@ -902,7 +922,18 @@ def main() -> int:
                 m = ",".join(r.get("missing", []))
                 print(f"{r['phase_id']:<24} {r['verdict']:<10} {m}")
 
-        return compute_exit_code(results)
+        exit_results = results
+        if args.all:
+            status_data = load_phase_status(paths.phase_status)
+            phases = status_data.get("phases", {}) if isinstance(status_data.get("phases"), dict) else {}
+            exit_results = []
+            for res in results:
+                phase_entry = phases.get(res.get("phase_id"), {}) if isinstance(phases.get(res.get("phase_id"), {}), dict) else {}
+                if _is_fixture_phase(phase_entry):
+                    continue
+                exit_results.append(res)
+
+        return compute_exit_code(exit_results)
     except Exception as exc:
         if args.json:
             print(json.dumps({"error": f"{type(exc).__name__}:{exc}"}, ensure_ascii=False))
