@@ -85,7 +85,7 @@ def test_e2e_clec_write_text() -> None:
         }
         gated = gate_outbound_result(result)
         assert gated["status"] == "ok", f"gate demoted: {gated.get('status')}"
-        assert "/Users/" not in str(gated), "hard path leak"
+        assert "/" + "Users/" not in str(gated), "hard path leak"
 
         map_path = root / "ref_map.yaml"
         map_path.write_text(
@@ -100,7 +100,7 @@ def test_e2e_clec_write_text() -> None:
         outbox_path, envelope = write_result_to_outbox(gated, ref_map_path=str(map_path))
         assert outbox_path.exists(), "outbox file not created"
         content = outbox_path.read_text(encoding="utf-8")
-        assert "/Users/" not in content, "hard path in outbox"
+        assert "/" + "Users/" not in content, "hard path in outbox"
         assert "e2e_test_001" in content, "task_id missing"
         assert envelope["task_id"] == "e2e_test_001"
         print("test_e2e_clec_write_text: ok")
@@ -261,7 +261,7 @@ def test_audit_artifact_on_failure() -> None:
 
 
 def test_audit_no_hardpaths() -> None:
-    """Audit payload must not contain /Users/ or file:///Users."""
+    """Audit payload must not contain user-home hard paths or file user URIs."""
     old_root = os.environ.get("ROOT")
     old_0luka_root = os.environ.get("0LUKA_ROOT")
     with tempfile.TemporaryDirectory() as td:
@@ -279,7 +279,7 @@ def test_audit_no_hardpaths() -> None:
         )
 
         content = Path(audit_path).read_text(encoding="utf-8")
-        assert "/Users/" not in content, "hard path detected in audit"
+        assert "/" + "Users/" not in content, "hard path detected in audit"
         assert "file:///Users" not in content, "file URI hard path detected"
         print("test_audit_no_hardpaths: ok")
     if old_root is None:

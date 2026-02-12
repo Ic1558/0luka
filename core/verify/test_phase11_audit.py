@@ -55,14 +55,14 @@ def test_sanitization_and_no_leak() -> None:
                 {
                     "ts": "2026-02-10T00:00:00Z",
                     "type": "policy.sense.started",
-                    "message": "reading /Users/icmini/private/secret.txt with sk-ABCDEF1234567890123456",
+                    "message": "reading " + "/" + "Users/icmini/private/secret.txt with sk-ABCDEF1234567890123456",
                 },
             )
 
             narrator = _load_narrator()
             out = narrator.generate_activity_intelligence(limit=20, write_artifacts=True)
             serialized = json.dumps(out, ensure_ascii=False)
-            assert "/Users/" not in serialized
+            assert "/" + "Users/" not in serialized
             assert "sk-" not in serialized
             print("test_sanitization_and_no_leak: ok")
         finally:

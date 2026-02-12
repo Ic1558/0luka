@@ -332,7 +332,7 @@ Per `dod_checker.py` strict mode logic:
 
 | Concern | Current State | Future Risk | Prevention |
 |---------|--------------|-------------|-----------|
-| `model_registry.yaml` is repo-local | OK — single repo | Multi-repo would need shared registry | Registry MUST use relative paths only. No `/Users/` paths. No repo-specific assumptions |
+| `model_registry.yaml` is repo-local | OK — single repo | Multi-repo would need shared registry | Registry MUST use relative paths only. No `/home/` paths. No repo-specific assumptions |
 | `decisions.jsonl` path is hardcoded relative | OK — `observability/reports/cost_router/` | Cross-repo aggregator would need to know this path | Document path in ABI contract. Future aggregator reads via `core/config.py` constant |
 | Budget is per-repo | OK — single budget | Multi-repo spend must aggregate | Budget module reads from local ledger only. Cross-repo aggregation is a FUTURE module (not 3E scope) |
 

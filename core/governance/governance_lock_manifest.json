@@ -13,8 +13,16 @@
       "sha256": "6d7376ec88fd131eb0a6e3782390c0289fffb53ab206a0e4a11ad58e48fbfd0d"
     },
     {
+      "path": "core/governance/CONSTITUTIONAL_DECREE.md",
+      "sha256": "3742fcc3dc5a6a20af018484b22644a7a8e861365324953d4f3689a650a21d68"
+    },
+    {
       "path": "core/governance/README.md",
       "sha256": "adebcc57b0dac1d401fe2e001f8d5808d435ad44e98269c710a1bf7327c2999b"
+    },
+    {
+      "path": "core/governance/cross_repo_manifest.yaml",
+      "sha256": "555ab27f3da5e5c7169cc9e0fcad3c1faf396da65a32ff9196ebbe7cb450798c"
     },
     {
       "path": "core/governance/decisions/003_post_mortem_llm_geometry.md",
@@ -26,7 +34,11 @@
     },
     {
       "path": "core/governance/decisions/DECISION_3E_STABILIZATION_SEAL_20260212.md",
-      "sha256": "aaded604e05c6e89bf109c662571e30556385ddf5789174ec4cfa491a4b68aef"
+      "sha256": "c96eb0b58e701a74845eabe5b5fac657685e7ac54a51d3d9f6fe8a2c7bce577c"
+    },
+    {
+      "path": "core/governance/decisions/DECISION_CONSTITUTIONAL_DECREE_20260213.md",
+      "sha256": "827862143cf8eafda78088b104ab759fdad027bdbb9f906a7fe4547e95c8986e"
     },
     {
       "path": "core/governance/ontology.yaml",
@@ -43,6 +55,10 @@
     {
       "path": "core/governance/router.md",
       "sha256": "2eac7d6b737c884a24c5d1e492b789616b1144f6be437151d839de487360e711"
+    },
+    {
+      "path": "core/governance/separation_of_powers.yaml",
+      "sha256": "faad9dd6601068f941edb25b6792712924b5ca8588e0c37abbbba0c67cad1451"
     },
     {
       "path": "core/governance/soul.md",
@@ -129,6 +145,6 @@
       "sha256": "5d1149dcb7acfdb4485f1b69cd462a3a441020a4c31256fe2a99f338aa5d888a"
     }
   ],
-  "generated_at_utc": "2026-02-12T19:05:50Z",
+  "generated_at_utc": "2026-02-12T20:21:16Z",
   "required_label": "governance-change"
 }

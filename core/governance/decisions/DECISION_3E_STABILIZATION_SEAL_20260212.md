@@ -13,16 +13,16 @@
 - milestone_tag: tier3-3e-proven
 
 ## Frozen Artifact Pointers
-- phase_status: /Users/icmini/0luka/core/governance/phase_status.yaml
-- latest_dod_report: /Users/icmini/0luka/observability/reports/dod_checker/20260212T174534933355Z_dod.json
-- recovery_snapshot_dir: /Users/icmini/0luka/reports/recovery_20260212T094141Z
+- phase_status: core/governance/phase_status.yaml
+- latest_dod_report: observability/reports/dod_checker/20260212T174534933355Z_dod.json
+- recovery_snapshot_dir: reports/recovery_20260212T094141Z
 
 ## Verification Anchors
-- snapshot_checksums: /Users/icmini/0luka/reports/recovery_20260212T094141Z/snapshot_checksums.txt
-- fsck_report: /Users/icmini/0luka/reports/recovery_20260212T094141Z/fsck_unreachable.txt
-- commit_inventory: /Users/icmini/0luka/reports/recovery_20260212T094141Z/commit_inventory.txt
+- snapshot_checksums: reports/recovery_20260212T094141Z/snapshot_checksums.txt
+- fsck_report: reports/recovery_20260212T094141Z/fsck_unreachable.txt
+- commit_inventory: reports/recovery_20260212T094141Z/commit_inventory.txt
 
 ## Notes
-- Requested path `/Users/icmini/0luka/phase_status.yaml` does not exist in this repository.
-  Canonical phase status file is `/Users/icmini/0luka/core/governance/phase_status.yaml`.
+- Requested path `phase_status.yaml` does not exist in this repository.
+  Canonical phase status file is `core/governance/phase_status.yaml`.
 - This decision seals baseline pointers only; no history rewrite or destructive cleanup was performed.

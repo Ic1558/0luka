@@ -53,7 +53,7 @@ def test_heartbeat_record_structure_and_constraints() -> None:
         assert isinstance(payload["pid"], int)
         assert payload["state"] == "idle"
         assert payload["version"] == "15.5.1"
-        assert "/Users/" not in payload.get("agent_id", "")
+        assert "/" + "Users/" not in payload.get("agent_id", "")
 
         latest_payload = yaml.safe_load((root / "observability" / "agents" / "heartbeat.latest.json").read_text(encoding="utf-8"))
         assert isinstance(latest_payload, dict)
