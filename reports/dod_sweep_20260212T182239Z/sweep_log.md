@@ -47,6 +47,7 @@
   - `class_b_update_pass2.exitcode.txt` = `2`
   - `class_b_update_final_align.exitcode.txt` = `0`
 - class_b_commit: `pending`
+- class_b_commit: `81d6fc7`
 - Intermediate evidence:
   - `class_b_update_pass1.json`
   - `class_b_update_pass2.json`
