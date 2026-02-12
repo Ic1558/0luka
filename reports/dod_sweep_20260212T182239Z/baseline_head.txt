@@ -1,0 +1,4 @@
+a481e75 governance: seal tier3 baseline and add controlled expansion guards
+a481e75
+origin	https://github.com/Ic1558/0luka.git (fetch)
+origin	https://github.com/Ic1558/0luka.git (push)
