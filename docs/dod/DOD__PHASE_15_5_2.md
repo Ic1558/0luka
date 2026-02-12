@@ -13,6 +13,8 @@
 - **Related SOT Section**: §Phase15.5.2
 - **Target Status**: DESIGNED → PARTIAL → PROVEN
 - **Commit SHA**: c28d9c1cc52cf05c5060ab70773b3963d0419350
+- **Evidence Path**: observability/reports/phase15_5_2/timeline_heartbeat.json
+- **Proof Mode**: operational
 - **Date**: 2026-02-12
 
 ---
@@ -44,6 +46,7 @@
 - **Test Suite**: `core/verify/test_phase15_5_2_timeline_heartbeat.py`
 - **Verification Commands**:
   - `python3 -m pytest core/verify/test_phase15_5_2_timeline_heartbeat.py -v`
+  - `LUKA_REQUIRE_OPERATIONAL_PROOF=1 python3 tools/ops/dod_checker.py --phase PHASE_15_5_2 --json`
   - `python3 tools/ops/dod_checker.py --phase PHASE_15_5_2 --json`
 
 ---

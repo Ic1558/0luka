@@ -13,6 +13,8 @@
 - **Related SOT Section**: §Phase15.5.1
 - **Target Status**: DESIGNED → PARTIAL → PROVEN
 - **Commit SHA**: d55a50d045e54227b24ebd3aaed4197421e473d3
+- **Evidence Path**: observability/reports/phase15_5_1/heartbeat_dropper.json
+- **Proof Mode**: operational
 - **Date**: 2026-02-12
 
 ---
@@ -44,6 +46,7 @@
 - **Test Suite**: `core/verify/test_heartbeat_dropper.py`
 - **Verification Commands**:
   - `python3 -m pytest core/verify/test_heartbeat_dropper.py -v`
+  - `LUKA_REQUIRE_OPERATIONAL_PROOF=1 python3 tools/ops/dod_checker.py --phase PHASE_15_5_1 --json`
   - `python3 tools/ops/dod_checker.py --phase PHASE_15_5_1 --json`
 
 ---

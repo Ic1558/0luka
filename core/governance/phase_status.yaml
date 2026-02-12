@@ -22,20 +22,23 @@ phases:
     commit_sha: d53b02190eea90ad874fda25f8f2e1d765adf864
     evidence_path: observability/reports/dod_checker/20260212T062052829652Z_dod.json
   PHASE_15_5_0:
-    verdict: DESIGNED
+    verdict: PROVEN
     requires:
+    last_verified_ts: 2026-02-12T06:26:06Z
     commit_sha: 7d3bd6dc411371c6198feeca6d2596812083e333
-    evidence_path: observability/reports/dod_checker/20260212T062052829652Z_dod.json
+    evidence_path: observability/reports/dod_checker/20260212T062606007441Z_dod.json
   PHASE_15_5_1:
-    verdict: DESIGNED
+    verdict: PROVEN
     requires:
+    last_verified_ts: 2026-02-12T06:26:20Z
     commit_sha: d55a50d045e54227b24ebd3aaed4197421e473d3
-    evidence_path: observability/reports/dod_checker/20260212T062052829652Z_dod.json
+    evidence_path: observability/reports/dod_checker/20260212T062620395914Z_dod.json
   PHASE_15_5_2:
-    verdict: DESIGNED
+    verdict: PROVEN
     requires:
+    last_verified_ts: 2026-02-12T06:26:31Z
     commit_sha: c28d9c1cc52cf05c5060ab70773b3963d0419350
-    evidence_path: observability/reports/dod_checker/20260212T062052829652Z_dod.json
+    evidence_path: observability/reports/dod_checker/20260212T062631947989Z_dod.json
   PHASE_15_5_3:
     verdict: PROVEN
     requires:

@@ -13,6 +13,8 @@
 - **Related SOT Section**: §Phase15.5.0
 - **Target Status**: DESIGNED → PARTIAL → PROVEN
 - **Commit SHA**: 7d3bd6dc411371c6198feeca6d2596812083e333
+- **Evidence Path**: observability/reports/phase15_5_0/preflight_github.json
+- **Proof Mode**: operational
 - **Date**: 2026-02-12
 
 ---
@@ -49,6 +51,7 @@
 - **Verify Doc**: `modules/ops/phase15_5_0_preflight/VERIFY.md`
 - **Verification Commands**:
   - `./tools/ops/preflight_github.zsh; echo $?`
+  - `LUKA_REQUIRE_OPERATIONAL_PROOF=1 python3 tools/ops/dod_checker.py --phase PHASE_15_5_0 --json`
   - `python3 tools/ops/dod_checker.py --phase PHASE_15_5_0 --json`
 
 ---
