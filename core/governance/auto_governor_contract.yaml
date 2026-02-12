@@ -1,0 +1,128 @@
+# Auto-Adaptive Governor Contract
+# Version: 1.0
+# Date: 2026-02-13
+# Owner: GMX (System Sovereign)
+# Scope: Universal, tool-agnostic governance router
+
+schema_version: "1.0"
+
+# Ring Definitions (Scope Classification)
+rings:
+  R3:
+    name: "Critical Kernel"
+    description: "Core governance, ABI contracts, schemas, canonical policy"
+    paths:
+      - "core/"
+      - ".github/workflows/"
+      - "tier3_abi.yaml"
+      - "phase_status.yaml"
+      - "governance_lock_manifest.json"
+    default_mode: "HARD"
+    
+  R2:
+    name: "Operational Logic"
+    description: "Culture, operational logic, enforcement runtime"
+    paths:
+      - "core_brain/"
+      - "tools/ops/"
+    default_mode: "MED"
+    
+  R1:
+    name: "Modules & Extensions"
+    description: "Phase modules, tests, utilities"
+    paths:
+      - "modules/"
+      - "skills/"
+      - "interface/"
+    default_mode: "MED"
+    
+  R0:
+    name: "Evidence & Artifacts"
+    description: "Observability, logs, reports, documentation"
+    paths:
+      - "observability/"
+      - "logs/"
+      - "reports/"
+      - "docs/"
+      - "transcripts/"
+      - "artifacts/"
+      - "g/"
+    default_mode: "SOFT"
+
+# Mode Definitions
+modes:
+  HARD:
+    description: "Maximum rigor for critical changes"
+    required_checks:
+      - "clean_working_tree"
+      - "invariants_list"
+      - "numbered_plan"
+      - "verification_matrix"
+      - "rollback_plan"
+      - "stop_conditions"
+      - "governance_tests_pass"
+    required_labels:
+      - "governance-change"
+    allowed_mutations:
+      - "CREATE"
+      - "EDIT"
+    forbidden_mutations:
+      - "DELETE"
+    exit_on_violation: 4
+    
+  MED:
+    description: "Structured approach for operational changes"
+    required_checks:
+      - "scope_dependencies"
+      - "implementation_steps"
+      - "tests_defined"
+      - "expected_results"
+    required_labels: []
+    allowed_mutations:
+      - "CREATE"
+      - "EDIT"
+      - "RENAME"
+    forbidden_mutations: []
+    exit_on_violation: 4
+    
+  SOFT:
+    description: "Rapid iteration for low-risk changes"
+    required_checks:
+      - "traceable"
+    required_labels: []
+    allowed_mutations:
+      - "CREATE"
+      - "EDIT"
+      - "RENAME"
+      - "DELETE"
+    forbidden_mutations: []
+    exit_on_violation: 0
+
+# Forbidden Patterns (Always Exit 4)
+forbidden_patterns:
+  - pattern: "/Users/"
+    scope: "core/governance/"
+    reason: "Hard paths in governance files"
+    exit_code: 4
+    
+  - pattern: "/Users/"
+    scope: "core_brain/governance/"
+    reason: "Hard paths in governance files"
+    exit_code: 4
+    
+  - pattern: "DELETE"
+    scope: "core/governance/"
+    reason: "Governance file deletion requires explicit approval"
+    exit_code: 4
+    
+  - pattern: "DELETE"
+    scope: ".github/workflows/"
+    reason: "Workflow deletion requires explicit approval"
+    exit_code: 4
+
+# Exit Code Semantics
+exit_codes:
+  0: "OK - Router produced valid plan"
+  2: "Partial - Some constraints cannot be satisfied"
+  3: "Designed - Plan created but requires human approval"
+  4: "Contract Violation - Invalid inputs, unknown scope, or forbidden pattern"
