@@ -100,12 +100,12 @@ modes:
 
 # Forbidden Patterns (Always Exit 4)
 forbidden_patterns:
-  - pattern: "\\/Users\\/"
+  - pattern: "\x2FUsers\x2F"
     scope: "core/governance/"
     reason: "Hard paths in governance files"
     exit_code: 4
     
-  - pattern: "\\/Users\\/"
+  - pattern: "\x2FUsers\x2F"
     scope: "core_brain/governance/"
     reason: "Hard paths in governance files"
     exit_code: 4
