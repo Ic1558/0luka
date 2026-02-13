@@ -1,5 +1,9 @@
 """Unit tests for the NLP control-plane bot helper."""
 
+from pathlib import Path
+import subprocess
+import sys
+
 from modules.nlp_control_plane.core.bot import (
     build_bot_reply,
     build_unified_execution_prompt,
@@ -9,8 +13,12 @@ from modules.nlp_control_plane.core.bot import (
 
 def test_build_bot_reply_uses_existing_normalizer_functions(monkeypatch):
     captured = {}
+    normalize_calls = 0
+    build_spec_calls = 0
 
     def fake_normalize(raw_input):
+        nonlocal normalize_calls
+        normalize_calls += 1
         captured["raw_input"] = raw_input
         return {
             "intent": "status_check",
@@ -20,6 +28,8 @@ def test_build_bot_reply_uses_existing_normalizer_functions(monkeypatch):
         }
 
     def fake_build_task_spec(normalized, preview_id):
+        nonlocal build_spec_calls
+        build_spec_calls += 1
         captured["normalized"] = normalized
         captured["preview_id"] = preview_id
         return {
@@ -39,6 +49,9 @@ def test_build_bot_reply_uses_existing_normalizer_functions(monkeypatch):
     reply = build_bot_reply("check status", "preview-123")
 
     assert captured["raw_input"] == "check status"
+    assert normalize_calls == 1
+    assert build_spec_calls == 1
+    assert captured["normalized"] == reply.normalized
     assert captured["preview_id"] == "preview-123"
     assert reply.normalized["intent"] == "status_check"
     assert reply.task_spec["task_id"] == "task_test_001"
@@ -79,6 +92,43 @@ def test_extract_numbered_tasks_supports_dot_and_paren_formats():
     ]
 
 
+def test_extract_numbered_tasks_empty_and_whitespace_input():
+    assert extract_numbered_tasks("") == []
+    assert extract_numbered_tasks("  \n\t \n") == []
+
+
+def test_extract_numbered_tasks_rejects_malformed_numbering():
+    text = "\n".join(
+        [
+            "1.. malformed",
+            "1- malformed",
+            "1 ) malformed",
+            "1)valid task",
+            "2) valid task",
+        ]
+    )
+
+    tasks = extract_numbered_tasks(text)
+
+    assert tasks == ["valid task"]
+
+
+def test_extract_numbered_tasks_mixed_bullet_styles_remains_stable():
+    text = "\n".join(
+        [
+            "1. first task",
+            "- ignored bullet",
+            "2) second task",
+            "* ignored bullet",
+            "3. third task",
+        ]
+    )
+
+    expected = ["first task", "second task", "third task"]
+    assert extract_numbered_tasks(text) == expected
+    assert extract_numbered_tasks(text) == expected
+
+
 def test_build_unified_execution_prompt_formats_fail_closed_template():
     prompt = build_unified_execution_prompt(
         "1. step one\n2. step two",
@@ -90,3 +140,44 @@ def test_build_unified_execution_prompt_formats_fail_closed_template():
     assert "2) step two" in prompt
     assert "stop fail-closed" in prompt
     assert "HEAD SHA" in prompt
+
+
+def test_build_unified_execution_prompt_handles_empty_and_whitespace():
+    empty_prompt = build_unified_execution_prompt("")
+    whitespace_prompt = build_unified_execution_prompt(" \n\t ")
+
+    assert "1) (No tasks detected in input)" in empty_prompt
+    assert "1) (No tasks detected in input)" in whitespace_prompt
+    assert "stop fail-closed" in whitespace_prompt
+    assert "failing command" in whitespace_prompt
+    assert "stderr snippet" in whitespace_prompt
+    assert "HEAD SHA" in whitespace_prompt
+    assert "branch name" in whitespace_prompt
+    assert "exit codes" in whitespace_prompt
+    assert "evidence file paths" in whitespace_prompt
+
+
+def test_build_unified_execution_prompt_treats_non_numbered_text_as_one_task():
+    prompt = build_unified_execution_prompt("manual fallback task")
+
+    assert "1) manual fallback task" in prompt
+    assert "2) " not in prompt
+
+
+def test_importing_nlp_module_does_not_eager_import_fastapi():
+    repo_root = Path(__file__).resolve().parents[3]
+    code = (
+        "import importlib, sys\n"
+        "importlib.import_module('modules.nlp_control_plane')\n"
+        "importlib.import_module('modules.nlp_control_plane.core')\n"
+        "print('fastapi' in sys.modules)\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert result.stdout.strip() == "False"

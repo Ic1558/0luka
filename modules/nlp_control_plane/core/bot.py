@@ -1,10 +1,21 @@
-"""Chat bot helpers for NLP control-plane previews and prompt generation.
+"""Contract-safe NLP bot helpers for preview delegation and prompt generation.
 
-This module provides:
-1) a bot facade that converts raw user utterances into normalized + task preview
-   structures using existing control-plane functions, and
-2) a transformer that converts manual numbered task lists into a fail-closed,
-   execution-ready Codex prompt.
+Contract surface in this module:
+1) ``build_bot_reply`` delegates normalization/spec construction to existing
+   core functions and returns a deterministic summary object.
+2) ``extract_numbered_tasks`` parses valid numbered lines only (``1.`` / ``1)``)
+   and drops everything else.
+3) ``build_unified_execution_prompt`` creates a fail-closed execution template
+   that explicitly asks for command + evidence proof.
+
+Determinism expectations:
+- No network or filesystem I/O.
+- No subprocess execution.
+- Same inputs produce the same outputs.
+
+Out-of-scope by design:
+- Rich markdown parsing or bullet normalization beyond numbered-line matching.
+- Any autonomous execution of extracted tasks.
 """
 
 from __future__ import annotations
@@ -26,7 +37,23 @@ class BotReply:
 
 
 def build_bot_reply(raw_input: str, preview_id: str) -> BotReply:
-    """Build a user-facing bot reply using repo-native functions."""
+    """Build a deterministic preview reply by delegating to existing core APIs.
+
+    Inputs:
+    - ``raw_input``: original user text (passed through to ``normalize_input``).
+    - ``preview_id``: preview correlation id (forwarded to ``build_task_spec``).
+
+    Output:
+    - ``BotReply`` with a summary ``message`` and raw delegated outputs
+      (``normalized`` + ``task_spec``).
+
+    Fail-closed behavior:
+    - Missing intent/risk/lane/task fields are rendered as ``unknown`` instead
+      of inferring new values.
+
+    Out-of-scope:
+    - Any mutation, dispatch, or execution side effects.
+    """
 
     normalized = normalize_input(raw_input)
     task_spec = build_task_spec(normalized, preview_id)
@@ -45,9 +72,23 @@ def build_bot_reply(raw_input: str, preview_id: str) -> BotReply:
 
 
 def extract_numbered_tasks(raw_text: str) -> List[str]:
-    """Extract ordered tasks from common numbered-list formats.
+    """Extract ordered task strings from strictly numbered lines.
 
-    Supports prefixes like `1.`, `1)`, and ignores blank lines.
+    Inputs:
+    - ``raw_text``: multiline text that may contain human-written steps.
+
+    Output:
+    - ordered list of task text captured from lines matching ``^\\d+[.)]\\s+``.
+
+    Fail-closed behavior:
+    - Lines not matching the strict numbered format are ignored.
+    - Empty/whitespace-only input returns an empty list.
+
+    Determinism expectations:
+    - Pure parsing with no external dependencies and stable ordering.
+
+    Out-of-scope:
+    - Supporting bullets (``-``/``*``), malformed numbering, or nested lists.
     """
 
     tasks: List[str] = []
@@ -62,9 +103,28 @@ def extract_numbered_tasks(raw_text: str) -> List[str]:
 
 
 def build_unified_execution_prompt(task_list_text: str, repo_name: str = "0luka") -> str:
-    """Transform manual task list text into an execution-ready prompt.
+    """Create a deterministic fail-closed execution prompt from raw task text.
 
-    If no numbered entries are found, the entire input is treated as one task.
+    Inputs:
+    - ``task_list_text``: raw manual task description.
+    - ``repo_name``: repository label rendered into the prompt header.
+
+    Output:
+    - string prompt containing:
+      - ordered task lines,
+      - explicit fail-closed stop condition,
+      - mandatory proof fields (HEAD SHA, branch, exit codes, evidence paths).
+
+    Fail-closed behavior:
+    - If numbered parsing yields no tasks and input is non-empty, treat the full
+      text as one task (avoid silent loss).
+    - If input is empty/whitespace, emit a placeholder task line.
+
+    Determinism expectations:
+    - Prompt wording is static except for ``repo_name`` and rendered tasks.
+
+    Out-of-scope:
+    - Executing tasks, validating command correctness, or policy approval.
     """
 
     tasks = extract_numbered_tasks(task_list_text)
