@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   governance-check:
@@ -27,8 +28,12 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_REPO: ${{ github.repository }}
+          GH_API_URL: ${{ github.api_url }}
+          GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           # Get list of changed files
           CHANGED_FILES=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
           
@@ -66,6 +71,12 @@ jobs:
           echo "Detected Mode: $MODE"
           
           if [ "$MODE" == "HARD" ]; then
+            # Read labels from API to avoid stale event payload/race conditions.
+            PR_LABELS=$(curl -fsSL \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "$GH_API_URL/repos/$GH_REPO/issues/$PR_NUMBER/labels" | jq -c 'map(.name)')
+            echo "Live PR labels: $PR_LABELS"
             HAS_LABEL=$(echo "$PR_LABELS" | jq 'contains(["governance-change"])')
             if [ "$HAS_LABEL" != "true" ]; then
               echo "❌ Error: HARD mode requires 'governance-change' label."
