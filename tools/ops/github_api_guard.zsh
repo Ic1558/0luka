@@ -17,15 +17,51 @@ fail() {
 }
 
 check_dns() {
-  log "Checking DNS resolve for github.com"
-  if ! command -v dig >/dev/null 2>&1; then
-    log "DNS check failed: dig not available"
+  log "Checking DNS resolve for github.com + api.github.com"
+  if ! dns_resolve "github.com"; then
+    log "DNS check failed: github.com resolution failed (portable resolver)"
     return 1
   fi
-  if ! dig +short github.com | grep -E '^[0-9]|:' >/dev/null; then
-    log "DNS check failed: resolution failed"
+  if ! dns_resolve "api.github.com"; then
+    log "DNS check failed: api.github.com resolution failed (portable resolver)"
     return 1
   fi
+}
+
+dns_resolve() {
+  local host="$1"
+
+  # Primary: python socket resolver (no explicit bind)
+  if command -v python3 >/dev/null 2>&1; then
+    if python3 - "$host" >/dev/null 2>&1 <<'PY'
+import socket
+import sys
+
+host = sys.argv[1]
+infos = socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)
+if not infos:
+    raise RuntimeError("no addrinfo")
+PY
+    then
+      return 0
+    fi
+  fi
+
+  # macOS fallback
+  if command -v dscacheutil >/dev/null 2>&1; then
+    if dscacheutil -q host -a name "$host" | grep -E 'ip_address:' >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+
+  # last resort
+  if command -v nslookup >/dev/null 2>&1; then
+    if nslookup "$host" >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+
+  return 1
 }
 
 check_tcp() {
