@@ -1,0 +1,50 @@
+version: 1
+name: email_orchestration_contract
+owner: luka-ai
+required_token_presence: true
+allowlist:
+  domains:
+    - theedges.com
+  senders:
+    - luka.ai@theedges.com
+
+security_gates:
+  sender_allowlist_required: true
+  dkim_spf_dmarc_required: true
+  minimum_auth_requirement: dkim=pass
+  command_token_header: X-LUKA-TOKEN
+  command_token_yaml: auth.token
+  ring_required: true
+  ring_values: [R0, R1, R2, R3]
+
+ring_lane_mapping:
+  R0: observe
+  R1: assist
+  R2: execute
+  R3: governed
+
+forbidden_operations:
+  - rm -rf
+  - git push --force
+  - delete_or_move_outside_repo
+  - DELETE in R2/R3 (unless explicit allowlist entry)
+
+required_proof_fields:
+  all_rings:
+    - task_id
+    - ring
+    - sender
+    - verdict.ok
+    - report_paths
+  R2_R3:
+    - exit_code
+    - sha256
+    - parsed.yaml
+    - verdict.json
+    - result.json
+
+compatibility:
+  must_preserve_existing_controls:
+    - auto-governor-router
+    - governance_file_lock
+    - phase_growth_guard

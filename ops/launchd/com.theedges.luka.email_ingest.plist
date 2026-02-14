@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.theedges.luka.email_ingest</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/usr/bin/python3</string>
+      <string>-m</string>
+      <string>modules.email_orchestration.cli</string>
+      <string>run-loop</string>
+      <string>--interval</string>
+      <string>15</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/icmini/0luka</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>LUKA_REPO_ROOT</key>
+      <string>/Users/icmini/0luka</string>
+      <key>PYTHONUNBUFFERED</key>
+      <string>1</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/icmini/0luka/observability/logs/email_orchestrator.launchd.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/icmini/0luka/observability/logs/email_orchestrator.launchd.err.log</string>
+  </dict>
+</plist>
