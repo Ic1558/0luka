@@ -49,6 +49,14 @@
       "sha256": "827862143cf8eafda78088b104ab759fdad027bdbb9f906a7fe4547e95c8986e"
     },
     {
+      "path": "core/governance/decisions/DECISION_EMAIL_ORCHESTRATION_20260213.md",
+      "sha256": "fe345c3dd3c788740cf0b90e468d2fd8a5948c4351227d3294e7885238da9f45"
+    },
+    {
+      "path": "core/governance/email_orchestration_contract.yaml",
+      "sha256": "3aaf1145473f066d03a5113024f35ce563a7677adb378f1e560006417ea1ed5f"
+    },
+    {
       "path": "core/governance/ontology.yaml",
       "sha256": "26d9f9ceaec6c7a04826c1870c0a5b2a9dd046f896545d5457805b1a87b3e054"
     },
@@ -153,6 +161,6 @@
       "sha256": "5d1149dcb7acfdb4485f1b69cd462a3a441020a4c31256fe2a99f338aa5d888a"
     }
   ],
-  "generated_at_utc": "2026-02-12T21:25:46Z",
+  "generated_at_utc": "2026-02-13T16:47:05Z",
   "required_label": "governance-change"
 }
