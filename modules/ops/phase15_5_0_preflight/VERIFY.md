@@ -13,23 +13,30 @@ echo $?
 ## Expected Output (PASS)
 ```
 [preflight] DNS check: ping github.com ... OK
-[preflight] API check: curl api.github.com ... OK
+[preflight] API check: curl https://api.github.com ... OK
 [preflight] Auth check: gh auth status ... OK
 [preflight] OK
 0
 ```
 
-## Expected Output (FAIL example — no network)
+## Expected Output (FAIL example — stop on first failure)
 ```
 [preflight] DNS check: ping github.com ... FAIL
 [preflight] ERROR: DNS resolution for github.com failed
-[preflight] API check: curl api.github.com ... FAIL
-[preflight] ERROR: api.github.com unreachable or returned error
-[preflight] Auth check: gh auth status ... FAIL
-[preflight] ERROR: gh auth status failed — token expired or not logged in
-[preflight] BLOCKED — fix the above before running GitHub operations
 1
 ```
+
+## API outage fallback rule (API-free)
+If `gh` fails with `error connecting to api.github.com` or `Could not resolve host`,
+run only Git-safe checks below and stop before merge:
+
+```bash
+git ls-remote --heads origin
+git fetch --prune origin
+git show-ref --heads --tags
+```
+
+Do **not** merge, close, or mutate PR state while preflight is failing.
 
 ## Integration
 All lanes that call `gh pr`, `gh merge`, or `gh api` must run this preflight first.
