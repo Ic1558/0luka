@@ -11,7 +11,6 @@ export LC_ALL=C
 TIME_BUDGET_SEC="${TIME_BUDGET_SEC:-90}"
 INITIAL_BACKOFF_SEC="${INITIAL_BACKOFF_SEC:-2}"
 MAX_BACKOFF_SEC="${MAX_BACKOFF_SEC:-15}"
-API_URL="https://api.github.com"
 
 log() {
   printf "[%s] %s\n" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$1"
@@ -23,25 +22,62 @@ fail() {
 }
 
 is_nonneg_int() {
-  [[ "$1" =~ '^[0-9]+$' ]]
+  [[ "$1" =~ ^[0-9]+$ ]]
+}
+
+# --- Deterministic IPv4-only Probes ---
+
+auth_token() {
+  # gh auth token is local-only (keychain) and should not perform network.
+  gh auth token 2>/dev/null || true
+}
+
+check_https_api() {
+  # GitHub API reachability over IPv4-only path.
+  local code
+  code="$(curl -4 -sS --max-time 8 -o /dev/null -w "%{http_code}" https://api.github.com || echo "000")"
+  if [[ "$code" != "200" ]]; then
+    log "FAIL: GitHub API not healthy over IPv4 (http=$code)"
+    return 1
+  fi
+  return 0
 }
 
 check_auth() {
-  gh auth status -h github.com >/dev/null 2>&1
-}
-
-check_https() {
-  curl -sSf "$API_URL" >/dev/null 2>&1
+  # Validate token by calling /user with curl -4.
+  local tok
+  tok="$(auth_token)"
+  if [[ -z "$tok" ]]; then
+    log "FAIL: missing GH auth token (gh auth token returned empty)"
+    return 1
+  fi
+  local code
+  code="$(curl -4 -sS --max-time 8 -H "Authorization: Bearer $tok" -o /dev/null -w "%{http_code}" https://api.github.com/user || echo "000")"
+  if [[ "$code" != "200" ]]; then
+    log "FAIL: auth invalid via IPv4 curl (http=$code)"
+    return 1
+  fi
+  return 0
 }
 
 check_rate_limit() {
-  local remaining
-  remaining="$(gh api rate_limit --jq '.resources.core.remaining' 2>/dev/null || true)"
-
-  if [[ -z "$remaining" ]]; then
+  local tok
+  tok="$(auth_token)"
+  if [[ -z "$tok" ]]; then
+    log "FAIL: missing GH auth token (cannot check rate limit)"
     return 1
   fi
-  if ! [[ "$remaining" =~ '^[0-9]+$' ]]; then
+  local remaining
+  remaining="$(curl -4 -sS --max-time 8 -H "Authorization: Bearer $tok" https://api.github.com/rate_limit \
+    | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d["resources"]["core"]["remaining"])' 2>/dev/null || echo "")"
+  
+  if [[ -z "$remaining" ]]; then
+    log "FAIL: rate limit parse failed"
+    return 1
+  fi
+  
+  if ! [[ "$remaining" =~ ^[0-9]+$ ]]; then
+    log "FAIL: rate limit value invalid ($remaining)"
     return 1
   fi
 
@@ -50,7 +86,7 @@ check_rate_limit() {
 }
 
 attempt() {
-  check_auth && check_https && check_rate_limit
+  check_https_api && check_auth && check_rate_limit
 }
 
 main() {
