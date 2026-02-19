@@ -68,6 +68,7 @@ Path policy applies to:
 - `required_slots.task.ops[].target_path`
 
 ## Command Policy Rules
+- Canonical verification wrapper reference: `tools/ops/verify_all_safe.zsh`.
 - `ops.run_command_safe` requires `allowlist_id=cmd.safe.v0`.
 - `audit.lint_activity_feed` requires:
   - `command_id=activity_feed_linter.canonical`
