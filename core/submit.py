@@ -23,6 +23,7 @@ import json
 import os
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -43,6 +44,7 @@ sys.path.insert(0, str(ROOT))
 
 from core.seal import sign_envelope as _seal_sign
 from core.timeline import emit_event as _timeline_emit
+from core.phase1a_resolver import Phase1AResolverError, gate_inbound_envelope
 from core.verify.no_hardpath_guard import find_hardpath_violations
 
 
@@ -50,8 +52,50 @@ class SubmitError(RuntimeError):
     pass
 
 
+SUBMIT_SESSION_RUN_ID = uuid.uuid4().hex
+
+
 def _utc_now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _resolve_activity_feed_path() -> Path:
+    raw = os.environ.get("LUKA_ACTIVITY_FEED_JSONL", "observability/logs/activity_feed.jsonl").strip()
+    p = Path(raw).expanduser()
+    if p.is_absolute():
+        return p
+    return ROOT / p
+
+
+def _emit_submit_rejection(task_id: str, reason: str, *, envelope: Optional[Dict[str, Any]] = None) -> None:
+    """Emit submit-time schema rejection event to activity feed. Fail-open."""
+    try:
+        feed_path = _resolve_activity_feed_path()
+        feed_path.parent.mkdir(parents=True, exist_ok=True)
+        schema_version = ""
+        if isinstance(envelope, dict):
+            schema_version = str((((envelope.get("payload") or {}).get("task") or {}).get("schema_version") or ""))
+        payload = {
+            "ts_utc": _utc_now(),
+            "ts_epoch_ms": int(time.time_ns() // 1_000_000),
+            "phase_id": "PHASE_1B_SCHEMA",
+            "action": "failed",
+            "emit_mode": "runtime_auto",
+            "verifier_mode": "operational_proof",
+            "tool": "submit",
+            "run_id": SUBMIT_SESSION_RUN_ID,
+            "task_id": task_id,
+            "status_badge": "NOT_PROVEN",
+            "evidence": [
+                {"kind": "error", "ref": "submit_reject:Phase1AResolverError"},
+                {"kind": "reason", "ref": reason},
+                {"kind": "schema", "ref": schema_version},
+            ],
+        }
+        with feed_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
 
 def _generate_task_id(author: str = "unknown") -> str:
@@ -123,6 +167,13 @@ def submit_task(task: Dict[str, Any], *, task_id: Optional[str] = None) -> Dict[
         author = str(task.get("author", "unknown"))
         tid = str(task_id or task.get("task_id") or "").strip() or _generate_task_id(author)
         envelope = _wrap_envelope(task, tid)
+
+    try:
+        # Phase 1B gate: fail-closed before any inbox write. Validation-only; do not persist resolved payload.
+        gate_inbound_envelope(envelope)
+    except Phase1AResolverError as exc:
+        _emit_submit_rejection(tid, str(exc), envelope=envelope)
+        raise SubmitError(f"schema_rejected:{exc}") from exc
 
     violations = find_hardpath_violations(envelope)
     if violations:
