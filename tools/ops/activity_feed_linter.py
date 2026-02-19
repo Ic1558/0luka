@@ -49,7 +49,7 @@ def _validate(path: Path) -> Dict[str, Any]:
     ignored_events = 0
     missing_hist: Dict[str, int] = {}
     chain_errors: List[Dict[str, Any]] = []
-    grouped: Dict[Tuple[str, str], List[Tuple[int, str]]] = {}
+    grouped: Dict[Tuple[str, str], List[Tuple[int, str, Any]]] = {}
 
     with path.open("r", encoding="utf-8") as handle:
         for line_no, raw in enumerate(handle, start=1):
@@ -96,17 +96,22 @@ def _validate(path: Path) -> Dict[str, Any]:
 
             phase_id = str(payload.get("phase_id"))
             run_id = str(payload.get("run_id"))
-            grouped.setdefault((phase_id, run_id), []).append((line_no, action))
+            grouped.setdefault((phase_id, run_id), []).append((line_no, action, payload.get("status_badge")))
 
     for (phase_id, run_id), rows in grouped.items():
         first: Dict[str, int] = {}
-        for line_no, action in rows:
+        completed_badge = None
+        for line_no, action, status_badge in rows:
             if action not in first:
                 first[action] = line_no
+            if action == "completed" and completed_badge is None:
+                completed_badge = status_badge
         started_ln = first.get("started")
         completed_ln = first.get("completed")
         verified_ln = first.get("verified")
-        if started_ln is None or completed_ln is None or verified_ln is None:
+        # NOT_PROVEN completion does not require a verified event.
+        verify_required = completed_badge != "NOT_PROVEN"
+        if started_ln is None or completed_ln is None or (verify_required and verified_ln is None):
             chain_errors.append(
                 {
                     "phase_id": phase_id,
@@ -118,7 +123,11 @@ def _validate(path: Path) -> Dict[str, Any]:
                 }
             )
             continue
-        if not (started_ln < completed_ln < verified_ln):
+        if verify_required:
+            valid_order = started_ln < completed_ln < verified_ln
+        else:
+            valid_order = started_ln < completed_ln
+        if not valid_order:
             chain_errors.append(
                 {
                     "phase_id": phase_id,
