@@ -22,15 +22,36 @@ if [[ ! -x "$PYTHON_EXEC" ]]; then PYTHON_EXEC="python3"; fi
 pkill -f "opal_api_server.py" || true
 sleep 3
 
+# Ensure repo root is in PYTHONPATH
+export PYTHONPATH=.
+
 # Set SOT to local (Option B) for reliable verification
 export CORE_CONTRACTS_URL="file://$(pwd)/core"
 log "GMX-1" "CORE_CONTRACTS_URL=$CORE_CONTRACTS_URL"
 
 # Start API
 log "GMX-1" "Launching API Server..."
+# Force PYTHONPATH here specifically to be sure
+export PYTHONPATH=$PYTHONPATH:.
 $PYTHON_EXEC -u runtime/apps/opal_api/opal_api_server.py > runtime/logs/api_server.stdout.log 2> runtime/logs/api_server.stderr.log &
 API_PID=$!
+cleanup() {
+  if [[ -n "${API_PID:-}" ]]; then
+    kill "$API_PID" 2>/dev/null || true
+    sleep 0.5
+    kill -9 "$API_PID" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT INT TERM
+log "GMX-1" "API Server PID: $API_PID"
 sleep 5
+
+# Check if process is still alive
+if ! ps -p $API_PID > /dev/null; then
+  log "GMX-1" "❌ API Server failed to start (PID $API_PID is dead)"
+  cat runtime/logs/api_server.stderr.log
+  exit 1
+fi
 
 # Check /openapi.json
 OPAL_API_BASE="http://127.0.0.1:7001"

@@ -53,12 +53,21 @@ app.add_middleware(
 _DEFAULT_CORE_CONTRACTS_URL = "https://raw.githubusercontent.com/Ic1558/core/main"
 _CONTRACT_REL = "contracts/v1/opal_api.openapi.json"
 
+
+# One-shot observability: log contract source once per process
+_OPAL_SOT_SOURCE_LOGGED = False
+
 def _load_contract_bytes() -> bytes:
     src = (
         os.environ.get("CORE_CONTRACTS_URL")
         or os.environ.get("CORE_CONTRACT_URL")
         or _DEFAULT_CORE_CONTRACTS_URL
     ).strip()
+    global _OPAL_SOT_SOURCE_LOGGED
+    if not _OPAL_SOT_SOURCE_LOGGED:
+        print(f"INFO: Loading Contract SOT from: {src}")
+        _OPAL_SOT_SOURCE_LOGGED = True
+
     if not src:
         src = _DEFAULT_CORE_CONTRACTS_URL
 
