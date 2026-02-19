@@ -87,6 +87,7 @@ def _match_vectors(data: dict[str, Any], text: str) -> tuple[str, dict[str, Any]
 def main() -> int:
     parser = argparse.ArgumentParser(description="Linguist CLI v0 (dry mapping only)")
     parser.add_argument("--input", type=str, help="NLP input text")
+    parser.add_argument("--submit", action="store_true", help="Submit mapped TaskSpec via runtime lane")
     args = parser.parse_args()
 
     text = _normalize_input(args.input or "")
@@ -97,6 +98,17 @@ def main() -> int:
     root = _default_root()
 
     runner = _runner_from_env()
+    if args.submit:
+        from core.runtime_lane import submit_from_text
+
+        result = submit_from_text(text, root=root, runner=runner)
+        print(json.dumps(result, ensure_ascii=False))
+        if result.get("ok") is True:
+            return 0
+        if result.get("expected_result") == "needs_clarification":
+            return 2
+        return 1
+
     try:
         run_preflight(
             root=root,
