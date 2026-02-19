@@ -1,5 +1,5 @@
 version: "phase9_linguist_vectors_v0"
-root: "/Users/icmini/0luka"
+root: "${ROOT}"
 
 taxonomy:
   allowed_intents:
@@ -73,7 +73,7 @@ vectors:
     expected_intent: "audit.lint_activity_feed"
     required_slots:
       command_id: "activity_feed_linter.canonical"
-      command: "cd /Users/icmini/0luka && python3 /Users/icmini/0luka/tools/ops/activity_feed_linter.py --json"
+      command: "cd ${ROOT} && python3 ${ROOT}/tools/ops/activity_feed_linter.py --json"
     expected_result: "submit_accepted"
 
   - id: nlp_008
