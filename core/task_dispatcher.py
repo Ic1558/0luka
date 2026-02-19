@@ -126,6 +126,37 @@ def _append_runtime_heartbeat_event() -> None:
         pass
 
 
+def _emit_activity_event(
+    action: str,
+    task_id: str,
+    *,
+    phase_id: str = "GOAL1_ACTIVITY_FEED",
+    status_badge: str = "NOT_PROVEN",
+    evidence: list | None = None,
+) -> None:
+    """Emit lifecycle event to activity feed. Fail-open."""
+    try:
+        feed_path = _resolve_activity_feed_path()
+        feed_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "ts_utc": _utc_now(),
+            "ts_epoch_ms": int(time.time_ns() // 1_000_000),
+            "phase_id": phase_id,
+            "action": action,
+            "emit_mode": "runtime_auto",
+            "verifier_mode": "operational_proof",
+            "tool": "task_dispatcher",
+            "run_id": DISPATCHER_SESSION_RUN_ID,
+            "task_id": task_id,
+            "status_badge": status_badge,
+            "evidence": evidence or [],
+        }
+        with feed_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
 def _emit_dispatch_start(task_id: str, trace_id: str, intent: str, module: str) -> float:
     started = time.monotonic()
     _log_event(
@@ -307,6 +338,48 @@ def _build_task_spec(task_id: str, task: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _check_phase_prerequisites(task_id: str, task: Dict[str, Any]) -> Dict[str, Any]:
+    missing: List[str] = []
+    raw_requires = task.get("requires")
+    if raw_requires is None and isinstance(task.get("meta"), dict):
+        raw_requires = task.get("meta", {}).get("requires")
+
+    if raw_requires is None or raw_requires == []:
+        return {"ok": True, "missing": []}
+
+    if not isinstance(raw_requires, list):
+        return {"ok": False, "missing": [f"unknown:{raw_requires}"]}
+
+    for token in raw_requires:
+        if not isinstance(token, str):
+            missing.append(f"unknown:{token}")
+            continue
+        if token.startswith("outbox_exists:"):
+            dep_task_id = token.split(":", 1)[1].strip()
+            if not dep_task_id:
+                missing.append(f"unknown:{token}")
+                continue
+            dep_outbox = ROOT / "interface" / "outbox" / "tasks" / f"{dep_task_id}.result.json"
+            if not dep_outbox.exists():
+                missing.append(token)
+            continue
+        if token.startswith("file_exists:"):
+            relpath = token.split(":", 1)[1].strip()
+            if not relpath:
+                missing.append(f"unknown:{token}")
+                continue
+            p = Path(relpath)
+            if p.is_absolute():
+                missing.append(f"unknown:{token}")
+                continue
+            if not (ROOT / p).exists():
+                missing.append(token)
+            continue
+        missing.append(f"unknown:{token}")
+
+    return {"ok": len(missing) == 0, "missing": missing}
+
+
 def _build_result_bundle(task_id: str, envelope: Dict[str, Any], task: Dict[str, Any], exec_result: Dict[str, Any]) -> Dict[str, Any]:
     raw_evidence = exec_result.get("evidence", {}) if isinstance(exec_result.get("evidence", {}), dict) else {}
     logs = []
@@ -348,6 +421,7 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
     dispatch_trace_id = "unknown"
     counted_dispatch = False
     dispatch_started_at = 0.0
+    pending_verified_evidence = None
     prov_row = None
     try:
         if yaml is None:
@@ -380,6 +454,11 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
                     "file": str(file_path),
                 }
             )
+            _emit_activity_event(
+                "started",
+                task_id,
+                evidence=[{"kind": "log", "ref": "observability/logs/dispatcher.jsonl"}],
+            )
         except Exception as exc:
             append_execution_event(
                 {
@@ -407,6 +486,11 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
                     "input_hash": prov_row.get("input_hash"),
                     "output_hash": prov_row.get("output_hash"),
                 }
+            )
+            _emit_activity_event(
+                "completed",
+                task_id,
+                evidence=[{"kind": "log", "ref": "observability/logs/dispatcher.jsonl"}],
             )
             return result
 
@@ -464,6 +548,11 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
                     "output_hash": prov_row.get("output_hash"),
                 }
             )
+            _emit_activity_event(
+                "completed",
+                task_id,
+                evidence=[{"kind": "log", "ref": "observability/logs/dispatcher.jsonl"}],
+            )
             return result
 
         try:
@@ -501,6 +590,62 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
                     "output_hash": prov_row.get("output_hash"),
                 }
             )
+            _emit_activity_event(
+                "completed",
+                task_id,
+                evidence=[{"kind": "log", "ref": "observability/logs/dispatcher.jsonl"}],
+            )
+            return result
+
+        prereq_result = _check_phase_prerequisites(task_id, task)
+        if not prereq_result.get("ok"):
+            missing = prereq_result.get("missing", [])
+            result = {"task_id": task_id, "status": "blocked", "reason": missing}
+            _emit_activity_event(
+                "blocked",
+                task_id,
+                phase_id="GOAL3_GATE_ENFORCE",
+                evidence=[{"kind": "prerequisite", "ref": str(item)} for item in missing],
+            )
+            if not dry_run:
+                _move_file(file_path, REJECTED)
+                _log_event({**result, "ts": _utc_now(), "file": file_path.name})
+            _stats["total_dispatched"] += 1
+            _stats["total_rejected"] += 1
+            counted_dispatch = True
+            _write_dispatch_pointer(
+                task_id=task_id,
+                status="blocked",
+                author=str(task.get("author", "")),
+                intent=str(task.get("intent", "")),
+                trace_id=dispatch_trace_id,
+                audit_path=f"observability/artifacts/router_audit/{task_id}.json",
+                source_moved_to=f"interface/rejected/{file_path.name}",
+            )
+            _emit_dispatch_end(
+                task_id=task_id,
+                trace_id=dispatch_trace_id,
+                status="blocked",
+                started=dispatch_started_at,
+            )
+            prov_row = complete_run_provenance(prov_row, result)
+            append_provenance(prov_row)
+            append_execution_event(
+                {
+                    "type": "execution.completed",
+                    "category": "execution",
+                    "task_id": task_id,
+                    "component": "dispatcher",
+                    "status": "blocked",
+                    "input_hash": prov_row.get("input_hash"),
+                    "output_hash": prov_row.get("output_hash"),
+                }
+            )
+            _emit_activity_event(
+                "completed",
+                task_id,
+                evidence=[{"kind": "log", "ref": "observability/logs/dispatcher.jsonl"}],
+            )
             return result
 
         router = Router()
@@ -518,6 +663,14 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             _emit_dispatch_end(task_id=task_id, trace_id=dispatch_trace_id, status="error", started=dispatch_started_at)
             prov_row = complete_run_provenance(prov_row, result)
             append_provenance(prov_row)
+            _emit_activity_event(
+                "failed",
+                task_id,
+                evidence=[
+                    {"kind": "error", "ref": "dispatch_error:CircuitOpenError"},
+                    {"kind": "reason", "ref": f"circuit_open:{exc}"},
+                ],
+            )
             return result
         if dry_run:
             _stats["total_skipped"] += 1
@@ -540,6 +693,11 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
                     "input_hash": prov_row.get("input_hash"),
                     "output_hash": prov_row.get("output_hash"),
                 }
+            )
+            _emit_activity_event(
+                "completed",
+                task_id,
+                evidence=[{"kind": "log", "ref": "observability/logs/dispatcher.jsonl"}],
             )
             return result
 
@@ -570,6 +728,12 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
                 audit_path=f"observability/artifacts/router_audit/{task_id}.json",
                 source_moved_to=f"interface/completed/{file_path.name}",
             )
+            _outbox = ROOT / "interface" / "outbox" / "tasks" / f"{task_id}.result.json"
+            if _outbox.exists():
+                pending_verified_evidence = [
+                    {"kind": "file", "ref": f"interface/outbox/tasks/{task_id}.result.json"},
+                    {"kind": "audit", "ref": f"observability/artifacts/router_audit/{task_id}.json"},
+                ]
         else:
             _stats["total_rejected"] += 1
             _write_dispatch_pointer(
@@ -604,6 +768,18 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
                 "output_hash": prov_row.get("output_hash"),
             }
         )
+        _emit_activity_event(
+            "completed",
+            task_id,
+            evidence=[{"kind": "log", "ref": "observability/logs/dispatcher.jsonl"}],
+        )
+        if pending_verified_evidence:
+            _emit_activity_event(
+                "verified",
+                task_id,
+                status_badge="PROVEN",
+                evidence=pending_verified_evidence,
+            )
         return final
 
     except Exception as exc:
@@ -634,6 +810,11 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
                 "component": "dispatcher",
                 "reason": f"dispatch_error:{type(exc).__name__}:{exc}",
             }
+        )
+        _emit_activity_event(
+            "failed",
+            task_id,
+            evidence=[{"kind": "error", "ref": f"dispatch_error:{type(exc).__name__}"}],
         )
         if prov_row:
             with contextlib.suppress(Exception):

@@ -113,20 +113,50 @@ def test_extract_numbered_tasks_rejects_malformed_numbering():
     assert tasks == ["valid task"]
 
 
-def test_extract_numbered_tasks_mixed_bullet_styles_remains_stable():
+def test_extract_numbered_tasks_mixed_bullet_styles_preserves_details():
     text = "\n".join(
         [
             "1. first task",
-            "- ignored bullet",
+            "- detail A",
             "2) second task",
-            "* ignored bullet",
+            "* detail B",
             "3. third task",
         ]
     )
 
-    expected = ["first task", "second task", "third task"]
+    expected = [
+        "first task\n- detail A",
+        "second task\n* detail B",
+        "third task",
+    ]
     assert extract_numbered_tasks(text) == expected
-    assert extract_numbered_tasks(text) == expected
+
+
+def test_extract_numbered_tasks_preserves_nested_details():
+    text = """
+    1. Execute post-merge verification on main
+       - checkout main
+       - run strict DoD
+    2) Check commit history integrity
+       - show last 10 commits
+    """
+
+    tasks = extract_numbered_tasks(text)
+
+    assert tasks == [
+        "Execute post-merge verification on main\n- checkout main\n- run strict DoD",
+        "Check commit history integrity\n- show last 10 commits",
+    ]
+
+
+def test_build_unified_execution_prompt_preserves_task_detail_lines():
+    prompt = build_unified_execution_prompt(
+        "1. Step one\n   - detail A\n2. Step two",
+        repo_name="0luka",
+    )
+
+    assert "1) Step one\n- detail A" in prompt
+    assert "2) Step two" in prompt
 
 
 def test_build_unified_execution_prompt_formats_fail_closed_template():
@@ -160,6 +190,8 @@ def test_build_unified_execution_prompt_handles_empty_and_whitespace():
 def test_build_unified_execution_prompt_treats_non_numbered_text_as_one_task():
     prompt = build_unified_execution_prompt("manual fallback task")
 
+    # The behavior should be that if no numbered headers are found, 
+    # extract_numbered_tasks returns [], then prompt treats raw input as one task.
     assert "1) manual fallback task" in prompt
     assert "2) " not in prompt
 

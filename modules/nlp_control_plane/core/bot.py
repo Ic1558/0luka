@@ -3,8 +3,8 @@
 Contract surface in this module:
 1) ``build_bot_reply`` delegates normalization/spec construction to existing
    core functions and returns a deterministic summary object.
-2) ``extract_numbered_tasks`` parses valid numbered lines only (``1.`` / ``1)``)
-   and drops everything else.
+2) ``extract_numbered_tasks`` parses valid numbered lines (``1.`` / ``1)``)
+   and preserves indented detail lines (bullets) under the latest task.
 3) ``build_unified_execution_prompt`` creates a fail-closed execution template
    that explicitly asks for command + evidence proof.
 
@@ -14,7 +14,7 @@ Determinism expectations:
 - Same inputs produce the same outputs.
 
 Out-of-scope by design:
-- Rich markdown parsing or bullet normalization beyond numbered-line matching.
+- Rich markdown parsing beyond numbered-line matching and subtask preservation.
 - Any autonomous execution of extracted tasks.
 """
 
@@ -72,33 +72,48 @@ def build_bot_reply(raw_input: str, preview_id: str) -> BotReply:
 
 
 def extract_numbered_tasks(raw_text: str) -> List[str]:
-    """Extract ordered task strings from strictly numbered lines.
+    """Extract ordered task strings from strictly numbered lines and their details.
 
     Inputs:
     - ``raw_text``: multiline text that may contain human-written steps.
 
     Output:
-    - ordered list of task text captured from lines matching ``^\\d+[.)]\\s+``.
+    - ordered list of task text captured from lines matching ``^\\d+[.)]\\s+``,
+      preserving any subsequent non-numbered lines as details.
 
     Fail-closed behavior:
-    - Lines not matching the strict numbered format are ignored.
     - Empty/whitespace-only input returns an empty list.
 
     Determinism expectations:
     - Pure parsing with no external dependencies and stable ordering.
 
     Out-of-scope:
-    - Supporting bullets (``-``/``*``), malformed numbering, or nested lists.
+    - Supporting nested numbered lists or complex markdown.
     """
 
     tasks: List[str] = []
-    for line in raw_text.splitlines():
-        text = line.strip()
-        if not text:
+    current_lines: List[str] = []
+
+    def flush_current() -> None:
+        if current_lines:
+            tasks.append("\n".join(current_lines).strip())
+            current_lines.clear()
+
+    for raw_line in raw_text.splitlines():
+        stripped = raw_line.strip()
+        if not stripped:
             continue
-        match = re.match(r"^\d+[\.)]\s+(.*)$", text)
-        if match:
-            tasks.append(match.group(1).strip())
+
+        header_match = re.match(r"^\d+[\.)]\s+(.*)$", stripped)
+        if header_match:
+            flush_current()
+            current_lines.append(header_match.group(1).strip())
+            continue
+
+        if current_lines:
+            current_lines.append(stripped)
+
+    flush_current()
     return tasks
 
 
