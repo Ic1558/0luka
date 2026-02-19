@@ -30,9 +30,18 @@ def _restore_env(old: dict) -> None:
 
 
 def _setup_dirs(root: Path) -> None:
+    import shutil
+
     (root / "interface" / "inbox").mkdir(parents=True, exist_ok=True)
     (root / "interface" / "outbox" / "tasks").mkdir(parents=True, exist_ok=True)
     (root / "interface" / "completed").mkdir(parents=True, exist_ok=True)
+    src = Path(__file__).resolve().parents[2] / "interface" / "schemas"
+    dst = root / "interface" / "schemas"
+    dst.mkdir(parents=True, exist_ok=True)
+    if src.is_dir():
+        for f in src.iterdir():
+            if f.is_file():
+                shutil.copy2(f, dst / f.name)
 
 
 def _load_bridge():
@@ -93,4 +102,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
