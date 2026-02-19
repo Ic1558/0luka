@@ -52,7 +52,7 @@ Any intent outside this list must fail-closed with `needs_clarification`.
 | `ops.read_text` | `path` | `path` must satisfy path policy |
 | `ops.run_command_safe` | `command`, `allowlist_id` | `allowlist_id` must equal `cmd.safe.v0` |
 | `audit.lint_activity_feed` | `command_id`, `command` | `command_id` must equal `activity_feed_linter.canonical`; shell expansion forbidden |
-| `audit.run_pytest` | `command` | command must equal `python3 -m pytest tests/ -q` |
+| `audit.run_pytest` | `command` | command must equal `cd ${ROOT} && bash ${ROOT}/tools/ops/pytest_safe.zsh` |
 | `kernel.enqueue_task` | `task.schema_version`, `task.intent`, `task.ops[]` | `task.schema_version` must equal `clec.v1`; each op typed; `write_text` requires `target_path` + `content` |
 | `kernel.status.dispatcher` | `probe` | `probe` must equal `launchd.dispatcher.status` |
 
@@ -71,7 +71,7 @@ Path policy applies to:
 - `ops.run_command_safe` requires `allowlist_id=cmd.safe.v0`.
 - `audit.lint_activity_feed` requires:
   - `command_id=activity_feed_linter.canonical`
-  - canonical command template with `${ROOT}` placeholders.
+  - canonical command template: `cd ${ROOT} && bash ${ROOT}/tools/ops/lint_safe.zsh`
   - no shell expansion patterns (for example `$(`...`)` or backticks).
 - `kernel.status.dispatcher` must use probe template only; no raw shell command payload.
 
