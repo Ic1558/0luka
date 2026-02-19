@@ -73,14 +73,14 @@ vectors:
     expected_intent: "audit.lint_activity_feed"
     required_slots:
       command_id: "activity_feed_linter.canonical"
-      command: "cd ${ROOT} && python3 ${ROOT}/tools/ops/activity_feed_linter.py --json"
+      command: "cd ${ROOT} && bash ${ROOT}/tools/ops/lint_safe.zsh"
     expected_result: "submit_accepted"
 
   - id: nlp_008
     input: "Run pytest tests quietly"
     expected_intent: "audit.run_pytest"
     required_slots:
-      command: "python3 -m pytest tests/ -q"
+      command: "cd ${ROOT} && bash ${ROOT}/tools/ops/pytest_safe.zsh"
     expected_result: "submit_accepted"
 
   - id: nlp_009

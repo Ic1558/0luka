@@ -13,7 +13,8 @@ except ImportError:  # pragma: no cover
 
 ROOT = os.environ.get("ROOT") or str(Path(__file__).resolve().parents[3])
 DEFAULT_FIXTURE = Path(__file__).resolve().parent / "phase9_vectors_v0.yaml"
-CANONICAL_LINTER_CMD = f'cd {ROOT} && python3 {ROOT}/tools/ops/activity_feed_linter.py --json'
+CANONICAL_LINTER_CMD = "cd ${ROOT} && bash ${ROOT}/tools/ops/lint_safe.zsh"
+CANONICAL_PYTEST_CMD = "cd ${ROOT} && bash ${ROOT}/tools/ops/pytest_safe.zsh"
 
 
 def _is_non_empty_str(value: Any) -> bool:
@@ -162,12 +163,12 @@ def validate_fixture(fixture_path: Path) -> dict[str, Any]:
         if intent == "audit.lint_activity_feed":
             if slots.get("command_id") != "activity_feed_linter.canonical":
                 add(vid, "slot.command_id", "must equal activity_feed_linter.canonical")
-            if slots.get("command") != "cd ${ROOT} && python3 ${ROOT}/tools/ops/activity_feed_linter.py --json":
+            if slots.get("command") != CANONICAL_LINTER_CMD:
                 add(vid, "slot.command", "must match canonical fixture command")
 
         if intent == "audit.run_pytest":
-            if slots.get("command") != "python3 -m pytest tests/ -q":
-                add(vid, "slot.command", "must equal python3 -m pytest tests/ -q")
+            if slots.get("command") != CANONICAL_PYTEST_CMD:
+                add(vid, "slot.command", "must equal canonical pytest wrapper command")
 
         if intent == "kernel.enqueue_task":
             task = slots.get("task")

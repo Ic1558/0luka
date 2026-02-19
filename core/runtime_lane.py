@@ -113,11 +113,17 @@ def _enforce_invariants(intent: str, slots: Dict[str, Any], fixture: Dict[str, A
         if str(slots.get("command_id", "")) != "activity_feed_linter.canonical":
             raise RuntimeLaneError("command_id_mismatch")
         command = str(slots.get("command", "")).strip()
-        canonical = "cd ${ROOT} && python3 ${ROOT}/tools/ops/activity_feed_linter.py --json"
+        canonical = "cd ${ROOT} && bash ${ROOT}/tools/ops/lint_safe.zsh"
         if command != canonical:
             raise RuntimeLaneError("command_template_mismatch")
         # Current submit gate run-command allowlist does not include this command.
         raise RuntimeLaneError("runtime_command_not_allowlisted")
+
+    if intent == "audit.run_pytest":
+        command = str(slots.get("command", "")).strip()
+        canonical = "cd ${ROOT} && bash ${ROOT}/tools/ops/pytest_safe.zsh"
+        if command != canonical:
+            raise RuntimeLaneError("command_template_mismatch")
 
     if intent == "kernel.enqueue_task":
         task = slots.get("task")
@@ -166,7 +172,7 @@ def _build_taskspec(intent: str, slots: Dict[str, Any], *, root: Path) -> Dict[s
     elif intent == "audit.lint_activity_feed":
         ops = [{"op_id": "op1", "type": "run", "command": _normalize_command(str(slots["command"]), root)}]
     elif intent == "audit.run_pytest":
-        ops = [{"op_id": "op1", "type": "run", "command": str(slots["command"])}]
+        ops = [{"op_id": "op1", "type": "run", "command": _normalize_command(str(slots["command"]), root)}]
     elif intent == "kernel.enqueue_task":
         task = dict(slots["task"])
         task.setdefault("schema_version", "clec.v1")
