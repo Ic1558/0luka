@@ -30,20 +30,8 @@ def _restore_env(old: dict) -> None:
 
 
 def _setup_root(root: Path) -> None:
-    for rel in [
-        "interface/inbox",
-        "interface/outbox/tasks",
-        "interface/completed",
-        "interface/rejected",
-        "observability/artifacts",
-        "observability/logs",
-        "core/contracts/v1",
-        "interface/schemas",
-    ]:
-        (root / rel).mkdir(parents=True, exist_ok=True)
-    import shutil
-
-    shutil.copy2(REPO_ROOT / "core/contracts/v1/0luka_schemas.json", root / "core/contracts/v1/0luka_schemas.json")
+    from core.verify._test_root import ensure_test_root
+    ensure_test_root(root)
 
 
 def _load_cli():
@@ -77,6 +65,8 @@ def test_cli_status_json() -> None:
             assert "health" in data
             print("test_cli_status_json: ok")
         finally:
+            from core.verify._test_root import restore_test_root_modules
+            restore_test_root_modules()
             _restore_env(old)
 
 
@@ -87,16 +77,15 @@ def test_cli_submit_from_file() -> None:
         try:
             _setup_root(root)
             cli = _load_cli()
+            from core.verify._test_root import make_task
             task = root / "task.json"
             task.write_text(
                 json.dumps(
-                    {
-                        "author": "cli_test",
-                        "intent": "cli.submit",
-                        "schema_version": "clec.v1",
-                        "ops": [],
-                        "verify": [],
-                    }
+                    make_task(root,
+                        author="cli_test",
+                        intent="cli.submit",
+                        schema_version="clec.v1",
+                    )
                 ),
                 encoding="utf-8",
             )
@@ -105,6 +94,8 @@ def test_cli_submit_from_file() -> None:
             assert (root / "interface" / "inbox" / "cli_submit_001.yaml").exists()
             print("test_cli_submit_from_file: ok")
         finally:
+            from core.verify._test_root import restore_test_root_modules
+            restore_test_root_modules()
             _restore_env(old)
 
 

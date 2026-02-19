@@ -30,18 +30,8 @@ def _restore_env(old: dict) -> None:
 
 
 def _setup_dirs(root: Path) -> None:
-    import shutil
-
-    (root / "interface" / "inbox").mkdir(parents=True, exist_ok=True)
-    (root / "interface" / "outbox" / "tasks").mkdir(parents=True, exist_ok=True)
-    (root / "interface" / "completed").mkdir(parents=True, exist_ok=True)
-    src = Path(__file__).resolve().parents[2] / "interface" / "schemas"
-    dst = root / "interface" / "schemas"
-    dst.mkdir(parents=True, exist_ok=True)
-    if src.is_dir():
-        for f in src.iterdir():
-            if f.is_file():
-                shutil.copy2(f, dst / f.name)
+    from core.verify._test_root import ensure_test_root
+    ensure_test_root(root)
 
 
 def _load_submit(root: Path):
@@ -62,14 +52,15 @@ def test_submit_flat_task() -> None:
         try:
             _setup_dirs(root)
             submit = _load_submit(root)
+            from core.verify._test_root import make_task
             receipt = submit.submit_task(
-                {
-                    "author": "codex",
-                    "intent": "test.submit",
-                    "schema_version": "clec.v1",
-                    "ops": [{"op_id": "op1", "type": "write_text", "target_path": "test.txt", "content": "hello"}],
-                    "verify": [],
-                }
+                make_task(root,
+                    author="codex",
+                    call_sign="[Codex]",
+                    intent="test.submit",
+                    schema_version="clec.v1",
+                    ops=[{"op_id": "op1", "type": "write_text", "target_path": "test.txt", "content": "hello"}],
+                )
             )
 
             assert receipt["status"] == "submitted"
@@ -84,6 +75,8 @@ def test_submit_flat_task() -> None:
             assert receipt["task_id"] in content
             print("test_submit_flat_task: ok")
         finally:
+            from core.verify._test_root import restore_test_root_modules
+            restore_test_root_modules()
             _restore_env(old)
 
 
@@ -95,11 +88,14 @@ def test_submit_with_explicit_task_id() -> None:
         try:
             _setup_dirs(root)
             submit = _load_submit(root)
-            receipt = submit.submit_task({"author": "test", "intent": "explicit.id"}, task_id="explicit_001")
+            from core.verify._test_root import make_task
+            receipt = submit.submit_task(make_task(root, intent="explicit.id"), task_id="explicit_001")
             assert receipt["task_id"] == "explicit_001"
             assert (root / "interface" / "inbox" / "explicit_001.yaml").exists()
             print("test_submit_with_explicit_task_id: ok")
         finally:
+            from core.verify._test_root import restore_test_root_modules
+            restore_test_root_modules()
             _restore_env(old)
 
 
@@ -111,14 +107,17 @@ def test_submit_rejects_duplicate() -> None:
         try:
             _setup_dirs(root)
             submit = _load_submit(root)
-            submit.submit_task({"author": "test"}, task_id="dup_001")
+            from core.verify._test_root import make_task
+            submit.submit_task(make_task(root), task_id="dup_001")
             try:
-                submit.submit_task({"author": "test"}, task_id="dup_001")
+                submit.submit_task(make_task(root), task_id="dup_001")
                 raise AssertionError("should have rejected duplicate")
             except submit.SubmitError as exc:
                 assert "duplicate" in str(exc)
             print("test_submit_rejects_duplicate: ok")
         finally:
+            from core.verify._test_root import restore_test_root_modules
+            restore_test_root_modules()
             _restore_env(old)
 
 
@@ -137,6 +136,8 @@ def test_submit_rejects_hard_paths() -> None:
                 assert "hard_path" in str(exc)
             print("test_submit_rejects_hard_paths: ok")
         finally:
+            from core.verify._test_root import restore_test_root_modules
+            restore_test_root_modules()
             _restore_env(old)
 
 
@@ -148,20 +149,23 @@ def test_submit_native_envelope() -> None:
         try:
             _setup_dirs(root)
             submit = _load_submit(root)
+            from core.verify._test_root import make_task
             envelope = {
                 "v": "0luka.envelope/v1",
                 "type": "task.request",
                 "trace": {"trace_id": "env_001", "ts": "2026-02-08T00:00:00Z"},
                 "source": {"actor": "openwork", "lane": "run"},
                 "payload": {
-                    "task": {
-                        "task_id": "env_001",
-                        "intent": "code.review",
-                        "inputs": {},
-                        "schema_version": "clec.v1",
-                        "ops": [{"op_id": "op1", "type": "run", "command": "git status"}],
-                        "verify": [],
-                    }
+                    "task": make_task(root,
+                        task_id="env_001",
+                        author="openwork",
+                        call_sign="[OpenWork]",
+                        ts_utc="2026-02-08T00:00:00Z",
+                        intent="code.review",
+                        inputs={},
+                        schema_version="clec.v1",
+                        ops=[{"op_id": "op1", "type": "run", "command": "git status"}],
+                    )
                 },
             }
             receipt = submit.submit_task(envelope)
@@ -170,6 +174,8 @@ def test_submit_native_envelope() -> None:
             assert (root / "interface" / "inbox" / "env_001.yaml").exists()
             print("test_submit_native_envelope: ok")
         finally:
+            from core.verify._test_root import restore_test_root_modules
+            restore_test_root_modules()
             _restore_env(old)
 
 
