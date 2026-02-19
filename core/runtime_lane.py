@@ -16,6 +16,8 @@ except ImportError:
 from core.sentry import SentryViolation, run_preflight
 from core.submit import SubmitError, submit_task
 
+CANONICAL_VERIFY_ALL_SAFE = "tools/ops/verify_all_safe.zsh"
+
 
 class RuntimeLaneError(RuntimeError):
     pass

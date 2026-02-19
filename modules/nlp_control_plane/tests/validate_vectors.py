@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 from __future__ import annotations
 
 import argparse
@@ -15,6 +16,8 @@ ROOT = os.environ.get("ROOT") or str(Path(__file__).resolve().parents[3])
 DEFAULT_FIXTURE = Path(__file__).resolve().parent / "phase9_vectors_v0.yaml"
 CANONICAL_LINTER_CMD = "cd ${ROOT} && bash ${ROOT}/tools/ops/lint_safe.zsh"
 CANONICAL_PYTEST_CMD = "cd ${ROOT} && bash ${ROOT}/tools/ops/pytest_safe.zsh"
+# Phase10H canonical verify entrypoint reference
+CANONICAL_VERIFY_ALL_SAFE = "tools/ops/verify_all_safe.zsh"
 
 
 def _is_non_empty_str(value: Any) -> bool:
