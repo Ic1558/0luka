@@ -46,6 +46,29 @@ compressed = val("Pages occupied by compressor") * page_size
 
 memsize = int(run(["/usr/sbin/sysctl","-n","hw.memsize"]).strip())
 
+mb = 1024 * 1024
+gb = 1024 * 1024 * 1024
+alerts = []
+pressure_level = "OK"
+
+if compressed > 6 * gb:
+    alerts.append({
+      "level": "WARN",
+      "rule": "compressed_gt_6gb",
+      "value_bytes": compressed,
+      "threshold_bytes": 6 * gb
+    })
+    pressure_level = "WARN"
+
+if free < 200 * mb:
+    alerts.append({
+      "level": "CRITICAL",
+      "rule": "free_lt_200mb",
+      "value_bytes": free,
+      "threshold_bytes": 200 * mb
+    })
+    pressure_level = "CRITICAL"
+
 out = {
   "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
   "module": "ram_monitor",
@@ -57,6 +80,8 @@ out = {
   "speculative_bytes": spec,
   "wired_bytes": wired,
   "compressed_bytes": compressed,
+  "pressure_level": pressure_level,
+  "alerts": alerts,
   "note": "Computed from vm_stat + hw.memsize"
 }
 print(json.dumps(out, ensure_ascii=False, indent=2))
