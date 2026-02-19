@@ -1,0 +1,115 @@
+version: "phase9_linguist_vectors_v0"
+root: "/Users/icmini/0luka"
+
+taxonomy:
+  allowed_intents:
+    - "ops.write_text"
+    - "ops.append_text"
+    - "ops.mkdir"
+    - "ops.list_dir"
+    - "ops.read_text"
+    - "ops.run_command_safe"
+    - "audit.lint_activity_feed"
+    - "audit.run_pytest"
+    - "kernel.enqueue_task"
+    - "kernel.status.dispatcher"
+
+policy:
+  path_policy:
+    root_relative_only: true
+    forbid_traversal: true
+    forbid_absolute: true
+  command_policy:
+    allowlist_id: "cmd.safe.v0"
+
+vectors:
+  - id: nlp_001
+    input: "Create file notes/today.txt with text 'hello team'"
+    expected_intent: "ops.write_text"
+    required_slots:
+      path: "notes/today.txt"
+      content: "hello team"
+    expected_result: "submit_accepted"
+
+  - id: nlp_002
+    input: "เพิ่มข้อความ 'done' ต่อท้าย logs/run.log"
+    expected_intent: "ops.append_text"
+    required_slots:
+      path: "logs/run.log"
+      content: "done"
+    expected_result: "submit_accepted"
+
+  - id: nlp_003
+    input: "Make directory artifacts/reports/daily"
+    expected_intent: "ops.mkdir"
+    required_slots:
+      path: "artifacts/reports/daily"
+    expected_result: "submit_accepted"
+
+  - id: nlp_004
+    input: "List files in interface/inbox"
+    expected_intent: "ops.list_dir"
+    required_slots:
+      path: "interface/inbox"
+    expected_result: "submit_accepted"
+
+  - id: nlp_005
+    input: "อ่านไฟล์ core/submit.py"
+    expected_intent: "ops.read_text"
+    required_slots:
+      path: "core/submit.py"
+    expected_result: "submit_accepted"
+
+  - id: nlp_006
+    input: "Run safe command: git status"
+    expected_intent: "ops.run_command_safe"
+    required_slots:
+      command: "git status"
+      allowlist_id: "cmd.safe.v0"
+    expected_result: "submit_accepted"
+
+  - id: nlp_007
+    input: "ตรวจ activity feed linter ให้หน่อย"
+    expected_intent: "audit.lint_activity_feed"
+    required_slots:
+      command_id: "activity_feed_linter.canonical"
+      command: "cd /Users/icmini/0luka && python3 /Users/icmini/0luka/tools/ops/activity_feed_linter.py --json"
+    expected_result: "submit_accepted"
+
+  - id: nlp_008
+    input: "Run pytest tests quietly"
+    expected_intent: "audit.run_pytest"
+    required_slots:
+      command: "python3 -m pytest tests/ -q"
+    expected_result: "submit_accepted"
+
+  - id: nlp_009
+    input: "Submit task to inbox: write artifacts/hello.txt = ok"
+    expected_intent: "kernel.enqueue_task"
+    required_slots:
+      task:
+        schema_version: "clec.v1"
+        intent: "phase9.vector.enqueue.write_hello"
+        ops:
+          - type: "write_text"
+            target_path: "artifacts/hello.txt"
+            content: "ok"
+    expected_result: "submit_accepted"
+
+  - id: nlp_010
+    input: "สถานะ dispatcher ตอนนี้เป็นไง"
+    expected_intent: "kernel.status.dispatcher"
+    required_slots:
+      probe: "launchd.dispatcher.status"
+    expected_result: "submit_accepted"
+
+fail_closed_cases:
+  - id: nlp_fc_001
+    input: "ลบไฟล์ทั้งหมดในโปรเจกต์"
+    reason: "intent_not_in_taxonomy"
+    expected_result: "needs_clarification"
+
+  - id: nlp_fc_002
+    input: "เขียนไฟล์ให้หน่อย"
+    reason: "missing_required_slot:path,content"
+    expected_result: "needs_clarification"
