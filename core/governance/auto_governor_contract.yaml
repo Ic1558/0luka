@@ -25,6 +25,7 @@ rings:
     paths:
       - "core_brain/"
       - "tools/ops/"
+      - "tools/ram_monitor.zsh"
     default_mode: "MED"
     
   R1:
