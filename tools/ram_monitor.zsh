@@ -69,6 +69,40 @@ if free < 200 * mb:
     })
     pressure_level = "CRITICAL"
 
+recommendation = "stable"
+if pressure_level == "CRITICAL":
+    recommendation = "reduce_memory_load"
+elif pressure_level == "WARN":
+    recommendation = "monitor"
+
+top_processes = []
+try:
+    ps_out = run(["/bin/ps", "-Ao", "pid=,comm=,rss="])
+    rows = []
+    for line in ps_out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split(None, 2)
+        if len(parts) < 3:
+            continue
+        pid_s, name, rss_s = parts
+        try:
+            pid = int(pid_s)
+            rss_kb = int(rss_s)
+        except ValueError:
+            continue
+        rows.append((rss_kb, pid, name))
+    rows.sort(reverse=True)
+    for rss_kb, pid, name in rows[:5]:
+        top_processes.append({
+          "pid": pid,
+          "name": name.replace('"', ""),
+          "rss_mb": int((rss_kb / 1024) + 0.5)
+        })
+except Exception:
+    top_processes = []
+
 out = {
   "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
   "module": "ram_monitor",
@@ -81,6 +115,8 @@ out = {
   "wired_bytes": wired,
   "compressed_bytes": compressed,
   "pressure_level": pressure_level,
+  "recommendation": recommendation,
+  "top_processes": top_processes,
   "alerts": alerts,
   "note": "Computed from vm_stat + hw.memsize"
 }
@@ -89,6 +125,32 @@ PY
 
 # Telemetry breadcrumb (small latest file)
 cp "$OUT_JSON" "$TEL_JSON"
+
+# Emit activity feed event on CRITICAL memory pressure (fail-open)
+if python3 - <<PY
+import json, sys
+p = json.load(open("$OUT_JSON", "r", encoding="utf-8"))
+sys.exit(0 if p.get("pressure_level") == "CRITICAL" else 1)
+PY
+then
+  FEED_PATH="$OBS/logs/activity_feed.jsonl"
+  TS_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  FREE_MB="$(python3 - <<PY
+import json
+p = json.load(open("$OUT_JSON", "r", encoding="utf-8"))
+print(int((p.get("free_bytes", 0) or 0) / 1024 / 1024))
+PY
+)"
+  COMP_GB="$(python3 - <<PY
+import json
+p = json.load(open("$OUT_JSON", "r", encoding="utf-8"))
+print(f"{((p.get('compressed_bytes', 0) or 0) / 1024 / 1024 / 1024):.1f}")
+PY
+)"
+  mkdir -p "$(dirname "$FEED_PATH")" 2>/dev/null || true
+  printf '{"ts_utc":"%s","phase_id":"PHASE10_RAM","action":"ram_pressure_alert","emit_mode":"runtime_auto","tool":"ram_monitor","pressure_level":"CRITICAL","free_mb":%s,"compressed_gb":%s}\n' \
+    "$TS_UTC" "$FREE_MB" "$COMP_GB" >> "$FEED_PATH" 2>/dev/null || true
+fi
 
 # sha256 for artifact (portable)
 SHA="$(shasum -a 256 "$OUT_JSON" | awk '{print $1}')"
