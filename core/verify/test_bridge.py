@@ -62,10 +62,6 @@ def test_bridge_maps_task_shape() -> None:
     print("test_bridge_maps_task_shape: ok")
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason="bridge.to_core_task() drops ts_utc/call_sign/root required by clec_v1 schema; fix in PR-B core/bridge.py",
-)
 def test_bridge_submits_into_core_inbox() -> None:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td).resolve()
