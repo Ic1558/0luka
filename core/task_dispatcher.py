@@ -10,8 +10,10 @@ Usage:
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
+import re
 import signal
 import sys
 import time
@@ -59,6 +61,7 @@ _stats = {
     "total_skipped": 0,
     "total_guard_blocked": 0,
     "total_malformed": 0,
+    "total_guard_blocked_by_reason": {},
 }
 
 sys.path.insert(0, str(ROOT))
@@ -135,6 +138,7 @@ def _emit_activity_event(
     phase_id: str = "GOAL1_ACTIVITY_FEED",
     status_badge: str = "NOT_PROVEN",
     evidence: list | None = None,
+    telemetry: dict[str, Any] | None = None,
 ) -> None:
     """Emit lifecycle event to activity feed. Fail-open."""
     try:
@@ -153,6 +157,8 @@ def _emit_activity_event(
             "status_badge": status_badge,
             "evidence": evidence or [],
         }
+        if telemetry:
+            payload.update(telemetry)
         with feed_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
     except Exception:
@@ -342,6 +348,67 @@ def _build_task_spec(task_id: str, task: Dict[str, Any]) -> Dict[str, Any]:
 
 def _inc_stat(key: str, amount: int = 1) -> None:
     _stats[key] = int(_stats.get(key, 0)) + amount
+
+
+def _inc_guard_reason(reason_code: str) -> None:
+    reason_map = _stats.setdefault("total_guard_blocked_by_reason", {})
+    reason_map[reason_code] = int(reason_map.get(reason_code, 0)) + 1
+
+
+def _payload_sha256_8(payload: Any) -> str:
+    canonical = json.dumps(payload if payload is not None else {}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:8]
+
+
+def _classify_root_kind(root_value: Any) -> str:
+    if not isinstance(root_value, str):
+        return "empty"
+    text = root_value.strip()
+    if not text:
+        return "empty"
+    if text.startswith("/"):
+        return "absolute"
+    if text.startswith("${"):
+        return "template"
+    return "relative"
+
+
+def _parse_missing_fields_from_reason(reason_text: str) -> list[str]:
+    fields: list[str] = []
+    for token in re.findall(r"'([^']+)' is a required property", reason_text):
+        if token and token not in fields:
+            fields.append(token)
+    return fields
+
+
+def _reason_code_from_guard(violations: list[str]) -> str:
+    if any(v.startswith("invalid:absolute_root") for v in violations):
+        return "ROOT_ABSOLUTE"
+    if any(v.startswith("missing_or_invalid:") for v in violations):
+        return "MISSING_REQUIRED_FIELDS"
+    if any("invalid_type" in v or "missing_op_id" in v for v in violations):
+        return "INVALID_OPS"
+    return "MALFORMED_TASK"
+
+
+def _emit_guard_blocked_telemetry(task_id: str, *, reason_code: str, missing_fields: list[str], root_kind: str, payload_sha256_8: str) -> None:
+    _emit_activity_event(
+        "blocked",
+        task_id,
+        phase_id="PHASE13B_GUARD_TELEMETRY",
+        telemetry={
+            "reason_code": reason_code,
+            "missing_fields": missing_fields,
+            "root_kind": root_kind,
+            "payload_sha256_8": payload_sha256_8,
+        },
+        evidence=[
+            {"kind": "reason_code", "ref": reason_code},
+            {"kind": "missing_fields", "ref": ",".join(missing_fields)},
+            {"kind": "root_kind", "ref": root_kind},
+            {"kind": "payload_sha256_8", "ref": payload_sha256_8},
+        ],
+    )
 
 
 def _runtime_guard_task(task: Dict[str, Any]) -> tuple[bool, list[str]]:
@@ -563,15 +630,21 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             if "clec_schema_validation_failed" in reason_text:
                 _inc_stat("total_malformed")
                 _inc_stat("total_guard_blocked")
-                _emit_activity_event(
-                    "blocked",
+                payload_task = {}
+                with contextlib.suppress(Exception):
+                    payload_task = envelope.get("payload", {}).get("task", {})  # type: ignore[assignment]
+                missing_fields = _parse_missing_fields_from_reason(reason_text)
+                root_kind = _classify_root_kind(payload_task.get("root") if isinstance(payload_task, dict) else None)
+                reason_code = "SCHEMA_VALIDATION_FAILED"
+                if "hard_path_detected" in reason_text:
+                    reason_code = "ROOT_ABSOLUTE"
+                _inc_guard_reason(reason_code)
+                _emit_guard_blocked_telemetry(
                     task_id,
-                    phase_id="PHASE13_RUNTIME_GUARD",
-                    evidence=[
-                        {"kind": "guard", "ref": "dispatcher_boundary"},
-                        {"kind": "error", "ref": "clec_schema_validation_failed"},
-                        {"kind": "reason", "ref": reason_text},
-                    ],
+                    reason_code=reason_code,
+                    missing_fields=missing_fields,
+                    root_kind=root_kind,
+                    payload_sha256_8=_payload_sha256_8(payload_task),
                 )
             if not dry_run:
                 _move_file(file_path, REJECTED)
@@ -660,11 +733,15 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             result = {"task_id": task_id, "status": "rejected", "reason": f"runtime_guard:{','.join(task_violations)}"}
             _inc_stat("total_guard_blocked")
             _inc_stat("total_malformed")
-            _emit_activity_event(
-                "blocked",
+            reason_code = _reason_code_from_guard(task_violations)
+            _inc_guard_reason(reason_code)
+            missing_fields = [v.split(":", 1)[1] for v in task_violations if v.startswith("missing_or_invalid:")]
+            _emit_guard_blocked_telemetry(
                 task_id,
-                phase_id="PHASE13_RUNTIME_GUARD",
-                evidence=[{"kind": "guard_violation", "ref": v} for v in task_violations],
+                reason_code=reason_code,
+                missing_fields=missing_fields,
+                root_kind=_classify_root_kind(task.get("root")),
+                payload_sha256_8=_payload_sha256_8(task),
             )
             if not dry_run:
                 _move_file(file_path, REJECTED)

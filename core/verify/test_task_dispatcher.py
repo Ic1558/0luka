@@ -54,6 +54,9 @@ def _load_dispatcher(root: Path):
         "total_rejected": 0,
         "total_error": 0,
         "total_skipped": 0,
+        "total_guard_blocked": 0,
+        "total_malformed": 0,
+        "total_guard_blocked_by_reason": {},
     }
     return dispatcher
 
@@ -68,6 +71,17 @@ def _mkdirs(root: Path) -> None:
     (root / "artifacts/tasks/rejected").mkdir(parents=True, exist_ok=True)
     (root / "observability/artifacts/router_audit").mkdir(parents=True, exist_ok=True)
     (root / "observability/logs").mkdir(parents=True, exist_ok=True)
+
+
+def _read_activity_rows(root: Path) -> list[dict]:
+    path = root / "observability" / "logs" / "activity_feed.jsonl"
+    if not path.exists():
+        return []
+    rows: list[dict] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            rows.append(json.loads(line))
+    return rows
 
 
 def test_dispatch_clec_task_e2e() -> None:
@@ -344,6 +358,146 @@ def test_dispatch_runtime_guard_rejects_non_template_root() -> None:
             assert "invalid:absolute_root" in str(result.get("reason", "")), result
             assert (root / "interface" / "rejected" / f"{task_id}.yaml").exists()
             print("test_dispatch_runtime_guard_rejects_non_template_root: ok")
+        finally:
+            from core.verify._test_root import restore_test_root_modules
+            restore_test_root_modules()
+            _restore_env(old)
+
+
+def test_dispatch_guard_telemetry_missing_required_fields() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td).resolve()
+        old = _set_env(root)
+        try:
+            _mkdirs(root)
+            task_id = "task_guard_missing_001"
+            task_file = root / "interface" / "inbox" / f"{task_id}.yaml"
+            task_file.write_text(
+                "\n".join(
+                    [
+                        f"task_id: {task_id}",
+                        "author: codex",
+                        "schema_version: clec.v1",
+                        "intent: guard.missing",
+                        "ops:",
+                        "  - op_id: op1",
+                        "    type: run",
+                        "    command: git status",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            dispatcher = _load_dispatcher(root)
+            result = dispatcher.dispatch_one(task_file)
+            assert result["status"] == "rejected", result
+            blocked = [
+                r for r in _read_activity_rows(root)
+                if r.get("action") == "blocked" and r.get("task_id") == task_id
+            ]
+            assert len(blocked) == 1, blocked
+            row = blocked[0]
+            assert row.get("phase_id") == "PHASE13B_GUARD_TELEMETRY", row
+            assert row.get("reason_code") in {"SCHEMA_VALIDATION_FAILED", "MISSING_REQUIRED_FIELDS"}, row
+            assert isinstance(row.get("missing_fields"), list), row
+            assert isinstance(row.get("payload_sha256_8"), str) and len(row.get("payload_sha256_8")) == 8, row
+            print("test_dispatch_guard_telemetry_missing_required_fields: ok")
+        finally:
+            from core.verify._test_root import restore_test_root_modules
+            restore_test_root_modules()
+            _restore_env(old)
+
+
+def test_dispatch_guard_telemetry_root_absolute_no_echo() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td).resolve()
+        old = _set_env(root)
+        try:
+            _mkdirs(root)
+            task_id = "task_guard_root_001"
+            hard_root = "/tmp/secret-absolute-root"
+            task_file = root / "interface" / "inbox" / f"{task_id}.yaml"
+            task_file.write_text(
+                "\n".join(
+                    [
+                        f"task_id: {task_id}",
+                        "author: codex",
+                        "schema_version: clec.v1",
+                        "ts_utc: '2026-02-08T00:00:00Z'",
+                        "call_sign: '[Codex]'",
+                        f"root: '{hard_root}'",
+                        "intent: guard.root.absolute",
+                        "ops:",
+                        "  - op_id: op1",
+                        "    type: run",
+                        "    command: git status",
+                        "verify: []",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            dispatcher = _load_dispatcher(root)
+            result = dispatcher.dispatch_one(task_file)
+            assert result["status"] == "rejected", result
+            blocked = [
+                r for r in _read_activity_rows(root)
+                if r.get("action") == "blocked" and r.get("task_id") == task_id
+            ]
+            assert len(blocked) == 1, blocked
+            row = blocked[0]
+            assert row.get("phase_id") == "PHASE13B_GUARD_TELEMETRY", row
+            assert row.get("root_kind") == "absolute", row
+            serialized = json.dumps(row, ensure_ascii=False, sort_keys=True)
+            assert hard_root not in serialized, serialized
+            print("test_dispatch_guard_telemetry_root_absolute_no_echo: ok")
+        finally:
+            from core.verify._test_root import restore_test_root_modules
+            restore_test_root_modules()
+            _restore_env(old)
+
+
+def test_dispatch_guard_valid_task_no_blocked_event() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td).resolve()
+        old = _set_env(root)
+        try:
+            _mkdirs(root)
+            task_id = "task_guard_valid_001"
+            task_file = root / "interface" / "inbox" / f"{task_id}.yaml"
+            task_file.write_text(
+                "\n".join(
+                    [
+                        f"task_id: {task_id}",
+                        "author: codex",
+                        "schema_version: clec.v1",
+                        "ts_utc: '2026-02-08T00:00:00Z'",
+                        "call_sign: '[Codex]'",
+                        "root: '${ROOT}'",
+                        "intent: guard.valid",
+                        "ops:",
+                        "  - op_id: op1",
+                        "    type: run",
+                        "    command: git status",
+                        "verify: []",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (root / "artifacts" / "tasks" / "open" / f"{task_id}.yaml").write_text("id: x\n", encoding="utf-8")
+
+            dispatcher = _load_dispatcher(root)
+            result = dispatcher.dispatch_one(task_file)
+            assert result["status"] in {"committed", "rejected", "error"}, result
+            blocked = [
+                r for r in _read_activity_rows(root)
+                if r.get("action") == "blocked" and r.get("task_id") == task_id and r.get("phase_id") == "PHASE13B_GUARD_TELEMETRY"
+            ]
+            assert blocked == [], blocked
+            print("test_dispatch_guard_valid_task_no_blocked_event: ok")
         finally:
             from core.verify._test_root import restore_test_root_modules
             restore_test_root_modules()
@@ -633,6 +787,9 @@ def main() -> int:
     test_dispatch_non_clec_skipped()
     test_dispatch_hard_path_rejected()
     test_dispatch_runtime_guard_rejects_non_template_root()
+    test_dispatch_guard_telemetry_missing_required_fields()
+    test_dispatch_guard_telemetry_root_absolute_no_echo()
+    test_dispatch_guard_valid_task_no_blocked_event()
     test_dispatch_rejects_resolved_injection_and_resolves_ref()
     test_dispatch_writes_latest_pointer()
     test_dispatch_pointer_schema_conformance()
