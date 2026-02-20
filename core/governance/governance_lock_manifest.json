@@ -65,6 +65,10 @@
       "sha256": "2eac7d6b737c884a24c5d1e492b789616b1144f6be437151d839de487360e711"
     },
     {
+      "path": "core/governance/seals/phase13_seal.md",
+      "sha256": "5711d0814bc0cdb606efd4910b41a6533b8a6bfa6d77d28f90b58dbf0dc0de38"
+    },
+    {
       "path": "core/governance/separation_of_powers.yaml",
       "sha256": "faad9dd6601068f941edb25b6792712924b5ca8588e0c37abbbba0c67cad1451"
     },
@@ -75,6 +79,10 @@
     {
       "path": "core/governance/soul.md",
       "sha256": "a3dc3bc6b2984f464ff427fec21f8b7989e294082179a99814ecd5380da54695"
+    },
+    {
+      "path": "core/governance/telemetry_contracts/phase13_guard_telemetry.md",
+      "sha256": "92ac53beee6a5a7642a02e8a60bb54b6b28183c3bb63261de5e8b18e963ae3e2"
     },
     {
       "path": "core/governance/tier3_abi.yaml",
@@ -157,6 +165,6 @@
       "sha256": "5d1149dcb7acfdb4485f1b69cd462a3a441020a4c31256fe2a99f338aa5d888a"
     }
   ],
-  "generated_at_utc": "2026-02-20T16:25:50Z",
+  "generated_at_utc": "2026-02-20T17:23:37Z",
   "required_label": "governance-change"
 }
