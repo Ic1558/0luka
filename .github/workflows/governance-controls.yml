@@ -1,0 +1,89 @@
+name: governance-controls
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  governance-file-lock:
+    name: governance-file-lock
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml
+
+      - name: Verify lock manifest checksums
+        run: |
+          set -euo pipefail
+          python3 tools/ops/governance_file_lock.py --verify-manifest --json
+
+      - name: Enforce governance mutation label on PR
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+          python3 tools/ops/governance_file_lock.py \
+            --check-mutation \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA" \
+            --labels-json "$LABELS_JSON" \
+            --json
+
+  phase-growth-guard:
+    name: phase-growth-guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml
+
+      - name: Validate newly introduced phases/modules in PR
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          python3 tools/ops/phase_growth_guard.py --check-diff --base "$BASE_SHA" --head "$HEAD_SHA" --json
+
+      - name: Validate latest commit on push
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse HEAD~1)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          python3 tools/ops/phase_growth_guard.py --check-diff --base "$BASE_SHA" --head "$HEAD_SHA" --json

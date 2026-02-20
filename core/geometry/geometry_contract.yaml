@@ -1,0 +1,31 @@
+schema_version: "1.0.0"
+frozen: true
+
+numeric_precision:
+  decimals: 6
+  rounding_mode: half_even
+
+unit_normalization:
+  canonical_unit: m
+  accepted_units:
+    - m
+    - mm
+  conversion_to_m:
+    m: 1.0
+    mm: 0.001
+
+tolerances:
+  adjacency_m: 0.0001
+  closure_m: 0.0001
+  area_min_m2: 0.000001
+
+polygon_validity:
+  min_vertices: 3
+  require_closed_ring: true
+  require_non_self_intersection: true
+  require_non_zero_area: true
+
+reproducibility:
+  hash_algorithm: sha256
+  stable_json_dump: true
+  canonical_sort: true

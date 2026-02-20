@@ -1,3 +1,6 @@
+# derived_from: core/governance/soul.md
+# role: interpretation layer (R2)
+
 # The Soul of 0luka
 
 ---

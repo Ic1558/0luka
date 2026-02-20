@@ -1,0 +1,86 @@
+name: auto-governor-router
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  governance-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Run Auto-Adaptive Governor Router
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_REPO: ${{ github.repository }}
+          GH_API_URL: ${{ github.api_url }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Get list of changed files
+          CHANGED_FILES=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No files changed."
+            exit 0
+          fi
+          
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          # Run router
+          # Note: We use xargs to pass the file list to handle potential length limits
+          # But for simplicity in this minimal binding, assuming list isn't huge
+          
+          # Convert newlines to spaces for arguments
+          FILES_ARGS=$(echo "$CHANGED_FILES" | tr '\n' ' ')
+          
+          echo "Running router..."
+          python3 tools/ops/auto_governor_router.py --proposed-paths $FILES_ARGS --json > router_output.json
+          
+          EXIT_CODE=$?
+          echo "Router exit code: $EXIT_CODE"
+          
+          # Cat output for logs
+          cat router_output.json
+          
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "Router failed or detected severe violation."
+            exit $EXIT_CODE
+          fi
+          
+          # Check labels enforcement
+          MODE=$(jq -r '.mode' router_output.json)
+          echo "Detected Mode: $MODE"
+          
+          if [ "$MODE" == "HARD" ]; then
+            # Read labels from API to avoid stale event payload/race conditions.
+            PR_LABELS=$(curl -fsSL \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "$GH_API_URL/repos/$GH_REPO/issues/$PR_NUMBER/labels" | jq -c 'map(.name)')
+            echo "Live PR labels: $PR_LABELS"
+            HAS_LABEL=$(echo "$PR_LABELS" | jq 'contains(["governance-change"])')
+            if [ "$HAS_LABEL" != "true" ]; then
+              echo "❌ Error: HARD mode requires 'governance-change' label."
+              exit 1
+            fi
+            echo "✅ 'governance-change' label present."
+          fi

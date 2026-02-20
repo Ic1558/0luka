@@ -149,12 +149,12 @@ $ROOT/observability/
   "title": "trace_id=trace-xyz phase=plan",
   "agent_id": "codex",
   "updated_at": "2026-01-29T00:00:01Z",
-  "dir": "/Users/icmini/0luka/observability/artifacts/tasks/trace-xyz",
+  "dir": "~/0luka/observability/artifacts/tasks/trace-xyz",
   "paths": {
-    "meta": "/Users/icmini/0luka/observability/artifacts/tasks/trace-xyz/meta.json",
-    "plan": "/Users/icmini/0luka/observability/artifacts/tasks/trace-xyz/plan.md",
-    "done": "/Users/icmini/0luka/observability/artifacts/tasks/trace-xyz/done.json",
-    "reply": "/Users/icmini/0luka/observability/artifacts/tasks/trace-xyz/reply.md"
+    "meta": "~/0luka/observability/artifacts/tasks/trace-xyz/meta.json",
+    "plan": "~/0luka/observability/artifacts/tasks/trace-xyz/plan.md",
+    "done": "~/0luka/observability/artifacts/tasks/trace-xyz/done.json",
+    "reply": "~/0luka/observability/artifacts/tasks/trace-xyz/reply.md"
   }
 }
 ```

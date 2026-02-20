@@ -687,6 +687,86 @@ def test_update_status_phase_rejects_evidence_path_outside_repo() -> None:
         assert "registry.evidence_path_outside_repo" in payload.get("error", ""), payload
 
 
+def test_all_ignores_fixture_for_exit_code() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    commit_sha = _head_sha(repo_root)
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        docs = tmp / "docs" / "dod"
+        reports = tmp / "observability" / "reports" / "dod_checker"
+        activity = tmp / "observability" / "logs" / "activity.jsonl"
+        phase_status = tmp / "core" / "governance" / "phase_status.yaml"
+        evidence = tmp / "proof.log"
+        _write(evidence, "ok\n")
+        digest = subprocess.check_output(
+            [sys.executable, "-c", f"import hashlib, pathlib;print(hashlib.sha256(pathlib.Path(r'{evidence}').read_bytes()).hexdigest())"],
+            text=True,
+        ).strip()
+
+        _write(docs / "DOD__PHASE_REAL.md", _dod_text("PHASE_REAL", commit_sha))
+        _write(docs / "DOD__PHASE_FIX.md", _dod_text("PHASE_FIX", commit_sha))
+        _write_jsonl(
+            activity,
+            [
+                {"phase_id": "PHASE_REAL", "action": "started", "ts": "2026-02-12T00:00:00Z", "evidence": [str(evidence)]},
+                {"phase_id": "PHASE_REAL", "action": "completed", "ts": "2026-02-12T00:00:01Z"},
+                {"phase_id": "PHASE_REAL", "action": "verified", "ts": "2026-02-12T00:00:02Z", "hashes": {str(evidence): f"sha256:{digest}"}},
+            ],
+        )
+        _write(
+            phase_status,
+            (
+                "phases:\n"
+                "  PHASE_REAL:\n"
+                "    verdict: DESIGNED\n"
+                "    requires:\n"
+                "  PHASE_FIX:\n"
+                "    verdict: DESIGNED\n"
+                "    requires:\n"
+                "    kind: fixture\n"
+            ),
+        )
+        env = _mk_env(repo_root, docs, reports, activity, phase_status)
+        proc = _run_cli(repo_root, ["--all", "--json"], env)
+        assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
+        payload = json.loads(proc.stdout)
+        by_phase = {item["phase_id"]: item for item in payload["results"]}
+        assert by_phase["PHASE_REAL"]["verdict"] == "PROVEN", payload
+        assert by_phase["PHASE_FIX"]["verdict"] == "DESIGNED", payload
+
+
+def test_fixture_phase_explicit_check_still_fails_when_missing_activity() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    commit_sha = _head_sha(repo_root)
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        docs = tmp / "docs" / "dod"
+        reports = tmp / "observability" / "reports" / "dod_checker"
+        activity = tmp / "observability" / "logs" / "activity.jsonl"
+        phase_status = tmp / "core" / "governance" / "phase_status.yaml"
+
+        _write(docs / "DOD__PHASE_FIX.md", _dod_text("PHASE_FIX", commit_sha))
+        _write_jsonl(activity, [])
+        _write(
+            phase_status,
+            (
+                "phases:\n"
+                "  PHASE_FIX:\n"
+                "    verdict: DESIGNED\n"
+                "    requires:\n"
+                "    kind: fixture\n"
+            ),
+        )
+        env = _mk_env(repo_root, docs, reports, activity, phase_status)
+        proc = _run_cli(repo_root, ["--phase", "PHASE_FIX", "--json"], env)
+        assert proc.returncode == 3, proc.stdout + "\n" + proc.stderr
+        payload = json.loads(proc.stdout)
+        result = payload["results"][0]
+        assert result["phase_id"] == "PHASE_FIX"
+        assert result["verdict"] == "DESIGNED"
+        assert "activity.started" in result["missing"]
+
+
 if __name__ == "__main__":
     repo_root = Path(__file__).resolve().parents[2]
     if str(repo_root) not in sys.path:

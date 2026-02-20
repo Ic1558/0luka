@@ -1,0 +1,11 @@
+{
+  "agents": {
+    "liam": {"preferred_tier": "T2"},
+    "lisa": {"preferred_tier": "T1"},
+    "vera": {"preferred_tier": "T0"},
+    "gmx": {"preferred_tier": "T0"}
+  },
+  "defaults": {
+    "preferred_tier": "T2"
+  }
+}

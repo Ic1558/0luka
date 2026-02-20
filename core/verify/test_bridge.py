@@ -8,6 +8,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 
@@ -30,9 +32,8 @@ def _restore_env(old: dict) -> None:
 
 
 def _setup_dirs(root: Path) -> None:
-    (root / "interface" / "inbox").mkdir(parents=True, exist_ok=True)
-    (root / "interface" / "outbox" / "tasks").mkdir(parents=True, exist_ok=True)
-    (root / "interface" / "completed").mkdir(parents=True, exist_ok=True)
+    from core.verify._test_root import ensure_test_root
+    ensure_test_root(root)
 
 
 def _load_bridge():
@@ -68,19 +69,20 @@ def test_bridge_submits_into_core_inbox() -> None:
         try:
             _setup_dirs(root)
             bridge = _load_bridge()
+            from core.verify._test_root import make_task
             receipt = bridge.submit_bridge_task(
-                {
-                    "task_id": "bridge_submit_001",
-                    "intent": "bridge.submit",
-                    "schema_version": "clec.v1",
-                    "ops": [],
-                    "verify": [],
-                }
+                make_task(root,
+                    task_id="bridge_submit_001",
+                    intent="bridge.submit",
+                    schema_version="clec.v1",
+                )
             )
             assert receipt["status"] == "submitted"
             assert (root / "interface" / "inbox" / "bridge_submit_001.yaml").exists()
             print("test_bridge_submits_into_core_inbox: ok")
         finally:
+            from core.verify._test_root import restore_test_root_modules
+            restore_test_root_modules()
             _restore_env(old)
 
 
@@ -93,4 +95,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

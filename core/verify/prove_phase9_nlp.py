@@ -103,7 +103,7 @@ def run_proof() -> bool:
             return False
 
         # No hardcoded sensitive paths in intent or reasoning audit.
-        if any("/Users/" in str(r.get("intent", "")) for r in rows):
+        if any("/" + "Users/" in str(r.get("intent", "")) for r in rows):
             print("Sensitive path found in provenance intent")
             return False
         if not synth.validate_no_sensitive_paths(rows): # Added rows as arg

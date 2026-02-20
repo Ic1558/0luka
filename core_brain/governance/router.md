@@ -1,3 +1,6 @@
+# derived_from: core/governance/router.md
+# role: extension
+
 # Router Protocol (Phase F) — Liam v2.0
 
 **Mission:** Classify intent → select expert → dispatch. **DO NOT EXECUTE.**  

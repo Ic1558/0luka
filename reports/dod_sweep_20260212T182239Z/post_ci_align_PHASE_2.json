@@ -1,0 +1,54 @@
+{
+  "report_path": "/Users/icmini/0luka/observability/reports/dod_checker/20260212T190551693918Z_dod.json",
+  "results": [
+    {
+      "phase_id": "PHASE_2",
+      "verdict": "PROVEN",
+      "meta": {
+        "phase_id": "PHASE_2",
+        "commit_sha": "18b225d",
+        "gate": "G2",
+        "related_sot": "§Tier1.Phase2",
+        "dod_file": "/Users/icmini/0luka/docs/dod/DOD__PHASE_2.md",
+        "commit_sha_reachable": true
+      },
+      "checks": {
+        "activity_chain": {
+          "started": true,
+          "completed": true,
+          "verified": true,
+          "order_ok": true,
+          "latest_order_ok": true,
+          "event_count": 6,
+          "proof_mode": "operational",
+          "taxonomy_ok": true,
+          "taxonomy_missing": []
+        },
+        "evidence": {
+          "paths": [
+            "/Users/icmini/0luka/tests/fixtures/dummy_evidence.json"
+          ],
+          "exists": {
+            "/Users/icmini/0luka/tests/fixtures/dummy_evidence.json": true
+          },
+          "readable": {
+            "/Users/icmini/0luka/tests/fixtures/dummy_evidence.json": true
+          },
+          "hash_checks": {},
+          "ok": true,
+          "missing": []
+        },
+        "gate": {
+          "requires": [],
+          "prereq_verdicts": {},
+          "ok": true,
+          "missing": []
+        },
+        "synthetic_detected": false,
+        "registry_integrity_ok": true,
+        "blueprint_mismatch": false
+      },
+      "missing": []
+    }
+  ]
+}

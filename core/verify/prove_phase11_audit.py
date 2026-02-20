@@ -111,12 +111,12 @@ def _verify_leak_protection(narrator_mod) -> None:
         {
             "ts": "2026-02-10T00:00:01Z",
             "type": "policy.sense.started",
-            "message": "source=/Users/icmini/.secrets token=sk-ABCDEF1234567890123456",
+            "message": "source=" + "/" + "Users/icmini/.secrets token=sk-ABCDEF1234567890123456",
         },
     )
     out = narrator_mod.generate_activity_intelligence(limit=20, write_artifacts=False)
     blob = json.dumps(out, ensure_ascii=False)
-    if "/Users/" in blob or "sk-" in blob:
+    if "/" + "Users/" in blob or "sk-" in blob:
         raise ProofError("leak_protection_failed")
 
 

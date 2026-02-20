@@ -51,6 +51,25 @@ REQUIRED_TAXONOMY_KEYS = (
     "ts_utc",
 )
 
+TIER3_ABI_VERSION = "3.0.0"
+_REQUIRED_ABI_EXIT_CODE_CONTRACT = {
+    "0": "all non-fixture phases PROVEN",
+    "3": "missing proof",
+    "4": "registry/schema error",
+}
+_REQUIRED_ABI_VERDICTS = {VERDICT_DESIGNED, VERDICT_PARTIAL, VERDICT_PROVEN}
+_REQUIRED_ABI_PROOF_REQUIREMENTS = {
+    "reachable commit_sha (40 hex)",
+    "activity chain: started -> completed -> verified",
+    "taxonomy_ok = true",
+    "synthetic_detected = false",
+    "evidence_path must exist and be readable",
+}
+_REQUIRED_ABI_FIXTURE_RULE = {
+    "excluded in --all",
+    "included in explicit --phase",
+}
+
 
 @dataclass(frozen=True)
 class Paths:
@@ -73,6 +92,71 @@ def _resolve_root() -> Path:
     if env_root:
         return Path(env_root).expanduser().resolve(strict=False)
     return Path(__file__).resolve().parents[2]
+
+
+def _default_tier3_abi_path() -> Path:
+    return Path(__file__).resolve().parents[2] / "core/governance/tier3_abi.yaml"
+
+
+def _resolve_tier3_abi_path() -> Path:
+    raw = os.environ.get("DOD_TIER3_ABI_PATH", "").strip()
+    if raw:
+        return Path(raw).expanduser().resolve(strict=False)
+    return _default_tier3_abi_path()
+
+
+def load_tier3_abi_contract(path: Path) -> Dict[str, Any]:
+    if not path.exists():
+        raise RuntimeError(f"tier3_abi_missing:{path}")
+    text = path.read_text(encoding="utf-8")
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"tier3_abi_parse_error:{path}:{exc}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"tier3_abi_invalid_type:{path}")
+    return payload
+
+
+def validate_tier3_abi_contract(contract: Dict[str, Any]) -> None:
+    if str(contract.get("ABI_version", "")).strip() != TIER3_ABI_VERSION:
+        raise RuntimeError("tier3_abi_version_mismatch")
+    if contract.get("frozen") is not True:
+        raise RuntimeError("tier3_abi_not_frozen")
+
+    exit_code_contract = contract.get("exit_code_contract")
+    if not isinstance(exit_code_contract, dict):
+        raise RuntimeError("tier3_abi_invalid_exit_code_contract")
+    for k, v in _REQUIRED_ABI_EXIT_CODE_CONTRACT.items():
+        if str(exit_code_contract.get(k, "")).strip() != v:
+            raise RuntimeError(f"tier3_abi_exit_code_contract_mismatch:{k}")
+
+    valid_verdicts = contract.get("valid_verdicts")
+    if not isinstance(valid_verdicts, list):
+        raise RuntimeError("tier3_abi_invalid_valid_verdicts")
+    verdict_set = {str(v).strip() for v in valid_verdicts}
+    if verdict_set != _REQUIRED_ABI_VERDICTS:
+        raise RuntimeError("tier3_abi_invalid_valid_verdicts")
+
+    proof_requirements = contract.get("proof_requirements")
+    if not isinstance(proof_requirements, list):
+        raise RuntimeError("tier3_abi_invalid_proof_requirements")
+    requirements_set = {str(v).strip() for v in proof_requirements}
+    if not _REQUIRED_ABI_PROOF_REQUIREMENTS.issubset(requirements_set):
+        raise RuntimeError("tier3_abi_missing_proof_requirement")
+
+    fixture_rule = contract.get("fixture_rule")
+    if not isinstance(fixture_rule, list):
+        raise RuntimeError("tier3_abi_invalid_fixture_rule")
+    fixture_rule_set = {str(v).strip() for v in fixture_rule}
+    if not _REQUIRED_ABI_FIXTURE_RULE.issubset(fixture_rule_set):
+        raise RuntimeError("tier3_abi_invalid_fixture_rule")
+
+
+def enforce_tier3_abi_contract() -> None:
+    path = _resolve_tier3_abi_path()
+    contract = load_tier3_abi_contract(path)
+    validate_tier3_abi_contract(contract)
 
 
 def resolve_paths() -> Paths:
@@ -587,8 +671,28 @@ def _dump_phase_status_yaml(data: Dict[str, Any]) -> str:
             out.append(f"    commit_sha: {phase['commit_sha']}")
         if "evidence_path" in phase:
             out.append(f"    evidence_path: {phase['evidence_path']}")
+        if "kind" in phase:
+            out.append(f"    kind: {phase['kind']}")
+        if "is_fixture" in phase:
+            out.append(f"    is_fixture: {phase['is_fixture']}")
     out.append("")
     return "\n".join(out)
+
+
+def _is_fixture_phase(phase_entry: Dict[str, Any]) -> bool:
+    if not isinstance(phase_entry, dict):
+        return False
+    kind = str(phase_entry.get("kind", "")).strip().lower()
+    if kind == "fixture":
+        return True
+    raw = phase_entry.get("is_fixture")
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, (int, float)):
+        return bool(raw)
+    if isinstance(raw, str):
+        return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
+    return False
 
 
 def _atomic_write(path: Path, content: str) -> None:
@@ -866,6 +970,7 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
+        enforce_tier3_abi_contract()
         if args.update_status_phase and args.all:
             print("dod_checker_internal_error:ValueError:--update-status-phase cannot be used with --all", file=sys.stderr)
             return 4
@@ -902,7 +1007,18 @@ def main() -> int:
                 m = ",".join(r.get("missing", []))
                 print(f"{r['phase_id']:<24} {r['verdict']:<10} {m}")
 
-        return compute_exit_code(results)
+        exit_results = results
+        if args.all:
+            status_data = load_phase_status(paths.phase_status)
+            phases = status_data.get("phases", {}) if isinstance(status_data.get("phases"), dict) else {}
+            exit_results = []
+            for res in results:
+                phase_entry = phases.get(res.get("phase_id"), {}) if isinstance(phases.get(res.get("phase_id"), {}), dict) else {}
+                if _is_fixture_phase(phase_entry):
+                    continue
+                exit_results.append(res)
+
+        return compute_exit_code(exit_results)
     except Exception as exc:
         if args.json:
             print(json.dumps({"error": f"{type(exc).__name__}:{exc}"}, ensure_ascii=False))

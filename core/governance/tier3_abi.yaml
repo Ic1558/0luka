@@ -1,0 +1,25 @@
+{
+  "ABI_version": "3.0.0",
+  "frozen": true,
+  "exit_code_contract": {
+    "0": "all non-fixture phases PROVEN",
+    "3": "missing proof",
+    "4": "registry/schema error"
+  },
+  "valid_verdicts": [
+    "DESIGNED",
+    "PARTIAL",
+    "PROVEN"
+  ],
+  "proof_requirements": [
+    "reachable commit_sha (40 hex)",
+    "activity chain: started -> completed -> verified",
+    "taxonomy_ok = true",
+    "synthetic_detected = false",
+    "evidence_path must exist and be readable"
+  ],
+  "fixture_rule": [
+    "excluded in --all",
+    "included in explicit --phase"
+  ]
+}

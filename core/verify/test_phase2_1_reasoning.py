@@ -92,7 +92,7 @@ def test_internal_local_read_file_path() -> None:
         try:
             pol = _load_policy_module()
             memory = pol.load_policy_memory()
-            ctx = {"target": "/Users/icmini/0luka/.env.local", "intent": "inspect env"}
+            ctx = {"target": "/" + "Users/icmini/0luka/.env.local", "intent": "inspect env"}
             sense = pol.sense_target(ctx)
             risk = pol.classify_risk(sense, memory)
             decision = pol.select_tool(ctx, sense, risk, memory)

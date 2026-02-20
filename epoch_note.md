@@ -3,7 +3,9 @@
 Status: **Template prepared** (not activated).
 
 ## Activation criteria (fail-closed)
+
 Activate this declaration when one or more conditions are repeatably true:
+
 - `.git` remains non-writable (EPERM / mount/TCC anomaly).
 - FETCH/LOCK failures are non-deterministic after auditable remediation.
 - Tracked working tree integrity cannot be restored with known cause.
@@ -19,6 +21,7 @@ Activate this declaration when one or more conditions are repeatably true:
 > This action is fail-closed and avoids destructive history rewrite.
 
 ## Required attachments
+
 - `recovery_report.md`
 - `system_next_move_plan.md`
 - `object_inventory.txt`
