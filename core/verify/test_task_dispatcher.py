@@ -307,6 +307,49 @@ def test_dispatch_hard_path_rejected() -> None:
             _restore_env(old)
 
 
+def test_dispatch_runtime_guard_rejects_non_template_root() -> None:
+    """Runtime guard should reject tasks with absolute root path."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td).resolve()
+        old = _set_env(root)
+        try:
+            _mkdirs(root)
+            task_id = "task_runtime_guard_001"
+            task_file = root / "interface" / "inbox" / f"{task_id}.yaml"
+            task_file.write_text(
+                "\n".join(
+                    [
+                        f"task_id: {task_id}",
+                        "author: codex",
+                        "schema_version: clec.v1",
+                        "ts_utc: '2026-02-08T00:00:00Z'",
+                        "call_sign: '[Codex]'",
+                        "root: '/tmp/guard-root'",
+                        "intent: guard.root.template",
+                        "ops:",
+                        "  - op_id: op1",
+                        "    type: run",
+                        "    command: git status",
+                        "verify: []",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            dispatcher = _load_dispatcher(root)
+            result = dispatcher.dispatch_one(task_file)
+            assert result["status"] == "rejected", result
+            assert "runtime_guard:" in str(result.get("reason", "")), result
+            assert "invalid:absolute_root" in str(result.get("reason", "")), result
+            assert (root / "interface" / "rejected" / f"{task_id}.yaml").exists()
+            print("test_dispatch_runtime_guard_rejects_non_template_root: ok")
+        finally:
+            from core.verify._test_root import restore_test_root_modules
+            restore_test_root_modules()
+            _restore_env(old)
+
+
 def test_dispatch_rejects_resolved_injection_and_resolves_ref() -> None:
     """task.resolved injection rejects; valid refs are resolved by gate."""
     with tempfile.TemporaryDirectory() as td:
@@ -589,6 +632,7 @@ def main() -> int:
     test_dispatch_invalid_yaml_stays_in_inbox()
     test_dispatch_non_clec_skipped()
     test_dispatch_hard_path_rejected()
+    test_dispatch_runtime_guard_rejects_non_template_root()
     test_dispatch_rejects_resolved_injection_and_resolves_ref()
     test_dispatch_writes_latest_pointer()
     test_dispatch_pointer_schema_conformance()

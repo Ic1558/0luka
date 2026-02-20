@@ -57,6 +57,8 @@ _stats = {
     "total_rejected": 0,
     "total_error": 0,
     "total_skipped": 0,
+    "total_guard_blocked": 0,
+    "total_malformed": 0,
 }
 
 sys.path.insert(0, str(ROOT))
@@ -338,6 +340,49 @@ def _build_task_spec(task_id: str, task: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _inc_stat(key: str, amount: int = 1) -> None:
+    _stats[key] = int(_stats.get(key, 0)) + amount
+
+
+def _runtime_guard_task(task: Dict[str, Any]) -> tuple[bool, list[str]]:
+    violations: List[str] = []
+    if not isinstance(task, dict):
+        return False, ["task_not_object"]
+
+    ts_utc = task.get("ts_utc")
+    if not isinstance(ts_utc, str) or not ts_utc.strip() or not ts_utc.endswith("Z"):
+        violations.append("missing_or_invalid:ts_utc")
+
+    call_sign = task.get("call_sign")
+    if not isinstance(call_sign, str) or not call_sign.strip():
+        violations.append("missing_or_invalid:call_sign")
+
+    root_value = task.get("root")
+    if not isinstance(root_value, str) or not root_value.strip():
+        violations.append("missing_or_invalid:root")
+    elif root_value.strip().startswith("/"):
+        violations.append("invalid:absolute_root")
+
+    ops = task.get("ops")
+    if not isinstance(ops, list) or not ops:
+        violations.append("missing_or_invalid:ops")
+        return False, violations
+
+    allowed_op_types = {"mkdir", "write_text", "copy", "patch_apply", "run"}
+    for idx, op in enumerate(ops, start=1):
+        if not isinstance(op, dict):
+            violations.append(f"op[{idx}]:not_object")
+            continue
+        op_id = str(op.get("op_id", "")).strip()
+        if not op_id:
+            violations.append(f"op[{idx}]:missing_op_id")
+        op_type = str(op.get("type", "")).strip()
+        if op_type not in allowed_op_types:
+            violations.append(f"op[{idx}]:invalid_type:{op_type or 'missing'}")
+
+    return len(violations) == 0, violations
+
+
 def _check_phase_prerequisites(task_id: str, task: Dict[str, Any]) -> Dict[str, Any]:
     missing: List[str] = []
     raw_requires = task.get("requires")
@@ -514,6 +559,20 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             except Exception:
                 pass
             result = {"task_id": task_id, "status": "rejected", "reason": f"gate_rejected:{exc}"}
+            reason_text = str(exc)
+            if "clec_schema_validation_failed" in reason_text:
+                _inc_stat("total_malformed")
+                _inc_stat("total_guard_blocked")
+                _emit_activity_event(
+                    "blocked",
+                    task_id,
+                    phase_id="PHASE13_RUNTIME_GUARD",
+                    evidence=[
+                        {"kind": "guard", "ref": "dispatcher_boundary"},
+                        {"kind": "error", "ref": "clec_schema_validation_failed"},
+                        {"kind": "reason", "ref": reason_text},
+                    ],
+                )
             if not dry_run:
                 _move_file(file_path, REJECTED)
                 _log_event({**result, "ts": _utc_now(), "file": file_path.name})
@@ -586,6 +645,57 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
                     "task_id": task_id,
                     "component": "dispatcher",
                     "status": "skipped",
+                    "input_hash": prov_row.get("input_hash"),
+                    "output_hash": prov_row.get("output_hash"),
+                }
+            )
+            _emit_activity_event(
+                "completed",
+                task_id,
+                evidence=[{"kind": "log", "ref": "observability/logs/dispatcher.jsonl"}],
+            )
+            return result
+        task_ok, task_violations = _runtime_guard_task(task)
+        if not task_ok:
+            result = {"task_id": task_id, "status": "rejected", "reason": f"runtime_guard:{','.join(task_violations)}"}
+            _inc_stat("total_guard_blocked")
+            _inc_stat("total_malformed")
+            _emit_activity_event(
+                "blocked",
+                task_id,
+                phase_id="PHASE13_RUNTIME_GUARD",
+                evidence=[{"kind": "guard_violation", "ref": v} for v in task_violations],
+            )
+            if not dry_run:
+                _move_file(file_path, REJECTED)
+                _log_event({**result, "ts": _utc_now(), "file": file_path.name})
+            _stats["total_dispatched"] += 1
+            _stats["total_rejected"] += 1
+            counted_dispatch = True
+            _write_dispatch_pointer(
+                task_id=task_id,
+                status="rejected",
+                author=str(task.get("author", "")),
+                intent=str(task.get("intent", "")),
+                trace_id=dispatch_trace_id,
+                audit_path=f"observability/artifacts/router_audit/{task_id}.json",
+                source_moved_to=f"interface/rejected/{file_path.name}",
+            )
+            _emit_dispatch_end(
+                task_id=task_id,
+                trace_id=dispatch_trace_id,
+                status="rejected",
+                started=dispatch_started_at,
+            )
+            prov_row = complete_run_provenance(prov_row, result)
+            append_provenance(prov_row)
+            append_execution_event(
+                {
+                    "type": "execution.completed",
+                    "category": "execution",
+                    "task_id": task_id,
+                    "component": "dispatcher",
+                    "status": "rejected",
                     "input_hash": prov_row.get("input_hash"),
                     "output_hash": prov_row.get("output_hash"),
                 }

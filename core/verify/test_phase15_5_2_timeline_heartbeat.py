@@ -42,14 +42,18 @@ def test_heartbeat_emit_success(temp_root):
         
         # Mock gate return
         mock_gate.return_value = {
-            "payload": {
-                "task": {
-                    "task_id": "test_001",
-                    "schema_version": "clec.v1",
-                    "intent": "test.emit"
+                "payload": {
+                    "task": {
+                        "task_id": "test_001",
+                        "schema_version": "clec.v1",
+                        "intent": "test.emit",
+                        "ts_utc": "2026-02-20T00:00:00Z",
+                        "call_sign": "[Test]",
+                        "root": "${ROOT}",
+                        "ops": [{"op_id": "op1", "type": "run", "command": "git status"}],
+                    }
                 }
             }
-        }
 
         mock_execute.return_value = {"status": "success", "evidence": {}}
         mock_audit.return_value = {"status": "committed"} # simulates success
@@ -97,7 +101,11 @@ def test_heartbeat_emit_failure_non_fatal(temp_root):
                     "task": {
                         "task_id": "test_fail",
                         "schema_version": "clec.v1",
-                        "intent": "test.fail"
+                        "intent": "test.fail",
+                        "ts_utc": "2026-02-20T00:00:00Z",
+                        "call_sign": "[Test]",
+                        "root": "${ROOT}",
+                        "ops": [{"op_id": "op1", "type": "run", "command": "git status"}],
                     }
                 }
             }
