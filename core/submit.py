@@ -45,6 +45,7 @@ sys.path.insert(0, str(ROOT))
 from core.seal import sign_envelope as _seal_sign
 from core.timeline import emit_event as _timeline_emit
 from core.phase1a_resolver import Phase1AResolverError, gate_inbound_envelope
+from core.activity_feed_guard import guarded_append_activity_feed
 from core.verify.no_hardpath_guard import find_hardpath_violations
 
 
@@ -71,7 +72,6 @@ def _emit_submit_rejection(task_id: str, reason: str, *, envelope: Optional[Dict
     """Emit submit-time schema rejection event to activity feed. Fail-open."""
     try:
         feed_path = _resolve_activity_feed_path()
-        feed_path.parent.mkdir(parents=True, exist_ok=True)
         schema_version = ""
         if isinstance(envelope, dict):
             schema_version = str((((envelope.get("payload") or {}).get("task") or {}).get("schema_version") or ""))
@@ -92,8 +92,7 @@ def _emit_submit_rejection(task_id: str, reason: str, *, envelope: Optional[Dict
                 {"kind": "schema", "ref": schema_version},
             ],
         }
-        with feed_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        guarded_append_activity_feed(feed_path, payload)
     except Exception:
         pass
 

@@ -69,6 +69,7 @@ sys.path.insert(0, str(ROOT))
 DISPATCHER_SESSION_RUN_ID = uuid.uuid4().hex
 
 from core.phase1a_resolver import Phase1AResolverError, gate_inbound_envelope
+from core.activity_feed_guard import guarded_append_activity_feed
 from core.run_provenance import (
     append_event as append_execution_event,
     append_provenance,
@@ -115,7 +116,6 @@ def _append_runtime_heartbeat_event() -> None:
     # fail-open: observability append must never interrupt dispatch loop
     try:
         feed_path = _resolve_activity_feed_path()
-        feed_path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "ts_utc": _utc_now(),
             "action": "heartbeat",
@@ -125,9 +125,7 @@ def _append_runtime_heartbeat_event() -> None:
             "run_id": DISPATCHER_SESSION_RUN_ID,
             "ts_epoch_ms": int(time.time_ns() // 1_000_000),
         }
-        with feed_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, ensure_ascii=False))
-            handle.write("\n")
+        guarded_append_activity_feed(feed_path, payload)
     except Exception:
         pass
 
@@ -144,7 +142,6 @@ def _emit_activity_event(
     """Emit lifecycle event to activity feed. Fail-open."""
     try:
         feed_path = _resolve_activity_feed_path()
-        feed_path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "ts_utc": _utc_now(),
             "ts_epoch_ms": int(time.time_ns() // 1_000_000),
@@ -160,8 +157,7 @@ def _emit_activity_event(
         }
         if telemetry:
             payload.update(telemetry)
-        with feed_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        guarded_append_activity_feed(feed_path, payload)
     except Exception:
         pass
 
