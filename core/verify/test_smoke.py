@@ -31,6 +31,8 @@ def _restore_env(old: dict) -> None:
 
 
 def _setup_dirs(root: Path) -> None:
+    import shutil
+
     for rel in [
         "interface/inbox",
         "interface/outbox/tasks",
@@ -47,6 +49,13 @@ def _setup_dirs(root: Path) -> None:
         "interface/schemas",
     ]:
         (root / rel).mkdir(parents=True, exist_ok=True)
+    src = REPO_ROOT / "interface" / "schemas"
+    dst = root / "interface" / "schemas"
+    dst.mkdir(parents=True, exist_ok=True)
+    if src.is_dir():
+        for f in src.iterdir():
+            if f.is_file():
+                shutil.copy2(f, dst / f.name)
 
 
 def _copy_required_files(root: Path) -> None:

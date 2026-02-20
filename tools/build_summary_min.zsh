@@ -84,14 +84,14 @@ EOF
 }
 
 if [[ $FILE_SIZE -lt $MIN_SIZE ]]; then
-  echo "❌ FATAL: Summary size check failed ($FILE_SIZE bytes < $MIN_SIZE bytes)"
-  write_status "error" "size_too_small"
-  exit 4
+  echo "⚠️ WARN: Quiet/Small Summary ($FILE_SIZE bytes < $MIN_SIZE bytes). Proceeding."
+  write_status "warn" "size_small_quiet_repo"
+else
+  write_status "ok" "verified"
 fi
 
-# Atomic Move
+# Atomic Move (Always update to reflect latest state, even if quiet)
 mv "$TMP_TARGET" "$TARGET"
 chmod 644 "$TARGET"
-write_status "ok" "verified"
 
 echo "✅ Wrote SOT Summary: $TARGET (Size: $FILE_SIZE)"
