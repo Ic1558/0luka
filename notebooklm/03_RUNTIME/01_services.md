@@ -14,7 +14,8 @@
 
 ## Monitoring Endpoints
 
-- **Activity Feed:** `observability/logs/dispatcher.jsonl`
+- **Activity Feed Linter:** `tools/ops/activity_feed_linter.py` (PASS - 0 violations)
+- **Dispatcher Unit Test:** `core/verify/test_task_dispatcher.py` (**FAILING** - AssertionError in `test_dispatch_invalid_yaml_stays_in_inbox`)
 - **Runtime Stats:** `observability/logs/worker.log`
 
 ---
