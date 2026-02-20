@@ -52,6 +52,7 @@ except ModuleNotFoundError:
 
 HEARTBEAT_PATH = DISPATCH_HEARTBEAT
 DEFAULT_INTERVAL = DEFAULT_WATCH_INTERVAL_SEC
+QUARANTINE_DIR = ROOT / "runtime" / "quarantine"
 
 _stats = {
     "total_dispatched": 0,
@@ -317,6 +318,50 @@ def _move_file(src: Path, dst_dir: Path) -> Path:
     return dst
 
 
+def _quarantine_inbox_file(file_path: Path, *, reason: str, detail: str) -> Dict[str, Any]:
+    QUARANTINE_DIR.mkdir(parents=True, exist_ok=True)
+    ts = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    base_name = f"{file_path.name}.{ts}.bad.yaml"
+    target = QUARANTINE_DIR / base_name
+    seq = 1
+    while target.exists():
+        target = QUARANTINE_DIR / f"{base_name}.{seq}"
+        seq += 1
+
+    os.replace(file_path, target)
+    _stats["total_malformed"] += 1
+    _log_event(
+        {
+            "ts": _utc_now(),
+            "event": "hygiene_quarantine",
+            "file": file_path.name,
+            "reason": reason,
+            "detail": detail,
+            "quarantine_path": str(target.relative_to(ROOT)),
+        }
+    )
+    _emit_activity_event(
+        "hygiene_quarantine",
+        "unknown",
+        phase_id="B1_INBOX_HYGIENE",
+        status_badge="NOT_PROVEN",
+        telemetry={
+            "file": file_path.name,
+            "reason": reason,
+            "detail": detail,
+            "ts": _utc_now(),
+        },
+        evidence=[{"kind": "path", "ref": str(target.relative_to(ROOT))}],
+    )
+    return {
+        "task_id": "unknown",
+        "status": "quarantined",
+        "reason": reason,
+        "file": file_path.name,
+        "quarantine_path": str(target.relative_to(ROOT)),
+    }
+
+
 @contextlib.contextmanager
 def _cwd(path: Path):
     try:
@@ -540,9 +585,20 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             raise DispatchError("missing dependency: pyyaml (pip install pyyaml)")
         if not file_path.exists() or not file_path.is_file():
             raise DispatchError("task_file_not_found")
-        raw = yaml.safe_load(file_path.read_text(encoding="utf-8"))
+        try:
+            raw = yaml.safe_load(file_path.read_text(encoding="utf-8"))
+        except yaml.YAMLError as exc:
+            return _quarantine_inbox_file(
+                file_path,
+                reason="malformed_yaml",
+                detail=str(exc).strip() or "yaml_parse_error",
+            )
         if not isinstance(raw, dict):
-            raise DispatchError("task file must be a YAML object")
+            return _quarantine_inbox_file(
+                file_path,
+                reason="not_a_yaml_object",
+                detail=f"type={type(raw).__name__}",
+            )
 
         task_id = str(raw.get("task_id", file_path.stem))
         try:
