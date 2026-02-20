@@ -44,7 +44,7 @@ def _iter_jsonl(path: Path):
             yield row
 
 
-def build_report(path: Path, since_min: int, sample_limit: int = 10) -> dict[str, Any]:
+def build_report(path: Path, since_min: int, sample_limit: int = 10, max_items: int = 20) -> dict[str, Any]:
     now_ms = int(time.time() * 1000)
     window_start = now_ms - max(0, int(since_min)) * 60_000
 
@@ -54,6 +54,7 @@ def build_report(path: Path, since_min: int, sample_limit: int = 10) -> dict[str
     sample_hashes: list[str] = []
     seen_hashes: set[str] = set()
     task_ids: set[str] = set()
+    recent_blocked: list[dict[str, Any]] = []
 
     total_events = 0
 
@@ -91,6 +92,18 @@ def build_report(path: Path, since_min: int, sample_limit: int = 10) -> dict[str
             if len(sample_hashes) < sample_limit:
                 sample_hashes.append(payload_hash)
 
+        if len(recent_blocked) < max_items:
+            recent_blocked.append(
+                {
+                    "ts_utc": str(row.get("ts_utc", "")),
+                    "task_id": str(row.get("task_id", "")),
+                    "reason_code": str(row.get("reason_code", "UNKNOWN")),
+                    "missing_fields": cleaned if isinstance(missing_fields, list) else [],
+                    "root_kind": str(row.get("root_kind", "unknown")),
+                    "payload_sha256_8": str(row.get("payload_sha256_8", "")),
+                }
+            )
+
     return {
         "ok": True,
         "source": str(path),
@@ -114,33 +127,82 @@ def build_report(path: Path, since_min: int, sample_limit: int = 10) -> dict[str
             for key, value in root_kind_counter.most_common()
         ],
         "sample_payload_hashes": sample_hashes,
+        "recent_blocked": recent_blocked,
     }
+
+
+def _to_markdown(report: dict[str, Any]) -> str:
+    lines: list[str] = []
+    lines.append("## PHASE13E_GUARD_TELEMETRY")
+    lines.append(f"- since_min: {report.get('since_min')}")
+    totals = report.get("totals", {})
+    lines.append(
+        "- totals:"
+        f" events={totals.get('events', 0)}"
+        f" unique_task_ids={totals.get('unique_task_ids', 0)}"
+        f" unique_payload_hashes={totals.get('unique_payload_hashes', 0)}"
+    )
+    lines.append("")
+    lines.append("### Reason Breakdown")
+    reason_rows = report.get("top_reason_code", [])
+    if isinstance(reason_rows, list) and reason_rows:
+        for row in reason_rows:
+            lines.append(f"- {row.get('reason_code', 'UNKNOWN')}: {row.get('count', 0)}")
+    else:
+        lines.append("- (none)")
+    lines.append("")
+    lines.append("### Missing Fields Combos")
+    missing_rows = report.get("top_missing_fields", [])
+    if isinstance(missing_rows, list) and missing_rows:
+        for row in missing_rows[:10]:
+            lines.append(f"- {row.get('missing_fields', '(none)')}: {row.get('count', 0)}")
+    else:
+        lines.append("- (none)")
+    lines.append("")
+    lines.append("### Root Kind Distribution")
+    root_rows = report.get("root_kind_distribution", [])
+    if isinstance(root_rows, list) and root_rows:
+        for row in root_rows:
+            lines.append(f"- {row.get('root_kind', 'unknown')}: {row.get('count', 0)}")
+    else:
+        lines.append("- (none)")
+    lines.append("")
+    lines.append("### Recent Blocked (hash-only)")
+    recent_rows = report.get("recent_blocked", [])
+    if isinstance(recent_rows, list) and recent_rows:
+        lines.append("| ts_utc | task_id | reason_code | missing_fields | root_kind | payload_sha256_8 |")
+        lines.append("|---|---|---|---|---|---|")
+        for row in recent_rows:
+            missing = ",".join(str(x) for x in row.get("missing_fields", [])) if isinstance(row.get("missing_fields"), list) else ""
+            lines.append(
+                f"| {row.get('ts_utc', '')} | {row.get('task_id', '')} | {row.get('reason_code', 'UNKNOWN')} "
+                f"| {missing or '(none)'} | {row.get('root_kind', 'unknown')} | {row.get('payload_sha256_8', '')} |"
+            )
+    else:
+        lines.append("- (none)")
+    return "\n".join(lines) + "\n"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Summarize Phase13B guard telemetry from activity feed")
     parser.add_argument("--path", default="observability/logs/activity_feed.jsonl", help="Path to activity_feed jsonl")
-    parser.add_argument("--since-min", type=int, default=60, help="Window in minutes")
+    parser.add_argument("--since-min", type=int, default=60, help="Window in minutes (deprecated; use --since-minutes)")
+    parser.add_argument("--since-minutes", type=int, default=None, help="Window in minutes")
     parser.add_argument("--limit-hashes", type=int, default=10, help="Max sample payload hashes")
-    parser.add_argument("--json", action="store_true", help="Print JSON output")
+    parser.add_argument("--max-items", type=int, default=20, help="Max rows for recent blocked table")
+    parser.add_argument("--format", choices=["md", "json"], default="md", help="Output format")
+    parser.add_argument("--json", action="store_true", help="Print JSON output (legacy alias for --format json)")
     args = parser.parse_args()
 
-    report = build_report(Path(args.path), since_min=args.since_min, sample_limit=args.limit_hashes)
+    since_min = args.since_minutes if args.since_minutes is not None else args.since_min
+    report = build_report(Path(args.path), since_min=since_min, sample_limit=args.limit_hashes, max_items=args.max_items)
 
-    if args.json:
+    output_json = args.json or args.format == "json"
+    if output_json:
         print(json.dumps(report, ensure_ascii=False))
         return 0
 
-    print(f"events={report['totals']['events']} unique_task_ids={report['totals']['unique_task_ids']}")
-    print("top_reason_code:")
-    for row in report["top_reason_code"][:5]:
-        print(f"- {row['reason_code']}: {row['count']}")
-    print("root_kind_distribution:")
-    for row in report["root_kind_distribution"]:
-        print(f"- {row['root_kind']}: {row['count']}")
-    print("sample_payload_hashes:")
-    for h in report["sample_payload_hashes"]:
-        print(f"- {h}")
+    print(_to_markdown(report), end="")
     return 0
 
 

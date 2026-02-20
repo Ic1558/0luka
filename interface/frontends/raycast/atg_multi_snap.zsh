@@ -22,6 +22,11 @@ if [[ "$*" == *"--copy"* ]]; then
     COPY_ONLY=true
 fi
 
+FULL_MODE=false
+if [[ "$*" == *"--full"* ]]; then
+    FULL_MODE=true
+fi
+
 # Clipboard policy:
 # - Raycast runs: allow clipboard
 # - System/agent runs: clipboard only with explicit opt-in (--copy or ATG_COPY=1)
@@ -124,6 +129,20 @@ FINAL_OUTPUT+="$DIFF_CONTENT"
 # --- AUTO-SAVE & DELIVERY ---
 NEW_SNAP_PATH="$SNAP_DIR/$(date +"%y%m%d_%H%M%S")_snapshot.md"
 printf "%b" "$FINAL_OUTPUT" > "$NEW_SNAP_PATH"
+
+if [[ "$FULL_MODE" == "true" ]]; then
+    GUARD_REPORT="$(
+        python3 "$HOME/0luka/tools/ops/guard_telemetry_report.py" \
+            --format md \
+            --since-minutes 60 \
+            --max-items 20 2>/dev/null || true
+    )"
+    if [[ -z "${GUARD_REPORT}" ]]; then
+        GUARD_REPORT=$'## PHASE13E_GUARD_TELEMETRY\n- guard report unavailable (fail-open)\n'
+    fi
+    printf "\n%s\n" "$GUARD_REPORT" >> "$NEW_SNAP_PATH"
+    FINAL_OUTPUT="$(cat "$NEW_SNAP_PATH")"
+fi
 
 # Output to console if NOT in copy_only mode
 if [[ "$COPY_ONLY" == "false" ]]; then
