@@ -48,6 +48,20 @@ def _load_dispatcher(root: Path):
     dispatcher.REJECTED = root / "interface" / "rejected"
     dispatcher.DISPATCH_LOG = root / "observability" / "logs" / "dispatcher.jsonl"
     dispatcher.DISPATCH_LATEST = root / "observability" / "artifacts" / "dispatch_latest.json"
+    dispatcher.QUARANTINE_DIR = root / "runtime" / "quarantine"
+    guard_mod = importlib.reload(importlib.import_module("core.activity_feed_guard"))
+    guard_state = root / "runtime" / "activity_feed_state.json"
+    guard_viol = root / "observability" / "logs" / "feed_guard_violations.jsonl"
+
+    def _guarded_append(feed_path: Path, payload: dict):
+        return guard_mod.guarded_append_activity_feed(
+            feed_path,
+            payload,
+            state_path=guard_state,
+            violation_log_path=guard_viol,
+        )
+
+    dispatcher.guarded_append_activity_feed = _guarded_append
     dispatcher._stats = {
         "total_dispatched": 0,
         "total_committed": 0,
@@ -229,8 +243,8 @@ def test_dispatch_idempotent() -> None:
             _restore_env(old)
 
 
-def test_dispatch_invalid_yaml_stays_in_inbox() -> None:
-    """Invalid YAML should return error and keep source in inbox."""
+def test_dispatch_invalid_yaml_is_quarantined() -> None:
+    """Invalid YAML should be quarantined and emit B1 hygiene event."""
     with tempfile.TemporaryDirectory() as td:
         root = Path(td).resolve()
         old = _set_env(root)
@@ -241,9 +255,20 @@ def test_dispatch_invalid_yaml_stays_in_inbox() -> None:
 
             dispatcher = _load_dispatcher(root)
             result = dispatcher.dispatch_one(task_file)
-            assert result["status"] == "error"
-            assert task_file.exists()
-            print("test_dispatch_invalid_yaml_stays_in_inbox: ok")
+            assert result["status"] == "quarantined", result
+            assert result["reason"] in {"malformed_yaml", "not_a_yaml_object"}, result
+            assert not task_file.exists()
+
+            quarantine_dir = root / "runtime" / "quarantine"
+            matched = list(quarantine_dir.glob("task_bad_001.yaml.*.bad.yaml*"))
+            assert matched, "expected quarantined file with collision-safe suffix"
+
+            feed_path = root / "observability" / "logs" / "activity_feed.jsonl"
+            lines = [json.loads(line) for line in feed_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+            hygiene_events = [e for e in lines if e.get("action") == "hygiene_quarantine"]
+            assert hygiene_events, "missing hygiene_quarantine event"
+            assert any(e.get("phase_id") == "B1_INBOX_HYGIENE" for e in hygiene_events)
+            print("test_dispatch_invalid_yaml_is_quarantined: ok")
         finally:
             from core.verify._test_root import restore_test_root_modules
             restore_test_root_modules()
@@ -783,7 +808,7 @@ def main() -> int:
     test_dispatch_clec_task_e2e()
     test_dispatch_emits_start_end_events()
     test_dispatch_idempotent()
-    test_dispatch_invalid_yaml_stays_in_inbox()
+    test_dispatch_invalid_yaml_is_quarantined()
     test_dispatch_non_clec_skipped()
     test_dispatch_hard_path_rejected()
     test_dispatch_runtime_guard_rejects_non_template_root()
