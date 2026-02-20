@@ -9,8 +9,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 
@@ -74,10 +72,6 @@ def test_ambiguous_intent_requires_human_clarification() -> None:
             _restore_env(old)
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason="synthesizer.synthesize_to_canonical_task omits required clec_v1 fields (ts_utc, call_sign, root); fix needed in modules/nlp_control_plane/core/synthesizer.py",
-)
 def test_clear_intent_does_not_trigger_clarification() -> None:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td).resolve()
