@@ -13,9 +13,36 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-FEED_PATH = ROOT / "observability" / "logs" / "activity_feed.jsonl"
-VIOLATIONS_PATH = ROOT / "observability" / "logs" / "feed_guard_violations.jsonl"
-PROOF_PACKS_PATH = ROOT / "observability" / "artifacts" / "proof_packs"
+CONTRACT_PATH = ROOT / "core" / "contracts" / "v1" / "path_allowlist_v1.json"
+
+
+def _load_contract_paths() -> dict[str, Path]:
+    defaults = {
+        "activity_feed": ROOT / "observability" / "logs" / "activity_feed.jsonl",
+        "feed_guard_violations": ROOT / "observability" / "logs" / "feed_guard_violations.jsonl",
+        "proof_packs": ROOT / "observability" / "artifacts" / "proof_packs",
+        "inbox": ROOT / "interface" / "inbox",
+    }
+    if not CONTRACT_PATH.exists():
+        return defaults
+
+    try:
+        data = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+        paths = data.get("paths", {})
+        merged = dict(defaults)
+        for key, rel_path in paths.items():
+            if key in merged and isinstance(rel_path, str):
+                merged[key] = ROOT / rel_path
+        return merged
+    except Exception:
+        return defaults
+
+
+_PATHS = _load_contract_paths()
+FEED_PATH = _PATHS["activity_feed"]
+VIOLATIONS_PATH = _PATHS["feed_guard_violations"]
+PROOF_PACKS_PATH = _PATHS["proof_packs"]
+INBOX_PATH = _PATHS["inbox"]
 
 
 def _run(cmd: list[str]) -> tuple[int, str, str]:
@@ -133,17 +160,29 @@ def _collect_dispatcher() -> dict[str, Any]:
         return info
 
     in_args = False
+    depth = 0
     for raw in out.splitlines():
         line = raw.strip()
-        if line.startswith("state ="):
-            info["state"] = line.split("=", 1)[1].strip()
-        elif line.startswith("pid ="):
-            info["pid"] = line.split("=", 1)[1].strip()
-        elif line.startswith("arguments = {"):
-            in_args = True
-        elif in_args and line == "}":
-            in_args = False
-        elif in_args and line:
+        if not line:
+            continue
+
+        if line.endswith("{"):
+            depth += 1
+            if "arguments =" in line:
+                in_args = True
+            continue
+        if line == "}":
+            depth -= 1
+            if in_args:
+                in_args = False
+            continue
+
+        if depth == 1:
+            if line.startswith("state ="):
+                info["state"] = line.split("=", 1)[1].strip()
+            elif line.startswith("pid ="):
+                info["pid"] = line.split("=", 1)[1].strip()
+        elif in_args:
             info["arguments"].append(line)
     return info
 
@@ -245,7 +284,7 @@ def _infer_dev_health(proof_packs: list[dict[str, Any]]) -> tuple[str, str]:
 def _collect_inbox(allow_inbox: bool) -> dict[str, Any]:
     if not allow_inbox:
         return {"enabled": False, "count": None}
-    inbox = ROOT / "interface" / "inbox"
+    inbox = INBOX_PATH
     if not inbox.exists() or not inbox.is_dir():
         return {"enabled": True, "count": 0}
     count = sum(1 for p in inbox.glob("*.yaml") if p.is_file())
@@ -348,7 +387,7 @@ def collect_summary(tail_n: int, packs_n: int, since_min: int, allow_inbox: bool
         "dev_health": dev_health,
         "issues": issues,
         "meta": {
-            "schema_version": "v0.2-lite",
+            "schema_version": "v0.2",
             "generated_ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "window_minutes": since_min,
             "linter_status": linter_status,
@@ -369,7 +408,7 @@ def print_dashboard(summary: dict[str, Any]) -> None:
     system_health = summary["system_health"]
 
     print(system_health["line"])
-    print("== Mission Control Viewer v0.2-lite (Read-Only) ==")
+    print("== Mission Control Viewer v0.2 (Contract Managed) ==")
     print("\n[1] Anchors")
     print(f"head_sha: {anchors['head_sha']}")
     print(f"baseline_tag: {anchors['baseline_tag']}")
@@ -419,7 +458,7 @@ def print_dashboard(summary: dict[str, Any]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Mission Control Viewer v0.2-lite (read-only)")
+    parser = argparse.ArgumentParser(description="Mission Control Viewer v0.2 (contract managed)")
     parser.add_argument("--json", action="store_true", help="Emit JSON summary")
     parser.add_argument("--tail", type=int, default=30, help="Tail line count for logs")
     parser.add_argument("--packs", type=int, default=10, help="Number of latest proof packs to show")
