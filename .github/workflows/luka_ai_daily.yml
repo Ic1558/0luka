@@ -102,7 +102,7 @@ jobs:
           from: "Luka AI <${{ secrets.AI_TEAM_EMAIL }}>"
           body: |
             # 0luka Daily Health Report
-            **Date:** ${{ github.run_started_at }}
+            **Date:** ${{ github.event.head_commit.timestamp || 'Manual Trigger' }}
             **Status:** ${{ needs.health-check.outputs.status }}
             **Summary:** ${{ needs.health-check.outputs.summary }}
             ---
