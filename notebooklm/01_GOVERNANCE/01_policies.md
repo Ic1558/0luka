@@ -9,7 +9,10 @@
 ## 2. Agent Policies
 
 - **Ghost Agent Prohibition:** No LaunchAgent shall refer to a non-existent file. All "inactive" agents must be marked as `.OBSOLETE` or `RETIRED`.
-- **Linter Enforcement:** No PR can be merged without a passing linter state. Linter errors must be resolved or explicitly whitelisted via policy.
+- **Truth Reporting (Mission Control v0.1):** Reports (incl. SYSTEM_HEALTH) must reflect real test/linter outcomes based on hard evidence in the repo or proof packs. If a state has not been proven or execution failed, the status MUST be 'UNKNOWN' or 'FAILING' (No guessing).
+- **Authoritative Health definition:**
+  - **Development Health:** Determined by **Unit Tests** (e.g., `core/verify/*.py`).
+  - **Runtime Health:** Determined by **Proof Packs** (e.g., `observability/artifacts/proof_packs/*`).
 
 ## 3. Communication Style
 

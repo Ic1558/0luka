@@ -8,8 +8,9 @@ This pack provides the canonical context for the 0luka system state, governance,
 
 - **Baseline:** `v3_kernel_proven_clean` (Locked 2026-02-21)
 - **Active Bridge:** DISPATCHER in WATCH mode
-- **Open Workstreams:** B0, B1, B2
-- **Audit Health:** GREEN (All services running or retired)
+- **Development Health:** YELLOW (`core/verify/test_task_dispatcher.py` failing)
+- **Runtime Health:** GREEN (Dispatcher active; `20260220T192226Z_b1_inbox_hygiene` proven)
+- **Linter (Mission Control v0.1):** GREEN (0 violations in activity feed)
 
 ### Navigation
 
