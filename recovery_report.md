@@ -1,70 +1,113 @@
-# Repository Recovery Report (Fail-Closed)
+# Git Repository Recovery Report (Fail-Closed, Plan-Only)
 
 ## A) Diagnosis (short)
-Local repository has **no configured remote**, reflog depth is shallow for recent checkout/branch-renaming events, but object database still contains a substantial reachable commit graph (reachable commits: 234) and no dangling commits were found by fsck. This indicates history is not fully lost locally, though reflog evidence is truncated and cannot alone represent older lineage.
 
-## B) Recovery plan
+Local history is partially observable through refs/objects while reflog depth is shallow; therefore provenance confidence is insufficient for mutate-first recovery. This plan enforces docs-only controls, deterministic evidence capture, and a mandatory decision gate before any execution mutations.
 
-### Path 1: Recoverable (recommended for current state)
-1. Freeze evidence: keep forensic snapshot under `reports/recovery_20260212T094141Z`.
-2. Build authoritative commit map from reachable refs + object inventory:
-   - `reports/recovery_20260212T094141Z/rev_list_all.txt`
-   - `reports/recovery_20260212T094141Z/commit_inventory.txt`
-3. Create protection refs for important tips **without rewriting**:
-   - `git branch rescue/<name> <commit>`
-4. Verify integrity after each step:
-   - `git fsck --full --no-reflogs --unreachable --lost-found`
-5. Export evidence bundle (tar + checksums) before any risky operation.
+## B) Executive Summary (1-page)
 
-### Path 2: Not recoverable (declare new epoch)
-1. Preserve all existing artifacts and checksums.
-2. Commit `reports/recovery_report.md` + `reports/object_inventory.txt` + `reports/epoch_note.md`.
-3. Create a provenance note (`reports/epoch_note.md`) declaring history truncation and linking forensic bundle.
-4. Continue development only from new epoch commit; never claim continuity beyond proven commits.
+**Title:** Git Repository Recovery — Plan-Only (Fail-Closed)
 
-## C) Safe command blocks (read-only first, then backup)
+**Situation**
 
-### 1) Read-only triage
+- Repo/refs anomalies (lock/FETCH_HEAD/permission instability) can compromise trust in normal mutation workflows.
+- Prior auto-generated change quality was unsatisfactory, requiring governance-grade reset of decision flow.
+
+**Objective**
+
+- Constrain blast radius to docs only.
+- Build an auditable decision gate (Recoverable vs New Epoch).
+- Preserve evidence continuity with reproducible proofs.
+
+**What changed (plan-only)**
+
+- `system_next_move_plan.md` (control model + gate matrix + RACI + DoD)
+- `epoch_note.md` (epoch declaration template + gate trigger)
+- `object_inventory.txt` (evidence index + continuity pointers)
+- `recovery_report.md` (this report)
+
+**Controls**
+
+- No kernel/runtime mutation
+- No governance weakening
+- No lock/phase status mutation
+- Evidence append-only, checksum-verified
+
+**Decision Gate**
+
+- Stop after **Phase 0–1**.
+- Governance approves `recoverable` vs `new-epoch` before execution.
+
+**Next steps**
+
+1. Contain: snapshot + checksum.
+2. Verify: reproduce issue deterministically.
+3. Decide: apply matrix and sign decision.
+4. Execute: only after gate approval and proof completeness.
+
+## C) Enterprise Audit Checklist Mapping
+
+### Scope / Safety
+
+- Docs-only plan artifacts: yes.
+- No mutation in `core/`, `core_brain/`, `tools/`, `.github/`: required.
+- No mutation in `governance_lock_manifest.json`, `phase_status.yaml`: required.
+
+### Evidence
+
+- Must record: commit SHA + UTC time, trigger, no-mutation boundary, decision gate checkpoint, rollback strategy.
+
+### Operational readiness
+
+- Must include: phased model, owners, stop conditions, proof commands.
+
+## D) Decision Gate Matrix (execution criteria)
+
+If any `Declare New Epoch` signal is repeatable, halt at **Decide** and do not execute mutation on old baseline.
+
+## E) Safe proof commands (read-only first)
+
 ```bash
-git status --porcelain=v2 --branch
-git remote -v
-git reflog --date=iso | head -n 20
-git branch -avv
-git count-objects -v
-git fsck --full --no-reflogs --unreachable --lost-found
-git rev-list --all --date-order | wc -l
+git log -1 --pretty=format:'%H %cI %s'
+git show --name-only --pretty='' HEAD
+git show --stat --oneline HEAD
+git status --short
+git diff --name-only HEAD~1..HEAD
 ```
-Expected validation:
-- `git remote -v` is empty (no remote provenance).
-- `git reflog` may show only recent events.
-- `git fsck` reports no fatal corruption.
-- reachable commit count > 0 indicates local history still exists.
 
-### 2) Forensic backup (non-destructive)
+Expected:
+
+- Single commit metadata visible (SHA + timestamp).
+- Changed files limited to 4 plan artifacts.
+- Working tree clean after commit.
+
+## F) Forensic review command block (copy/paste)
+
 ```bash
-ts=$(date -u +%Y%m%dT%H%M%SZ)
-mkdir -p "reports/recovery_${ts}"
-git status --porcelain=v2 --branch > "reports/recovery_${ts}/git_status.txt"
-git reflog --date=iso > "reports/recovery_${ts}/git_reflog.txt"
-tar -czf "reports/recovery_${ts}/gitdir_backup.tgz" .git
-sha256sum "reports/recovery_${ts}/gitdir_backup.tgz" > "reports/recovery_${ts}/snapshot_checksums.txt"
-```
-Expected validation:
-- backup archive exists and checksum file contains one SHA-256 line.
+cd /workspace/0luka || exit 1
+set -euo pipefail
 
-### 3) Object + commit inventory
-```bash
-git rev-list --all --date-order > "reports/recovery_${ts}/rev_list_all.txt"
-git fsck --full --no-reflogs --unreachable --lost-found > "reports/recovery_${ts}/fsck_unreachable.txt" 2>&1
-awk '/dangling commit/{print $3}' "reports/recovery_${ts}/fsck_unreachable.txt" > "reports/recovery_${ts}/dangling_commit_ids.txt"
-```
-Expected validation:
-- `rev_list_all.txt` non-empty when history is recoverable.
-- dangling commit list may be empty; non-empty means potential extra recoverable commits.
+echo "== COMMIT =="
+git log -1 --oneline
 
-## D) Required evidence artifacts
-- `reports/recovery_report.md`
-- `reports/object_inventory.txt`
-- `reports/epoch_note.md`
-- `reports/recovery_20260212T094141Z/snapshot_checksums.txt`
-- `reports/recovery_20260212T094141Z/commit_inventory.txt`
+echo "== CHANGED FILES (HEAD) =="
+git show --name-only --pretty="" HEAD
+
+echo "== DIFFSTAT =="
+git show --stat --oneline HEAD
+
+echo "== FILE HEADERS (first 60 lines each) =="
+for f in system_next_move_plan.md epoch_note.md object_inventory.txt recovery_report.md; do
+  echo "----- $f -----"
+  test -f "$f" && sed -n '1,60p' "$f" || echo "MISSING: $f"
+done
+```
+
+## G) Required evidence artifacts (DoD)
+
+- `recovery_report.md`
+- `system_next_move_plan.md`
+- `object_inventory.txt`
+- `epoch_note.md`
+- `reports/recovery_<ts>/snapshot_checksums.txt`
+- Signed decision record (`recoverable`/`new-epoch`)

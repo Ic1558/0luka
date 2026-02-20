@@ -48,6 +48,10 @@ rings:
       - "transcripts/"
       - "artifacts/"
       - "g/"
+      - "epoch_note.md"
+      - "object_inventory.txt"
+      - "recovery_report.md"
+      - "system_next_move_plan.md"
     default_mode: "SOFT"
 
 # Mode Definitions
