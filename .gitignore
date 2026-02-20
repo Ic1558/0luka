@@ -101,3 +101,4 @@ tools/ops/luka-cloud-bridge/local/.env
 # Local-only files (never commit)
 CLAUDE.md
 quarantine_bad_task.zsh
+observability/telemetry/*.json
