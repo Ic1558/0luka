@@ -18,6 +18,18 @@ STATE_PATH = ROOT / "runtime" / "activity_feed_state.json"
 VIOLATION_LOG_PATH = ROOT / "observability" / "logs" / "feed_guard_violations.jsonl"
 
 
+def _discover_repo_root() -> Path:
+    current = Path(__file__).resolve()
+    for parent in [current] + list(current.parents):
+        if (parent / "core").is_dir() and (parent / "observability").is_dir():
+            return parent
+    return Path(__file__).resolve().parents[1]
+
+
+REPO_ROOT = _discover_repo_root()
+CANONICAL_PRODUCTION_FEED_PATH = (REPO_ROOT / "observability" / "logs" / "activity_feed.jsonl").resolve()
+
+
 def _utc_now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -82,6 +94,11 @@ def guarded_append_activity_feed(
     state_path: Path = STATE_PATH,
     violation_log_path: Path = VIOLATION_LOG_PATH,
 ) -> bool:
+    incoming = Path(feed_path).resolve()
+    if incoming != CANONICAL_PRODUCTION_FEED_PATH:
+        return True
+
+    feed_path = incoming
     state = _load_state(state_path)
     last_size = int(state.get("last_size_bytes") or 0)
     last_hash = str(state.get("last_line_hash") or "")
