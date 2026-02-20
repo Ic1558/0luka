@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from collections import Counter
@@ -22,11 +23,26 @@ def _run(cmd: list[str]) -> tuple[int, str, str]:
     return proc.returncode, proc.stdout.strip(), proc.stderr.strip()
 
 
-def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+def _read_jsonl(path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    meta = {
+        "path": str(path),
+        "exists": path.exists(),
+        "readable": True,
+        "error": None,
+    }
     if not path.exists():
-        return []
-    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        meta["readable"] = False
+        meta["error"] = "missing"
+        return [], meta
+
     out: list[dict[str, Any]] = []
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except Exception as exc:
+        meta["readable"] = False
+        meta["error"] = f"read_error:{type(exc).__name__}"
+        return [], meta
+
     for line in lines:
         if not line.strip():
             continue
@@ -36,7 +52,7 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
                 out.append(payload)
         except json.JSONDecodeError:
             continue
-    return out
+    return out, meta
 
 
 def _parse_ts(value: Any) -> datetime | None:
@@ -67,6 +83,7 @@ def _filter_rows(rows: list[dict[str, Any]], *, tail_n: int, since_min: int) -> 
     filtered: list[dict[str, Any]] = []
     parsed_count = 0
     unknown_count = 0
+
     for row in rows:
         dt = _extract_ts(row)
         if dt is None:
@@ -76,15 +93,9 @@ def _filter_rows(rows: list[dict[str, Any]], *, tail_n: int, since_min: int) -> 
         if dt >= cutoff:
             filtered.append(row)
 
-    if parsed_count == 0:
-        tail = rows[-tail_n:]
-        mode = "tail_fallback_no_parsable_ts"
-    else:
-        tail = filtered[-tail_n:]
-        mode = "since_min_window"
-
+    tail = filtered[-tail_n:]
     summary = {
-        "mode": mode,
+        "mode": "since_min_window",
         "since_min": since_min,
         "count_tail": len(tail),
         "count_in_window": len(filtered),
@@ -95,19 +106,20 @@ def _filter_rows(rows: list[dict[str, Any]], *, tail_n: int, since_min: int) -> 
 
 
 def _collect_anchors() -> dict[str, Any]:
-    _, head, _ = _run(["git", "rev-parse", "HEAD"])
+    rc_head, head, err_head = _run(["git", "rev-parse", "HEAD"])
     rc_tag, tag_sha, _ = _run(["git", "rev-list", "-n", "1", "v3_kernel_proven_clean"])
     return {
-        "head_sha": head,
+        "head_sha": head if rc_head == 0 else "unknown",
         "baseline_tag": "v3_kernel_proven_clean",
         "baseline_tag_sha": tag_sha if rc_tag == 0 else None,
+        "readable": rc_head == 0,
+        "error": None if rc_head == 0 else err_head,
     }
 
 
 def _collect_dispatcher() -> dict[str, Any]:
     uid = str(os.getuid())
-    cmd = ["launchctl", "print", f"gui/{uid}/com.0luka.dispatcher"]
-    rc, out, err = _run(cmd)
+    rc, out, err = _run(["launchctl", "print", f"gui/{uid}/com.0luka.dispatcher"])
     info: dict[str, Any] = {
         "label": "com.0luka.dispatcher",
         "domain": f"gui/{uid}",
@@ -137,18 +149,15 @@ def _collect_dispatcher() -> dict[str, Any]:
 
 
 def _collect_activity_feed(tail_n: int, since_min: int) -> dict[str, Any]:
-    rows = _read_jsonl(FEED_PATH)
+    rows, meta = _read_jsonl(FEED_PATH)
     tail, base_summary = _filter_rows(rows, tail_n=tail_n, since_min=since_min)
-    action_counts = Counter()
-    badge_counts = Counter()
-    for row in tail:
-        action = str(row.get("action", "unknown"))
-        badge = str(row.get("status_badge", "unknown"))
-        action_counts[action] += 1
-        badge_counts[badge] += 1
+    action_counts = Counter(str(row.get("action", "unknown")) for row in tail)
+    badge_counts = Counter(str(row.get("status_badge", "unknown")) for row in tail)
     return {
         "path": str(FEED_PATH),
-        "exists": FEED_PATH.exists(),
+        "exists": meta["exists"],
+        "readable": meta["readable"],
+        "error": meta["error"],
         "tail": tail,
         "summary": {
             **base_summary,
@@ -159,12 +168,14 @@ def _collect_activity_feed(tail_n: int, since_min: int) -> dict[str, Any]:
 
 
 def _collect_guard_violations(tail_n: int, since_min: int) -> dict[str, Any]:
-    rows = _read_jsonl(VIOLATIONS_PATH)
+    rows, meta = _read_jsonl(VIOLATIONS_PATH)
     tail, base_summary = _filter_rows(rows, tail_n=tail_n, since_min=since_min)
     reason_counts = Counter(str(row.get("reason", "unknown")) for row in tail)
     return {
         "path": str(VIOLATIONS_PATH),
-        "exists": VIOLATIONS_PATH.exists(),
+        "exists": meta["exists"],
+        "readable": meta["readable"],
+        "error": meta["error"],
         "tail": tail,
         "summary": {
             **base_summary,
@@ -190,7 +201,7 @@ def _collect_proof_packs(limit: int) -> list[dict[str, Any]]:
     return out
 
 
-def _infer_linter_status(proof_packs: list[dict[str, Any]]) -> str:
+def _infer_linter_status(proof_packs: list[dict[str, Any]]) -> tuple[str, str]:
     for pack in proof_packs:
         linter_path = Path(pack["path"]) / "linter.json"
         if not linter_path.exists():
@@ -200,8 +211,35 @@ def _infer_linter_status(proof_packs: list[dict[str, Any]]) -> str:
         except Exception:
             continue
         if isinstance(payload, dict) and "ok" in payload:
-            return "pass" if bool(payload["ok"]) else "fail"
-    return "unknown"
+            return ("PASS", f"from:{linter_path}") if bool(payload["ok"]) else ("FAIL", f"from:{linter_path}")
+    return "UNKNOWN", "no_evidence"
+
+
+def _infer_dev_health(proof_packs: list[dict[str, Any]]) -> tuple[str, str]:
+    saw_pass = False
+    saw_fail = False
+    detail = "no_test_evidence"
+    for pack in proof_packs[:10]:
+        p = Path(pack["path"])
+        for candidate in list(p.glob("*pytest*.txt")) + [p / "notes.txt"]:
+            if not candidate.exists() or not candidate.is_file():
+                continue
+            try:
+                text = candidate.read_text(encoding="utf-8", errors="replace").lower()
+            except Exception:
+                continue
+            if re.search(r"\b(failed|error|errors)\b", text):
+                saw_fail = True
+                detail = f"failing_tests_evidence:{candidate.name}"
+            if re.search(r"\b\d+\s+passed\b", text) and "failed" not in text and "error" not in text:
+                saw_pass = True
+                if detail == "no_test_evidence":
+                    detail = f"passing_tests_evidence:{candidate.name}"
+    if saw_fail:
+        return "DEGRADED", detail
+    if saw_pass:
+        return "HEALTHY", detail
+    return "UNKNOWN", detail
 
 
 def _collect_inbox(allow_inbox: bool) -> dict[str, Any]:
@@ -214,26 +252,66 @@ def _collect_inbox(allow_inbox: bool) -> dict[str, Any]:
     return {"enabled": True, "count": count}
 
 
+def _build_issues(
+    dispatcher: dict[str, Any],
+    linter_status: str,
+    feed: dict[str, Any],
+    violations: dict[str, Any],
+    dev_health: str,
+    dev_detail: str,
+) -> list[dict[str, str]]:
+    issues: list[dict[str, str]] = []
+    if not feed.get("readable"):
+        issues.append({"code": "SOURCE_MISSING", "severity": "HIGH", "detail": f"activity_feed:{feed.get('error')}"})
+    if not violations.get("readable"):
+        issues.append({"code": "SOURCE_MISSING", "severity": "HIGH", "detail": f"guard_violations:{violations.get('error')}"})
+    if dispatcher.get("state") != "running":
+        issues.append({"code": "DISPATCHER_DOWN", "severity": "HIGH", "detail": str(dispatcher.get("error") or "state_not_running")})
+    if linter_status == "FAIL":
+        issues.append({"code": "LINTER_FAIL", "severity": "HIGH", "detail": "latest_linter_evidence=FAIL"})
+    if linter_status == "UNKNOWN":
+        issues.append({"code": "SOURCE_MISSING", "severity": "MEDIUM", "detail": "no_linter_evidence_found"})
+    if int(violations["summary"]["count_in_window"]) > 0:
+        issues.append({"code": "FEED_GUARD_VIOLATIONS", "severity": "HIGH", "detail": f"window_count={violations['summary']['count_in_window']}"})
+    if int(feed["summary"]["unknown_ts_count"]) > 0:
+        issues.append({"code": "TS_UNPARSABLE", "severity": "LOW", "detail": f"activity_feed_unknown_ts={feed['summary']['unknown_ts_count']}"})
+    if int(violations["summary"]["unknown_ts_count"]) > 0:
+        issues.append({"code": "TS_UNPARSABLE", "severity": "LOW", "detail": f"violations_unknown_ts={violations['summary']['unknown_ts_count']}"})
+    if dev_health != "UNKNOWN":
+        issues.append({"code": "DEV_HEALTH_SIGNAL", "severity": "MEDIUM", "detail": dev_detail})
+    return issues
+
+
+def _classify_runtime_health(dispatcher: dict[str, Any], linter_status: str, violations: dict[str, Any]) -> str:
+    required_missing = (not dispatcher.get("available")) or (not violations.get("readable"))
+    if required_missing:
+        return "UNKNOWN"
+    violation_count_window = int(violations["summary"]["count_in_window"])
+    if violation_count_window > 0:
+        return "CRITICAL"
+    if dispatcher.get("state") != "running" or linter_status != "PASS":
+        return "DEGRADED"
+    return "HEALTHY"
+
+
 def _collect_system_health(
     anchors: dict[str, Any],
     dispatcher: dict[str, Any],
-    guard_violations: dict[str, Any],
+    violations: dict[str, Any],
     linter_status: str,
     inbox: dict[str, Any],
+    runtime_health: str,
+    dev_health: str,
 ) -> dict[str, Any]:
-    dispatcher_status = "running" if dispatcher.get("state") == "running" else "down"
+    violations_window = int(violations["summary"]["count_in_window"])
     inbox_field = inbox["count"] if inbox.get("enabled") else "na"
-    line = (
-        f"SYSTEM_HEALTH: dispatcher={dispatcher_status}, linter={linter_status}, "
-        f"violations={guard_violations['summary']['count_tail']}, inbox={inbox_field}, "
-        f"sha={anchors['head_sha']}"
-    )
+    line = f"SYSTEM_HEALTH: runtime={runtime_health}, dev={dev_health}, violations={violations_window}, inbox={inbox_field}"
     return {
-        "dispatcher": dispatcher_status,
-        "linter": linter_status,
-        "violations": guard_violations["summary"]["count_tail"],
+        "runtime": runtime_health,
+        "dev": dev_health,
+        "violations": violations_window,
         "inbox": inbox_field,
-        "sha": anchors["head_sha"],
+        "sha": anchors.get("head_sha", "unknown"),
         "line": line,
     }
 
@@ -244,9 +322,21 @@ def collect_summary(tail_n: int, packs_n: int, since_min: int, allow_inbox: bool
     feed = _collect_activity_feed(tail_n, since_min)
     violations = _collect_guard_violations(tail_n, since_min)
     proof_packs = _collect_proof_packs(packs_n)
-    linter_status = _infer_linter_status(proof_packs)
+    linter_status, linter_detail = _infer_linter_status(proof_packs)
+    dev_health, dev_detail = _infer_dev_health(proof_packs)
     inbox = _collect_inbox(allow_inbox)
-    system_health = _collect_system_health(anchors, dispatcher, violations, linter_status, inbox)
+    runtime_health = _classify_runtime_health(dispatcher, linter_status, violations)
+    issues = _build_issues(dispatcher, linter_status, feed, violations, dev_health, dev_detail)
+    system_health = _collect_system_health(
+        anchors,
+        dispatcher,
+        violations,
+        linter_status,
+        inbox,
+        runtime_health,
+        dev_health,
+    )
+
     return {
         "anchors": anchors,
         "dispatcher": dispatcher,
@@ -254,6 +344,17 @@ def collect_summary(tail_n: int, packs_n: int, since_min: int, allow_inbox: bool
         "guard_violations": violations,
         "proof_packs": proof_packs,
         "inbox": inbox,
+        "runtime_health": runtime_health,
+        "dev_health": dev_health,
+        "issues": issues,
+        "meta": {
+            "schema_version": "v0.2-lite",
+            "generated_ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "window_minutes": since_min,
+            "linter_status": linter_status,
+            "linter_detail": linter_detail,
+            "dev_health_detail": dev_detail,
+        },
         "system_health": system_health,
     }
 
@@ -268,7 +369,7 @@ def print_dashboard(summary: dict[str, Any]) -> None:
     system_health = summary["system_health"]
 
     print(system_health["line"])
-    print("== Mission Control Viewer v0.1 (Read-Only) ==")
+    print("== Mission Control Viewer v0.2-lite (Read-Only) ==")
     print("\n[1] Anchors")
     print(f"head_sha: {anchors['head_sha']}")
     print(f"baseline_tag: {anchors['baseline_tag']}")
@@ -282,13 +383,15 @@ def print_dashboard(summary: dict[str, Any]) -> None:
     for arg in dispatcher.get("arguments", []):
         print(f"  - {arg}")
 
-    print("\n[3] Linter Status")
-    print(f"status: {system_health['linter']} (inferred from proof packs; not executed live)")
+    print("\n[3] Runtime/Dev Health")
+    print(f"runtime_health: {summary['runtime_health']}")
+    print(f"dev_health: {summary['dev_health']}")
+    print(f"linter_status: {summary['meta']['linter_status']}")
 
     print("\n[4] Activity Feed Tail")
     print(f"path: {feed['path']}")
     print(f"tail_count: {feed['summary']['count_tail']}")
-    print(f"mode: {feed['summary']['mode']}")
+    print(f"window_count: {feed['summary']['count_in_window']}")
     print(f"unknown_ts_count: {feed['summary']['unknown_ts_count']}")
     print(f"by_action: {feed['summary']['by_action']}")
     print(f"by_status_badge: {feed['summary']['by_status_badge']}")
@@ -296,7 +399,7 @@ def print_dashboard(summary: dict[str, Any]) -> None:
     print("\n[5] Guard Violations Tail")
     print(f"path: {viol['path']}")
     print(f"tail_count: {viol['summary']['count_tail']}")
-    print(f"mode: {viol['summary']['mode']}")
+    print(f"window_count: {viol['summary']['count_in_window']}")
     print(f"unknown_ts_count: {viol['summary']['unknown_ts_count']}")
     print(f"by_reason: {viol['summary']['by_reason']}")
 
@@ -310,9 +413,13 @@ def print_dashboard(summary: dict[str, Any]) -> None:
     for row in packs:
         print(f"- {row['mtime_utc']}  {row['name']}")
 
+    print("\n[7] Issues")
+    for issue in summary["issues"]:
+        print(f"- {issue['severity']} {issue['code']}: {issue['detail']}")
+
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Mission Control Viewer v0 (read-only)")
+    parser = argparse.ArgumentParser(description="Mission Control Viewer v0.2-lite (read-only)")
     parser.add_argument("--json", action="store_true", help="Emit JSON summary")
     parser.add_argument("--tail", type=int, default=30, help="Tail line count for logs")
     parser.add_argument("--packs", type=int, default=10, help="Number of latest proof packs to show")
