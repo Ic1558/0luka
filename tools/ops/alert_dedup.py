@@ -124,7 +124,7 @@ def handle_fail(workflow: str, check_name: str, branch: str, run_id: str,
             "decision": "suppress_newer_success",
             "severity": severity,
             "reason": (
-                f"last_success_ts={last_success_ts:.0f} >= event_ts={event_ts:.0f}"
+                f"last_success_ts={last_success_ts:.0f} > event_ts={event_ts:.0f}"
             ),
         }
 
