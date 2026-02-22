@@ -12,7 +12,7 @@ State schema per key:
   last_event_run_id    - str, GitHub run ID for trace
 
 Decision tree for --mode fail (checked in order):
-  1. suppress_newer_success   — last_success_ts >= event_ts
+  1. suppress_newer_success   — last_success_ts > event_ts
   2. suppress_duplicate_window — now - last_alert_ts < WINDOW_SEC
   3. emit_alert               — record state and emit
 
@@ -112,7 +112,7 @@ def handle_fail(workflow: str, check_name: str, branch: str, run_id: str,
 
     # 1. suppress_newer_success: recorded success is >= this failure's timestamp
     last_success_ts = entry.get("last_success_ts")
-    if last_success_ts is not None and last_success_ts >= event_ts:
+    if last_success_ts is not None and last_success_ts > event_ts:
         entry.update({
             "last_failure_ts": event_ts,
             "last_event_type": "fail",

@@ -33,26 +33,25 @@ jobs:
           key: alert-dedup-v1-${{ github.run_id }}
           restore-keys: alert-dedup-v1-
 
-      - name: Resolve check name (first job of run)
-        id: check_info
+      - name: Update success state for all jobs in run
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          CHECK=$(gh api \
+          JOBS=$(gh api \
             "repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/jobs" \
-            --jq '[.jobs[] | .name] | first // "unknown"' \
+            --jq '[.jobs[] | .name] | .[]' \
             2>/dev/null || echo "unknown")
-          echo "check_name=${CHECK}" >> "$GITHUB_OUTPUT"
-
-      - name: Update success state
-        run: |
-          python3 tools/ops/alert_dedup.py \
-            --mode success \
-            --workflow "${{ github.event.workflow_run.name }}" \
-            --branch "${{ github.event.workflow_run.head_branch }}" \
-            --check-name "${{ steps.check_info.outputs.check_name }}" \
-            --run-id "${{ github.event.workflow_run.id }}" \
-            --event-ts-utc "${{ github.event.workflow_run.created_at }}"
+          if [ -z "$JOBS" ]; then JOBS="unknown"; fi
+          while IFS= read -r CHECK; do
+            [ -z "$CHECK" ] && continue
+            python3 tools/ops/alert_dedup.py \
+              --mode success \
+              --workflow "${{ github.event.workflow_run.name }}" \
+              --branch "${{ github.event.workflow_run.head_branch }}" \
+              --check-name "$CHECK" \
+              --run-id "${{ github.event.workflow_run.id }}" \
+              --event-ts-utc "${{ github.event.workflow_run.created_at }}" || true
+          done <<< "$JOBS"
 
       - name: Save alert dedup state
         uses: actions/cache/save@v4
