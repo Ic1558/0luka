@@ -47,6 +47,7 @@ HEARTBEAT = DISPATCH_HEARTBEAT
 DISPATCH_LATEST = DISPATCH_LATEST_PATH
 OUTBOX = OUTBOX_TASKS
 SCHEMA_PATH = SCHEMA_REGISTRY
+CACHE_PATH = ROOT / "observability" / "artifacts" / "health_latest.json"
 
 TEST_SUITES = [
     "test_ref_resolver.py",
@@ -84,6 +85,13 @@ def _read_json(path: Path) -> Optional[Dict[str, Any]]:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return None
+
+
+def _write_json_atomic(path: Path, payload: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.parent / f".{path.name}.tmp"
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def _count_files(directory: Path, pattern: str = "*") -> int:
@@ -298,9 +306,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="0luka System Health Check")
     parser.add_argument("--full", action="store_true", help="Run all test suites")
     parser.add_argument("--json", action="store_true", help="JSON output")
+    parser.add_argument("--cache", action="store_true", help="Write health report cache artifact")
     args = parser.parse_args()
 
     report = check_health(run_tests=args.full)
+    if args.cache or args.full:
+        _write_json_atomic(CACHE_PATH, report)
 
     if args.json:
         print(json.dumps(report, indent=2, ensure_ascii=False))
