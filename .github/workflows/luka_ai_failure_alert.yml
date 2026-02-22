@@ -23,7 +23,59 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.name != 'Luka AI Failure Alert'
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore alert dedup state
+        uses: actions/cache/restore@v4
+        with:
+          path: observability/telemetry/alert_dedup_state.json
+          key: alert-dedup-v1-${{ github.run_id }}
+          restore-keys: alert-dedup-v1-
+
+      - name: Check for newer successful run
+        id: newer_check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          FAILED_AT="${{ github.event.workflow_run.created_at }}"
+          WF_ID="${{ github.event.workflow_run.workflow_id }}"
+          BRANCH="${{ github.event.workflow_run.head_branch }}"
+          COUNT=$(gh api \
+            "repos/${{ github.repository }}/actions/workflows/${WF_ID}/runs?branch=${BRANCH}&per_page=10" \
+            --jq "[.workflow_runs[] | select(.conclusion == \"success\" and .created_at > \"${FAILED_AT}\")] | length" \
+            2>/dev/null || echo "0")
+          if [ "${COUNT:-0}" -gt 0 ]; then
+            echo "has_newer_success=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_newer_success=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run dedup check
+        id: dedup
+        run: |
+          NEWER_FLAG=""
+          if [ "${{ steps.newer_check.outputs.has_newer_success }}" = "true" ]; then
+            NEWER_FLAG="--newer-success"
+          fi
+          if python3 tools/ops/alert_dedup.py \
+            --workflow "${{ github.event.workflow_run.name }}" \
+            --branch "${{ github.event.workflow_run.head_branch }}" \
+            --run-id "${{ github.event.workflow_run.id }}" \
+            ${NEWER_FLAG}; then
+            echo "should_alert=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_alert=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Save alert dedup state
+        uses: actions/cache/save@v4
+        if: steps.dedup.outputs.should_alert == 'true'
+        with:
+          path: observability/telemetry/alert_dedup_state.json
+          key: alert-dedup-v1-${{ github.run_id }}
+
       - name: Send Failure Alert
+        if: steps.dedup.outputs.should_alert == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp-mail.outlook.com
