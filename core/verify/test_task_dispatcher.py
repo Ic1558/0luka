@@ -50,6 +50,9 @@ def _load_dispatcher(root: Path):
     dispatcher.DISPATCH_LATEST = root / "observability" / "artifacts" / "dispatch_latest.json"
     dispatcher.QUARANTINE_DIR = root / "runtime" / "quarantine"
     guard_mod = importlib.reload(importlib.import_module("core.activity_feed_guard"))
+    guard_mod.CANONICAL_PRODUCTION_FEED_PATH = (
+        root / "observability" / "logs" / "activity_feed.jsonl"
+    ).resolve()
     guard_state = root / "runtime" / "activity_feed_state.json"
     guard_viol = root / "observability" / "logs" / "feed_guard_violations.jsonl"
 
