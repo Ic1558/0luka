@@ -1,35 +1,24 @@
-# Implementation Plan: WO-14A / PHASE 1 (Internal SOT Pack Builder)
+# Implementation Plan: Fix MD040 in 0luka.md
 
-**Mission**: Implement a governance-safe SOT synchronization boundary. Phase 1 focuses purely on the Internal SOT Pack Builder (`Class A`), ensuring it is atomic, seal-anchored, fail-closed, and has zero external egress. No background automation. No embedded STATE in tracked files.
+## Problem
 
-## Definition of Done (PR-1)
+Markdownlint rule `MD040/fenced-code-language` is triggered because `0luka.md` contains fenced code blocks (` ``` `) that do not specify a language identifier. The lint explicitly flagged line 23, but several other code blocks in the document also lack language tags.
 
-1. `tools/ops/build_sot_pack.py` creates a valid pack atomically in `observability/artifacts/sot_packs/{ts}_{shortsha}` and updates `latest` pointer.
-2. The pack contains `0luka.md`, latest `_snapshot.md`, catalog index (`tools/catalog_lookup.zsh`), `manifest.json`, and `sha256sums.txt`.
-3. The activity feed (`observability/stl/ledger/activity_feed.jsonl`) contains the `sot_seal` event.
-4. `activity_feed_linter` passes.
-5. Builder aborts if the Git tree is dirty or HEAD does not match the latest verified activity feed commit (Seal Proof Chain Validation).
-6. Uses a `.build_lock` temporary file for an Anti-Race Guard during pack generation.
-7. Git status is entirely clean after the run (no tracked files modified).
-8. No references to NotebookLM in the codebase.
+## Proposed Solution
 
-## Execution Steps
+Update all fenced code blocks in `0luka.md` that are missing a language identifier to use ` ```text `. Specifically:
 
-1. **Pre-Checks**: Validate repository state (using `git log`, `git status`). Extract last verified activity feed commit.
-2. **Develop `tools/ops/build_sot_pack.py`**:
-   - Implement `check_preconditions()` ensuring Git working tree is clean and un-modified. Ensure HEAD matches the most recent verified commit in `activity_feed.jsonl`.
-   - Implement temporary dot lock file inside `observability/artifacts/sot_packs/.build_lock`. Fail if exists.
-   - Assemble `0luka.md`, latest `observability/artifacts/snapshots/*_snapshot.md`, `tools/catalog_lookup.zsh`, minimal docs like `docs/notebooklm_publish_design.md`.
-   - Hash (SHA-256) all files.
-   - Construct `manifest.json` and `sha256sums.txt`.
-   - Generate SOT Pack zip or folder and perform atomic `os.rename()` from `staging` to `sot_packs/<pack>`.
-   - Update `latest` symlink.
-   - Emit `sot_seal` to `activity_feed.jsonl`.
-3. **Develop `core/verify/test_build_sot_pack.py`**:
-   - Verify builder aborts if git tree dirty.
-   - Verify builder creates pack successfully if clean.
-   - Verify manifest exists and hashes match.
-   - Verify `activity_feed` contains a seal event.
-   - Verify tracked tree is perfectly clean post run.
-4. **Dry Run**: Execute `pytest core/verify/test_build_sot_pack.py -q`. Wait and review any failures to correct logic.
-5. **Verify**: Execute the full Proof Pack commands and generate `walkthrough.md`.
+- Line 23: Architecture diagram (ASCII art) -> ` ```text `
+- Line 81: Directory structure tree -> ` ```text `
+- Line 175: Identity invariant rule -> ` ```text `
+- Line 195: 5-Stage Loop list -> ` ```text `
+- Line 263: Execution flow diagram -> ` ```text `
+- Line 334: Agent monitoring tabular data -> ` ```text `
+
+## Steps
+
+1. Discover phase already completed: inspected `0luka.md` and observed missing language tags on lines 23, 81, 175, 195, 263, 334.
+2. Formulate implementation plan and present for approval.
+3. DRY-RUN: Check changes via replace tool and verify markdown parsing does not break. We will apply the changes locally.
+4. VERIFY: Document changes in `walkthrough.md` and check `git diff`.
+5. RUN: Finalize changes and execute any save commands if necessary.

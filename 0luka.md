@@ -10,6 +10,7 @@
 **0luka** is a deterministic, governance-driven task orchestration system designed to replace ad-hoc AI agent behavior with structured, auditable automation. It implements a "trust rules + evidence + identity" philosophy over blind AI trust.
 
 ### Key Characteristics
+
 - **Architecture**: Compiler → Orchestrator → Execution (Fail-Closed)
 - **Philosophy**: "Silent when correct, alarm when wrong"
 - **Contract**: Core governance immutable; all changes traceable
@@ -170,12 +171,14 @@
 | **[Cole]** | Assistant | Hybrid Helper | Long-Run Orchestration | Free/Tracked Modes |
 
 ### 3.2 Identity Invariant (Global)
+
 ```
 Every response MUST begin with the Agent's Call-Sign (e.g., [Liam]).
 Violation = Immediate Rejection.
 ```
 
 ### 3.3 Brain Types (Immutable Per Agent)
+
 - **Architect Brain (Liam)**: Abstract, cautious, read-only, refuses ambiguity
 - **Executor Brain (Lisa)**: Procedural, deterministic, no interpretation
 - **Verifier Brain (Codex)**: Skeptical, evidence-driven, long-context reader
@@ -186,6 +189,7 @@ Violation = Immediate Rejection.
 ## 4. Closed-Loop Engineering Contract (CLEC v1.0)
 
 ### 4.1 The 5-Stage Loop
+
 Work is "Done" ONLY when passing all stages:
 
 ```
@@ -197,6 +201,7 @@ Work is "Done" ONLY when passing all stages:
 ```
 
 ### 4.2 Pre-Claim Gates (5 Fence-posts)
+
 Before Lisa claims a task:
 
 | Gate | Name | Requirement |
@@ -220,18 +225,21 @@ Before Lisa claims a task:
 ## 5. Execution Policy
 
 ### 5.1 Level Definitions
+
 - **L0 — Trivial**: typo/format/rename, markdown/manuals
 - **L1 — Local Patch**: single-file bugfix, logging/errors
 - **L2 — Bounded Change**: one-module change, few files
 - **L3+ — Complex**: cross-module, architecture change
 
 ### 5.2 Who Can Write What
+
 - **Liam**: Level ≤ L2 only (plan + diff + verification)
 - **Lisa**: Level ≥ L3 (implementation)
 - **Codex**: Review/docs/git/PR management
 - **Boss Override**: Explicit in prompt, logged as `BOSS_OVERRIDE=true`
 
 ### 5.3 Git Governance
+
 - **Only Codex** authorized for git operations
 - Direct-to-main commits **FORBIDDEN**
 - All PRs require: `PLAN.md`, `DIFF.md`, `VERIFY.md`
@@ -242,6 +250,7 @@ Before Lisa claims a task:
 ## 6. Bridge System (Task Orchestration)
 
 ### 6.1 Components
+
 | Component | Purpose |
 |-----------|---------|
 | `bridge_consumer.py` | Event consumption from queue |
@@ -250,13 +259,16 @@ Before Lisa claims a task:
 | `bridge_watch.zsh` | File system watcher |
 
 ### 6.2 Execution Flow
+
 ```
 Task Emit → Outbox → Bridge Consumer → Dispatcher →
 Executor (Lisa) → Evidence → Codex → DONE
 ```
 
 ### 6.3 Telemetry
+
 Real-time status in `observability/telemetry/*.latest.json`:
+
 ```json
 {
   "ts": "2026-02-01T15:14:03Z",
@@ -271,13 +283,16 @@ Real-time status in `observability/telemetry/*.latest.json`:
 ## 7. Librarian System
 
 ### 7.1 Purpose
+
 Move scattered files to canonical locations, maintain state invariants.
 
 ### 7.2 Forbidden Actions
+
 - Never touch `core/`, `core_brain/`
 - Never modify production code (state files only)
 
 ### 7.3 Scoring Model (0-100, pass: 70)
+
 | Criterion | Weight | Pass Condition |
 |-----------|--------|----------------|
 | Path compliance | 30% | Source/dest match rules |
@@ -287,6 +302,7 @@ Move scattered files to canonical locations, maintain state invariants.
 | Traceability | 10% | UTC timestamp + audit |
 
 ### 7.4 Canonical Paths
+
 - `reports/summary/latest.md` — Human dashboard
 - `state/current_system.json` — Machine state
 - `state/recent_changes.jsonl` — Append-only audit
@@ -297,6 +313,7 @@ Move scattered files to canonical locations, maintain state invariants.
 ## 8. Observability & Audit
 
 ### 8.1 Incident Logs
+
 | Log File | Captures |
 |----------|----------|
 | `fs_bash_commands.jsonl` | All bash commands |
@@ -305,12 +322,15 @@ Move scattered files to canonical locations, maintain state invariants.
 | `tk_incidents.jsonl` | Task kernel violations |
 
 ### 8.2 Log Rotation
+
 - Component logs: `logs/components/<name>/current.log`
 - Daily rotation: `.1`, `.2`, ... `.7`
 - Managed by `tools/rotate_logs_min.zsh`
 
 ### 8.3 Agent Monitoring
+
 Real-time status in `reports/summary/latest.md`:
+
 ```
 module | status | last_ts_utc | age | threshold | critical
 -------|--------|-------------|-----|-----------|----------
@@ -323,6 +343,7 @@ executor_lisa | ok | ... | 23s | 3m | yes
 ## 9. Skill System
 
 ### 9.1 Skill Manifest (`skills/manifest.md`)
+
 | Skill | Mandatory Read | Purpose |
 |-------|----------------|---------|
 | `development` | YES | Codebase evolution & runtime |
@@ -331,7 +352,9 @@ executor_lisa | ok | ... | 23s | 3m | yes
 | `component-engineer` | NO | Component building |
 
 ### 9.2 Skill Catalog Policy
+
 Dry-run gate (scoring 0-100):
+
 - Exact name match: 0-40 points
 - Capability match: 0-20 points
 - Tag/keyword match: 0-15 points
@@ -343,11 +366,13 @@ Dry-run gate (scoring 0-100):
 ## 10. Current System State
 
 ### 10.1 Phase-O Objectives
+
 - Paths stable & referenced consistently
 - Logs don't grow forever & are auditable
 - Summary answers: "what is happening now?"
 
 ### 10.2 State Snapshot (`state/current_system.json`)
+
 ```json
 {
   "ts_utc": "2026-01-30T19:10:07Z",
@@ -364,6 +389,7 @@ Dry-run gate (scoring 0-100):
 ```
 
 ### 10.3 Quick References
+
 | What | Where |
 |------|-------|
 | Human Dashboard | `luka.md` |
@@ -377,6 +403,7 @@ Dry-run gate (scoring 0-100):
 ## 11. Agent Culture (Constitution v1.1)
 
 ### 11.1 Core Principles
+
 1. **Purpose**: Reduce Boss's cognitive load (felt, not claimed)
 2. **Brain**: One agent = one brain type (immutable)
 3. **Knowledge**: Know the right things, not everything
@@ -388,6 +415,7 @@ Dry-run gate (scoring 0-100):
 9. **Timing**: Silence is default
 
 ### 11.2 Anti-Patterns (Forbidden)
+
 - Long explanations without executable outcome
 - "Helpful thoughts" without artifacts
 - Guessing missing SOPs
@@ -399,12 +427,14 @@ Dry-run gate (scoring 0-100):
 ## 12. MLS (Machine Learning Solutions)
 
 ### 12.1 Paths
+
 - **Capture Tool**: `tools/mls_capture.zsh`
 - **Database**: `g/knowledge/mls_lessons.jsonl`
 - **Index**: `g/knowledge/mls_index.json`
 - **Reports**: `g/reports/mls/`
 
 ### 12.2 What Gets Recorded
+
 - Proven solutions
 - Failures and causes
 - Patterns and anti-patterns
@@ -452,11 +482,13 @@ tail -n 10 g/knowledge/mls_lessons.jsonl
 ## 15. Emergency & Safety
 
 ### 15.1 Emergency Bypass Policy (v1.0)
+
 - **Allowed host**: `icmini` only
 - **Allowed actor**: `[GMX]` only
 - **Token**: Single-shot, replay protected
 
 ### 15.2 Strictly FORBIDDEN (No Override)
+
 - Path sandbox
 - Command whitelist
 - Schema validation
@@ -464,7 +496,9 @@ tail -n 10 g/knowledge/mls_lessons.jsonl
 - R2/R3 secret scanning
 
 ### 15.3 Secret Protection
+
 Blocked patterns:
+
 - `.env` files
 - `id_rsa*`, `id_ed25519*`
 - `credentials*`, `keychain*`

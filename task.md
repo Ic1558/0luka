@@ -1,19 +1,17 @@
-# Task: 0luka Phase 9 Governance & NLP Control Plane
+# Task: Fix MD040/fenced-code-language lint in 0luka.md
 
-## Status
-- [x] **Discovery**: Audited Phase 2 and 2.1 implementation and verified behavior on branch `main`.
-- [x] **Phase 8 (Dispatcher Service)**: Verified as PROVEN (Behavioral proof of reboot survival and activity logging).
-- [x] **Phase 9 Spec**: Authored `modules/nlp_control_plane/PHASE9_SPEC.md` and `VECTORS.md`.
-- [x] **Phase 9 Implementation**: Skeleton `synthesizer.py` implemented with mandatory Governance & Provenance gates.
-- [x] **Phase 9 Verification**: `prove_phase9_nlp.py` PASS with deterministic vectors.
+## Objective
 
-## Active Phase
-- **Phase 9**: IN_PROGRESS (Linguist & Sentry logic reinforcement)
+Fix the markdown formatting warning: "MD040/fenced-code-language: Fenced code blocks should have a language specified @[/Users/icmini/0luka/0luka.md:L23]".
 
-## Governance & Policy
-- **Branch Protection**: Enforced through `policy.verified` and `execution.verified` events.
-- **Fail-Closed**: Proven via `CLECExecutor` evidence enforcement.
+## Details
 
-## Next Steps
-- Finalize NLP Model integration for complex conversion.
-- Unblock Mission Control UI integration.
+Fenced code blocks in the document currently do not carry a language tag, causing lint warnings. We will fix this by analyzing the content in the code block and appending a relevant language tag (e.g., `text`) after the opening backticks.
+
+## Current Steps
+
+- [x] Discover: Analyzed `0luka.md` and located the issue. Found other similar instances.
+- [x] Plan: Created `implementation_plan.md` outlining the lines to fix (23, 81, 175, 195, 263, 334).
+- [ ] Dry-Run: Test changes locally using specific replacement tools.
+- [ ] Verify: Confirm standard repository tests and `git diff` output. Provide results in a walkthrough.
+- [ ] Run: Finalize execution.
