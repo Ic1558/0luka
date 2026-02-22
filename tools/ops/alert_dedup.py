@@ -1,13 +1,26 @@
 #!/usr/bin/env python3
-"""Alert Storm Guard v1 — dedup logic for luka_ai_failure_alert.yml
+"""Alert Storm Guard v1.1 — contract-compliant dedup
 
-Decision tree (checked in order):
-  1. suppress_newer_success  — a newer successful run exists (caller sets --newer-success flag)
-  2. suppress_duplicate_window — same (workflow, branch) alerted within WINDOW_SEC
-  3. emit_alert               — no suppression; record state and emit
+Dedup key: (workflow_name, check_name, branch)
 
-Exit code: 0 = emit alert, 1 = suppress
-State file: observability/telemetry/alert_dedup_state.json
+State schema per key:
+  last_failure_ts      - epoch float of last failure event
+  last_success_ts      - epoch float of last success event (None if none)
+  last_alert_ts        - epoch float of last alert sent (None if no alert yet)
+  last_alert_severity  - "CRITICAL" | "WARNING" | None
+  last_event_type      - "fail" | "success"
+  last_event_run_id    - str, GitHub run ID for trace
+
+Decision tree for --mode fail (checked in order):
+  1. suppress_newer_success   — last_success_ts >= event_ts
+  2. suppress_duplicate_window — now - last_alert_ts < WINDOW_SEC
+  3. emit_alert               — record state and emit
+
+For --mode success:
+  - Update last_success_ts only. No alert. Exit 0.
+
+Exit code: 0 = emit_alert or success_state_updated, 1 = suppressed
+Output: single JSON line to stdout with decision, severity, reason
 """
 
 import argparse
@@ -15,21 +28,46 @@ import json
 import os
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 WINDOW_SEC = 3600    # 60-minute dedup window
-TTL_SEC = 86400      # 24h — clean entries older than this on every write
+TTL_SEC = 86400      # 24h — purge entries older than this
+
+# Severity mapping: workflow display name → severity
+CRITICAL_WORKFLOWS = frozenset([
+    "tier2-integrity",
+    "ci / retention-smoke",
+])
 
 _ROOT = Path(__file__).resolve().parent.parent.parent
 STATE_PATH = _ROOT / "observability" / "telemetry" / "alert_dedup_state.json"
+
+
+def get_severity(workflow: str) -> str:
+    return "CRITICAL" if workflow in CRITICAL_WORKFLOWS else "WARNING"
+
+
+def _parse_ts(ts_str: str) -> float:
+    """Parse ISO-8601 UTC string to epoch float."""
+    return datetime.fromisoformat(ts_str.replace("Z", "+00:00")).timestamp()
+
+
+def _now_from_arg(now_ts_utc: str | None) -> float:
+    if now_ts_utc:
+        return _parse_ts(now_ts_utc)
+    return time.time()
+
+
+def _dedup_key(workflow: str, check_name: str, branch: str) -> str:
+    return f"{workflow}|{check_name}|{branch}"
 
 
 def _load_state(path: Path) -> dict:
     if not path.exists():
         return {}
     try:
-        raw = path.read_text(encoding="utf-8")
-        data = json.loads(raw)
+        data = json.loads(path.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else {}
     except Exception:
         return {}
@@ -50,70 +88,146 @@ def _save_state_atomic(path: Path, state: dict) -> None:
 
 
 def _clean_state(state: dict, now: float) -> dict:
-    """Remove entries older than TTL_SEC."""
-    return {k: v for k, v in state.items() if now - v.get("ts", 0) < TTL_SEC}
+    """Remove entries where all timestamps are older than TTL_SEC."""
+    out = {}
+    for k, v in state.items():
+        latest = max(
+            v.get("last_failure_ts") or 0.0,
+            v.get("last_success_ts") or 0.0,
+            v.get("last_alert_ts") or 0.0,
+        )
+        if now - latest < TTL_SEC:
+            out[k] = v
+    return out
 
 
-def _dedup_key(workflow: str, branch: str) -> str:
-    return f"{workflow}|{branch}"
-
-
-def check_and_record(workflow: str, branch: str, run_id: str, newer_success: bool,
-                     state_path: Path) -> str:
-    """
-    Returns decision string and records state if emitting.
-    Caller checks return value:
-      suppress_newer_success  → exit 1
-      suppress_duplicate_window:<age>s → exit 1
-      emit_alert              → exit 0
-    """
-    now = time.time()
+def handle_fail(workflow: str, check_name: str, branch: str, run_id: str,
+                event_ts: float, now: float, state_path: Path) -> dict:
+    """Process a failure event. Returns result dict. Saves state."""
+    severity = get_severity(workflow)
+    key = _dedup_key(workflow, check_name, branch)
     state = _load_state(state_path)
     state = _clean_state(state, now)
+    entry = state.get(key, {})
 
-    # Check 1: newer success passed in from GitHub API check
-    if newer_success:
-        return "suppress_newer_success"
+    # 1. suppress_newer_success: recorded success is >= this failure's timestamp
+    last_success_ts = entry.get("last_success_ts")
+    if last_success_ts is not None and last_success_ts >= event_ts:
+        entry.update({
+            "last_failure_ts": event_ts,
+            "last_event_type": "fail",
+            "last_event_run_id": run_id,
+        })
+        state[key] = entry
+        _save_state_atomic(state_path, state)
+        return {
+            "decision": "suppress_newer_success",
+            "severity": severity,
+            "reason": (
+                f"last_success_ts={last_success_ts:.0f} >= event_ts={event_ts:.0f}"
+            ),
+        }
 
-    # Check 2: duplicate within window
-    key = _dedup_key(workflow, branch)
-    if key in state:
-        age = now - state[key].get("ts", 0)
+    # 2. suppress_duplicate_window: alerted within WINDOW_SEC
+    last_alert_ts = entry.get("last_alert_ts")
+    if last_alert_ts is not None:
+        age = now - last_alert_ts
         if age < WINDOW_SEC:
-            return f"suppress_duplicate_window:{age:.0f}s"
+            entry.update({
+                "last_failure_ts": event_ts,
+                "last_event_type": "fail",
+                "last_event_run_id": run_id,
+            })
+            state[key] = entry
+            _save_state_atomic(state_path, state)
+            return {
+                "decision": "suppress_duplicate_window",
+                "severity": severity,
+                "reason": f"last_alert_age={age:.0f}s < {WINDOW_SEC}s",
+            }
 
-    # Emit: record state
-    state[key] = {
-        "ts": now,
-        "run_id": run_id,
-        "workflow": workflow,
-        "branch": branch,
-    }
+    # 3. emit_alert
+    entry.update({
+        "last_failure_ts": event_ts,
+        "last_alert_ts": now,
+        "last_alert_severity": severity,
+        "last_event_type": "fail",
+        "last_event_run_id": run_id,
+    })
+    state[key] = entry
     _save_state_atomic(state_path, state)
-    return "emit_alert"
+    return {
+        "decision": "emit_alert",
+        "severity": severity,
+        "reason": "first_failure_in_window",
+    }
+
+
+def handle_success(workflow: str, check_name: str, branch: str, run_id: str,
+                   event_ts: float, now: float, state_path: Path) -> dict:
+    """Process a success event. Updates last_success_ts only. No alert."""
+    key = _dedup_key(workflow, check_name, branch)
+    state = _load_state(state_path)
+    state = _clean_state(state, now)
+    entry = state.get(key, {})
+    entry.update({
+        "last_success_ts": event_ts,
+        "last_event_type": "success",
+        "last_event_run_id": run_id,
+    })
+    state[key] = entry
+    _save_state_atomic(state_path, state)
+    return {
+        "decision": "success_state_updated",
+        "reason": f"last_success_ts={event_ts:.0f}",
+    }
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Alert Storm Guard v1 dedup check")
+    parser = argparse.ArgumentParser(description="Alert Storm Guard v1.1")
+    parser.add_argument("--mode", choices=["fail", "success"], required=True,
+                        help="Event type")
     parser.add_argument("--workflow", required=True, help="Workflow display name")
     parser.add_argument("--branch", required=True, help="Head branch")
+    parser.add_argument("--check-name", required=True, dest="check_name",
+                        help="Failing/passing check/job name")
     parser.add_argument("--run-id", required=True, help="GitHub run ID")
-    parser.add_argument("--newer-success", action="store_true",
-                        help="Caller confirmed a newer successful run exists; suppress")
+    parser.add_argument("--event-ts-utc", default=None,
+                        help="ISO-8601 UTC timestamp of the event (default: now)")
+    parser.add_argument("--now-ts-utc", default=None,
+                        help="Override for 'now' — for deterministic replay testing")
     parser.add_argument("--state-path", default=str(STATE_PATH),
-                        help="Path to dedup state JSON (default: observability/telemetry/alert_dedup_state.json)")
+                        help="Path to dedup state JSON")
     args = parser.parse_args()
 
-    decision = check_and_record(
-        workflow=args.workflow,
-        branch=args.branch,
-        run_id=args.run_id,
-        newer_success=args.newer_success,
-        state_path=Path(args.state_path),
-    )
+    now = _now_from_arg(args.now_ts_utc)
+    event_ts = _parse_ts(args.event_ts_utc) if args.event_ts_utc else now
+    state_path = Path(args.state_path)
 
-    print(decision)
-    sys.exit(0 if decision == "emit_alert" else 1)
+    if args.mode == "success":
+        result = handle_success(
+            workflow=args.workflow,
+            check_name=args.check_name,
+            branch=args.branch,
+            run_id=args.run_id,
+            event_ts=event_ts,
+            now=now,
+            state_path=state_path,
+        )
+        print(json.dumps(result))
+        sys.exit(0)
+    else:
+        result = handle_fail(
+            workflow=args.workflow,
+            check_name=args.check_name,
+            branch=args.branch,
+            run_id=args.run_id,
+            event_ts=event_ts,
+            now=now,
+            state_path=state_path,
+        )
+        print(json.dumps(result))
+        sys.exit(0 if result["decision"] == "emit_alert" else 1)
 
 
 if __name__ == "__main__":
