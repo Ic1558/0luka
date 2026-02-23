@@ -241,11 +241,11 @@ def _collect_proof_packs(limit: int) -> list[dict[str, Any]]:
     return out
 
 
-def _read_health_cache(max_age_sec: int = 600) -> tuple[str | None, str, dict[str, Any], bool]:
+def _read_health_cache(max_age_sec: int = 600) -> tuple[str, str, dict[str, Any], bool]:
     """Return (dev_health, source, cache_meta, unparseable_cache)."""
     cache_meta: dict[str, Any] = {"ts_utc": None, "head_sha": None}
     if not HEALTH_CACHE_PATH.exists():
-        return None, "none", cache_meta, False
+        return "UNKNOWN", "none", cache_meta, False
 
     try:
         payload = json.loads(HEALTH_CACHE_PATH.read_text(encoding="utf-8"))
@@ -264,6 +264,12 @@ def _read_health_cache(max_age_sec: int = 600) -> tuple[str | None, str, dict[st
     age_sec = (datetime.now(timezone.utc) - ts_dt).total_seconds()
     if age_sec > max_age_sec:
         return "UNKNOWN", "cache_stale", cache_meta, False
+
+    cached_sha = payload.get("head_sha")
+    if cached_sha is not None and age_sec > 60:
+        rc, head, _ = _run(["git", "rev-parse", "HEAD"])
+        if rc == 0 and head != cached_sha:
+            return "UNKNOWN", "cache_mismatch", cache_meta, False
 
     tests = payload.get("tests") if isinstance(payload.get("tests"), dict) else {}
     failed = tests.get("failed")
@@ -292,31 +298,7 @@ def _infer_linter_status(proof_packs: list[dict[str, Any]]) -> tuple[str, str]:
     return "UNKNOWN", "no_evidence"
 
 
-def _infer_dev_health(proof_packs: list[dict[str, Any]]) -> tuple[str, str]:
-    saw_pass = False
-    saw_fail = False
-    detail = "no_test_evidence"
-    for pack in proof_packs[:10]:
-        p = Path(pack["path"])
-        for candidate in list(p.glob("*pytest*.txt")) + [p / "notes.txt"]:
-            if not candidate.exists() or not candidate.is_file():
-                continue
-            try:
-                text = candidate.read_text(encoding="utf-8", errors="replace").lower()
-            except Exception:
-                continue
-            if re.search(r"\b(failed|error|errors)\b", text):
-                saw_fail = True
-                detail = f"failing_tests_evidence:{candidate.name}"
-            if re.search(r"\b\d+\s+passed\b", text) and "failed" not in text and "error" not in text:
-                saw_pass = True
-                if detail == "no_test_evidence":
-                    detail = f"passing_tests_evidence:{candidate.name}"
-    if saw_fail:
-        return "DEGRADED", detail
-    if saw_pass:
-        return "HEALTHY", detail
-    return "UNKNOWN", detail
+
 
 
 def _collect_inbox(allow_inbox: bool) -> dict[str, Any]:
@@ -403,20 +385,18 @@ def collect_summary(tail_n: int, packs_n: int, since_min: int, allow_inbox: bool
     violations = _collect_guard_violations(tail_n, since_min)
     proof_packs = _collect_proof_packs(packs_n)
     linter_status, linter_detail = _infer_linter_status(proof_packs)
-    cache_dev_health, dev_health_source, dev_health_cache_meta, health_cache_unparseable = _read_health_cache(max_age_sec=600)
-    if cache_dev_health is not None:
-        dev_health = cache_dev_health
-        if dev_health_source == "cache":
-            dev_detail = "cache_fallback:health_latest.json"
-        elif dev_health_source == "cache_stale":
-            dev_detail = "cache_stale:health_latest.json"
-        else:
-            dev_detail = "cache_unparseable:health_latest.json"
+    dev_health, dev_health_source, dev_health_cache_meta, health_cache_unparseable = _read_health_cache(max_age_sec=600)
+    
+    if dev_health_source == "cache":
+        dev_detail = "cache_fallback:health_latest.json"
+    elif dev_health_source == "cache_stale":
+        dev_detail = "cache_stale:health_latest.json"
+    elif dev_health_source == "cache_mismatch":
+        dev_detail = "cache_mismatch:health_latest.json"
+    elif dev_health_source == "none":
+        dev_detail = "cache_missing:health_latest.json"
     else:
-        dev_health, dev_detail = _infer_dev_health(proof_packs)
-        dev_health_source = "proof_pack" if dev_health != "UNKNOWN" else "none"
-        dev_health_cache_meta = {"ts_utc": None, "head_sha": None}
-        health_cache_unparseable = False
+        dev_detail = "cache_unparseable:health_latest.json"
     inbox = _collect_inbox(allow_inbox)
     runtime_health = _classify_runtime_health(dispatcher, linter_status, violations)
     issues = _build_issues(
