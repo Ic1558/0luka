@@ -148,6 +148,8 @@ jobs:
           SMTP_PASS: ${{ secrets.AI_TEAM_EMAIL_PASS }}
           TO_EMAIL:  ${{ secrets.AI_TEAM_EMAIL }}
         run: |
+          [ -n "${ALERT_SUBJECT:-}" ] || { echo "missing ALERT_SUBJECT — no Prepare step ran"; exit 1; }
+          [ -f "${ALERT_BODY_FILE:-}" ] || { echo "missing ALERT_BODY_FILE — body not written"; exit 1; }
           python3 tools/ops/send_mail.py \
             --to "$TO_EMAIL" \
             --subject "$ALERT_SUBJECT" \
