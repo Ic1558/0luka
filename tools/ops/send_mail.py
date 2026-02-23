@@ -31,7 +31,7 @@ def main():
     msg["To"] = args.to
 
     try:
-        server = smtplib.SMTP(smtp_host, smtp_port)
+        server = smtplib.SMTP(smtp_host, smtp_port, timeout=20)
         server.starttls()
         server.login(smtp_user, smtp_pass)
         server.send_message(msg)
