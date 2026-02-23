@@ -43,6 +43,7 @@ FEED_PATH = _PATHS["activity_feed"]
 VIOLATIONS_PATH = _PATHS["feed_guard_violations"]
 PROOF_PACKS_PATH = _PATHS["proof_packs"]
 INBOX_PATH = _PATHS["inbox"]
+HEALTH_CACHE_PATH = ROOT / "observability" / "artifacts" / "health_latest.json"
 
 
 def _run(cmd: list[str]) -> tuple[int, str, str]:
@@ -240,6 +241,43 @@ def _collect_proof_packs(limit: int) -> list[dict[str, Any]]:
     return out
 
 
+def _read_health_cache(max_age_sec: int = 600) -> tuple[str | None, str, dict[str, Any], bool]:
+    """Return (dev_health, source, cache_meta, unparseable_cache)."""
+    cache_meta: dict[str, Any] = {"ts_utc": None, "head_sha": None}
+    if not HEALTH_CACHE_PATH.exists():
+        return None, "none", cache_meta, False
+
+    try:
+        payload = json.loads(HEALTH_CACHE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return "UNKNOWN", "none", cache_meta, True
+    if not isinstance(payload, dict):
+        return "UNKNOWN", "none", cache_meta, True
+
+    ts_value = payload.get("ts") or payload.get("ts_utc") or payload.get("generated_ts")
+    ts_dt = _parse_ts(ts_value)
+    cache_meta["ts_utc"] = ts_dt.strftime("%Y-%m-%dT%H:%M:%SZ") if ts_dt else None
+    cache_meta["head_sha"] = payload.get("head_sha")
+
+    if ts_dt is None:
+        return "UNKNOWN", "cache_stale", cache_meta, False
+    age_sec = (datetime.now(timezone.utc) - ts_dt).total_seconds()
+    if age_sec > max_age_sec:
+        return "UNKNOWN", "cache_stale", cache_meta, False
+
+    tests = payload.get("tests") if isinstance(payload.get("tests"), dict) else {}
+    failed = tests.get("failed")
+    if isinstance(failed, int):
+        return ("HEALTHY" if failed == 0 else "DEGRADED"), "cache", cache_meta, False
+
+    status = str(payload.get("status", "")).lower()
+    if status == "healthy":
+        return "HEALTHY", "cache", cache_meta, False
+    if status in {"degraded", "critical"}:
+        return "DEGRADED", "cache", cache_meta, False
+    return "UNKNOWN", "cache", cache_meta, False
+
+
 def _infer_linter_status(proof_packs: list[dict[str, Any]]) -> tuple[str, str]:
     for pack in proof_packs:
         linter_path = Path(pack["path"]) / "linter.json"
@@ -298,6 +336,7 @@ def _build_issues(
     violations: dict[str, Any],
     dev_health: str,
     dev_detail: str,
+    health_cache_unparseable: bool,
 ) -> list[dict[str, str]]:
     issues: list[dict[str, str]] = []
     if not feed.get("readable"):
@@ -318,6 +357,8 @@ def _build_issues(
         issues.append({"code": "TS_UNPARSABLE", "severity": "LOW", "detail": f"violations_unknown_ts={violations['summary']['unknown_ts_count']}"})
     if dev_health != "UNKNOWN":
         issues.append({"code": "DEV_HEALTH_SIGNAL", "severity": "MEDIUM", "detail": dev_detail})
+    if health_cache_unparseable:
+        issues.append({"code": "HEALTH_CACHE_UNPARSEABLE", "severity": "MEDIUM", "detail": str(HEALTH_CACHE_PATH)})
     return issues
 
 
@@ -362,10 +403,31 @@ def collect_summary(tail_n: int, packs_n: int, since_min: int, allow_inbox: bool
     violations = _collect_guard_violations(tail_n, since_min)
     proof_packs = _collect_proof_packs(packs_n)
     linter_status, linter_detail = _infer_linter_status(proof_packs)
-    dev_health, dev_detail = _infer_dev_health(proof_packs)
+    cache_dev_health, dev_health_source, dev_health_cache_meta, health_cache_unparseable = _read_health_cache(max_age_sec=600)
+    if cache_dev_health is not None:
+        dev_health = cache_dev_health
+        if dev_health_source == "cache":
+            dev_detail = "cache_fallback:health_latest.json"
+        elif dev_health_source == "cache_stale":
+            dev_detail = "cache_stale:health_latest.json"
+        else:
+            dev_detail = "cache_unparseable:health_latest.json"
+    else:
+        dev_health, dev_detail = _infer_dev_health(proof_packs)
+        dev_health_source = "proof_pack" if dev_health != "UNKNOWN" else "none"
+        dev_health_cache_meta = {"ts_utc": None, "head_sha": None}
+        health_cache_unparseable = False
     inbox = _collect_inbox(allow_inbox)
     runtime_health = _classify_runtime_health(dispatcher, linter_status, violations)
-    issues = _build_issues(dispatcher, linter_status, feed, violations, dev_health, dev_detail)
+    issues = _build_issues(
+        dispatcher,
+        linter_status,
+        feed,
+        violations,
+        dev_health,
+        dev_detail,
+        health_cache_unparseable,
+    )
     system_health = _collect_system_health(
         anchors,
         dispatcher,
@@ -385,6 +447,8 @@ def collect_summary(tail_n: int, packs_n: int, since_min: int, allow_inbox: bool
         "inbox": inbox,
         "runtime_health": runtime_health,
         "dev_health": dev_health,
+        "dev_health_source": dev_health_source,
+        "dev_health_cache_meta": dev_health_cache_meta,
         "issues": issues,
         "meta": {
             "schema_version": "v0.2",
