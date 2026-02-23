@@ -96,6 +96,9 @@ def guarded_append_activity_feed(
 ) -> bool:
     incoming = Path(feed_path).resolve()
     if incoming != CANONICAL_PRODUCTION_FEED_PATH:
+        incoming.parent.mkdir(parents=True, exist_ok=True)
+        with incoming.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
         return True
 
     feed_path = incoming
