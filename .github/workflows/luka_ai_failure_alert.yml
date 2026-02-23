@@ -111,46 +111,44 @@ jobs:
           path: observability/telemetry/alert_dedup_state.json
           key: alert-dedup-v1-${{ github.run_id }}
 
-      - name: Send CRITICAL alert
-        if: >-
-          steps.dedup.outputs.decision == 'emit_alert' &&
-          steps.dedup.outputs.severity == 'CRITICAL'
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp-mail.outlook.com
-          server_port: 587
-          secure: true
-          username: ${{ secrets.AI_TEAM_EMAIL }}
-          password: ${{ secrets.AI_TEAM_EMAIL_PASS }}
-          subject: "🚨 [CRITICAL] [0luka] ${{ github.event.workflow_run.name }} failed"
-          to: ${{ secrets.AI_TEAM_EMAIL }}
-          from: "Luka AI <${{ secrets.AI_TEAM_EMAIL }}>"
-          body: |
-            # CRITICAL Workflow Failure
-            **Workflow:** ${{ github.event.workflow_run.name }}
-            **Check:** ${{ steps.check_info.outputs.check_name }}
-            **Branch:** ${{ github.event.workflow_run.head_branch }}
-            **Commit:** ${{ github.event.workflow_run.head_sha }}
-            [View Failed Run](${{ github.event.workflow_run.html_url }})
+      - name: Prepare Alert Body (CRITICAL)
+        if: steps.dedup.outputs.decision == 'emit_alert' && steps.dedup.outputs.severity == 'CRITICAL'
+        run: |
+          cat << 'EOF' > /tmp/alert_body.txt
+          # CRITICAL Workflow Failure
+          **Workflow:** ${{ github.event.workflow_run.name }}
+          **Check:** ${{ steps.check_info.outputs.check_name }}
+          **Branch:** ${{ github.event.workflow_run.head_branch }}
+          **Commit:** ${{ github.event.workflow_run.head_sha }}
+          [View Failed Run](${{ github.event.workflow_run.html_url }})
+          EOF
+          echo "ALERT_SUBJECT=🚨 [CRITICAL] [0luka] ${{ github.event.workflow_run.name }} failed" >> $GITHUB_ENV
+          echo "ALERT_BODY_FILE=/tmp/alert_body.txt" >> $GITHUB_ENV
 
-      - name: Send WARNING alert
-        if: >-
-          steps.dedup.outputs.decision == 'emit_alert' &&
-          steps.dedup.outputs.severity == 'WARNING'
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp-mail.outlook.com
-          server_port: 587
-          secure: true
-          username: ${{ secrets.AI_TEAM_EMAIL }}
-          password: ${{ secrets.AI_TEAM_EMAIL_PASS }}
-          subject: "⚠️ [WARNING] [0luka] ${{ github.event.workflow_run.name }} failed"
-          to: ${{ secrets.AI_TEAM_EMAIL }}
-          from: "Luka AI <${{ secrets.AI_TEAM_EMAIL }}>"
-          body: |
-            # Workflow Failure Alert
-            **Workflow:** ${{ github.event.workflow_run.name }}
-            **Check:** ${{ steps.check_info.outputs.check_name }}
-            **Branch:** ${{ github.event.workflow_run.head_branch }}
-            **Commit:** ${{ github.event.workflow_run.head_sha }}
-            [View Failed Run](${{ github.event.workflow_run.html_url }})
+      - name: Prepare Alert Body (WARNING)
+        if: steps.dedup.outputs.decision == 'emit_alert' && steps.dedup.outputs.severity == 'WARNING'
+        run: |
+          cat << 'EOF' > /tmp/alert_body.txt
+          # Workflow Failure Alert
+          **Workflow:** ${{ github.event.workflow_run.name }}
+          **Check:** ${{ steps.check_info.outputs.check_name }}
+          **Branch:** ${{ github.event.workflow_run.head_branch }}
+          **Commit:** ${{ github.event.workflow_run.head_sha }}
+          [View Failed Run](${{ github.event.workflow_run.html_url }})
+          EOF
+          echo "ALERT_SUBJECT=⚠️ [WARNING] [0luka] ${{ github.event.workflow_run.name }} failed" >> $GITHUB_ENV
+          echo "ALERT_BODY_FILE=/tmp/alert_body.txt" >> $GITHUB_ENV
+
+      - name: Send email (policy-safe)
+        if: steps.dedup.outputs.decision == 'emit_alert'
+        env:
+          SMTP_HOST: smtp-mail.outlook.com
+          SMTP_PORT: 587
+          SMTP_USER: ${{ secrets.AI_TEAM_EMAIL }}
+          SMTP_PASS: ${{ secrets.AI_TEAM_EMAIL_PASS }}
+          TO_EMAIL:  ${{ secrets.AI_TEAM_EMAIL }}
+        run: |
+          python3 tools/ops/send_mail.py \
+            --to "$TO_EMAIL" \
+            --subject "$ALERT_SUBJECT" \
+            --body-file "$ALERT_BODY_FILE"
