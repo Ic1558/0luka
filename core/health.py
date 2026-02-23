@@ -231,10 +231,33 @@ def check_health(*, run_tests: bool = False) -> Dict[str, Any]:
 
     status = "healthy" if not issues else "degraded"
 
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            cwd=str(ROOT),
+        )
+        head_sha = proc.stdout.strip() if proc.returncode == 0 and proc.stdout.strip() else None
+    except Exception:
+        head_sha = None
+
+    ts_val = _utc_now()
+    tests_failed = tests_result["failed"] if tests_result else None
+    failed_suites = []
+    if tests_result and tests_result.get("details"):
+        failed_suites = [k for k, v in tests_result["details"].items() if str(v).startswith("fail:")]
+
     return {
         "schema_version": "health_v1",
-        "ts": _utc_now(),
+        "ts_utc": ts_val,
+        "ts": ts_val,
+        "producer": "core/health.py",
+        "head_sha": head_sha,
         "status": status,
+        "tests_failed": tests_failed,
+        "failed_suites": failed_suites,
         "issues": issues,
         "dispatcher": dispatcher,
         "last_dispatch": last_dispatch,
