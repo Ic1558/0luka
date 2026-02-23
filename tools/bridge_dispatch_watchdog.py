@@ -64,7 +64,7 @@ def run_once(root: Path) -> None:
         "module": "bridge_dispatch_watchdog",
         "checks": checks,
     }
-    telemetry_path = root / "observability" / "telemetry" / "health.latest.json"
+    telemetry_path = root / "observability" / "telemetry" / "bridge_watchdog.latest.json"
     write_json(telemetry_path, payload)
 
 
