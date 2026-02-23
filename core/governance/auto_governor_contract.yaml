@@ -26,6 +26,7 @@ rings:
       - "core_brain/"
       - "tools/ops/"
       - "tools/ram_monitor.zsh"
+      - "tools/mission_control.py"
     default_mode: "MED"
     
   R1:

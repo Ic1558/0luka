@@ -22,7 +22,7 @@
     },
     {
       "path": "core/governance/auto_governor_contract.yaml",
-      "sha256": "c5a96b69b99af0fac6dd9bd2260dd27597059c515aaa2bad5a16f761a9cf46b2"
+      "sha256": "f20895c23c38f6946891ebdb536d751fadf523356651a9ecf220de4d946766e6"
     },
     {
       "path": "core/governance/cross_repo_manifest.yaml",
@@ -165,6 +165,6 @@
       "sha256": "5d1149dcb7acfdb4485f1b69cd462a3a441020a4c31256fe2a99f338aa5d888a"
     }
   ],
-  "generated_at_utc": "2026-02-20T17:56:53Z",
+  "generated_at_utc": "2026-02-23T19:55:25Z",
   "required_label": "governance-change"
 }
