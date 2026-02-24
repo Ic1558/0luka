@@ -1,0 +1,22 @@
+# core/governance/sovereign_loop_policy.yaml
+# Control plane settings for the Sovereign OS runtime.
+
+version: "1.0"
+scheduling:
+  cadence_seconds: 300  # Default loop interval for launchd references
+
+global_limits:
+  max_actions_per_hour: 20
+  degradation_window_minutes: 60
+  degraded_event_threshold: 5
+
+consequence_rules:
+  # Cooldowns to prevent flapping
+  throttle:
+    min_interval_seconds: 1800
+  task_suppression:
+    min_interval_seconds: 900
+  restart_component:
+    min_interval_seconds: 3600
+  emit_event:
+    min_interval_seconds: 0

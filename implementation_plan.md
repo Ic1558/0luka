@@ -1,64 +1,37 @@
-# Pack 6: Activity Feed as Canonical Runtime Bus
+# Implementation Plan - Pack 9: Sovereign Control Plane v1
 
-## Objective
+Establish a controlled, auditable, and rate-limited runtime loop for the Sovereign OS.
 
-To escalate `activity_feed.jsonl` from an untyped observability log to a strongly typed, fail-closed constitutional runtime contract. This enforces that the system cannot act, suffer anomalies, or maintain state without verifiable, strict correlation in the activity feed.
+## 1. Specifications & Hard Gates
 
-## Phase 1: Schema Contract (The Foundation)
+- **9A: Deterministic Scheduler**
+  - `tools/ops/sovereign_loop.py`: Canonical entry point.
+  - `launchd/com.0luka.sovereign-loop.plist`: Cadence-driven execution.
+  - `sovereign_tick`: Mandatory heartbeat in activity feed with policy/engine SHAs.
+- **9B: Anti-Storm & Backoff**
+  - `core/governance/sovereign_loop_policy.yaml`: Defines `min_interval_seconds` and `max_actions_per_hour`.
+  - `sovereign_rate_limited`: Event emitted when caps are hit.
+- **9C: Decision Auditing**
+  - `observability/artifacts/sovereign_runs/<ts>_<run_id>.json`: Detailed "Explain Decision" bundle.
+- **9D: Forensic Replay**
+  - `tools/ops/sovereign_replay.py`: Deterministic decision parity check for past feeds.
 
-**File**: `core/observability/activity_feed.schema.json`
+## 2. Proposed Changes
 
-- Define a rigid JSON schema covering:
-  - Required structural fields (e.g., `ts_utc`, `action`)
-  - Permitted conditional fields (e.g., `level` for RAM alerts, `lock_acquired` for maintenance).
-- **Rule**: If an emitter creates structurally invalid JSON against this schema, it fails aggressively *before* the append operation.
-- Emit mode enforcement to ensure all external agents explicitly define their operational mode (e.g., `runtime_auto` or `manual_invoke`).
+### New Files
 
-## Phase 2: Signal Integrity (The Linter)
+- `tools/ops/sovereign_loop.py`
+- `core/governance/sovereign_loop_policy.yaml`
+- `tools/ops/sovereign_replay.py`
+- `launchd/com.0luka.sovereign-loop.plist`
 
-**Update**: `tools/ops/activity_feed_linter.py --strict`
+### Modified Files
 
-- Extend the linter to ingest `activity_feed.schema.json` and validate the `.jsonl`.
-- Add deterministic temporal/logical checks:
-  - Monotonically increasing `ts_utc` (no time regressions).
-  - Suppression/Alerting on duplicate ID bursts.
-  - Ensuring CRITICAL memory anomalies respect explicit cooldown backoffs.
-- Integrates into existing verification checks and fail-closed CI environments.
+- `implementation_plan.md`
 
-## Phase 3: Runtime Watermark Anomalies (The Guard)
+## 3. Verification Plan
 
-**File**: `tools/ops/activity_feed_guard.py`
-
-- Operates on the runtime data to identify signal corruption and gaps:
-  - Tracks last epoch ms seen
-  - Raises exception on `ts` regressions or event bursts
-  - Monitors for silent gaps (e.g. heartbeat lost for >N seconds)
-- Action: Emits `feed_anomaly` and routes to standard exception mechanisms (potentially interacting with CANARY).
-
-## Phase 4: Escalation Logic Formulation (The Consequence)
-
-- The convergence point: Correlation Detection.
-  - Context: What happens if `ram_pressure_persistent == CRITICAL` AND `activity_feed_maintenance == noop`?
-  - Rule: If system pressure exceeds an unresolved threshold despite scheduled automated maintenance runs, it escalates to an explicit `system_pressure_unresolved` action at `HIGH` severity.
-  - This transitions the environment from "merely reporting" to "making verifiable judgments based on systemic correlation".
-
-## Pack 7: Index & Retrieval Contract
-
-**Objective**: Enable O(log n) seek performance for activity feed queries.
-
-**1. Deterministic Indexer**
-
-- **File**: `tools/ops/activity_feed_indexer.py`
-- Targets: `action`, `run_id`, `ts_epoch_ms`.
-- Component: Lightweight SQLite-based or sorted flat-file index.
-- Storage: `observability/logs/index/` (bounded growth, aligned with rotation).
-
-**2. Retrieval API**
-
-- **File**: `tools/ops/activity_feed_query.py`
-- Contract: `query --last-min X --action Y` must be O(log n).
-- Strict non-hallucination requirement: Reports exact matching lines from verified JSONL artifacts.
-
-## Governance Gate
-
-- Await strict user verification prior to moving from Plan -> Code -> Dry-Run -> Implementation.
+- **Tick Proof**: Verify `sovereign_tick` exists and includes current repository SHAs.
+- **Rate Limit Proof**: Inject multiple trigger events and verify `sovereign_rate_limited` blocks excess actions.
+- **Replay Proof**: Run `sovereign_replay.py` on a snapshot and compare its decisions with the recorded feed events.
+- **Root Hygiene**: Ensure `git status --porcelain` remains empty (excluding the target changes).
