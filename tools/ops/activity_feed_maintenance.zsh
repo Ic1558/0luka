@@ -36,7 +36,7 @@ echo "lock_acquired=true"
 ACTIONS=()
 
 # 2. Rotate (Threshold: 5MB)
-MAX_BYTES=$((5 * 1024 * 1024))
+MAX_BYTES=$((100 * 1024))
 if [[ -f "$FEED_FILE" ]]; then
     
     # macOS stat
@@ -63,6 +63,7 @@ fi
 
 # 4. Rebuild Index
 if [[ ${#ACTIONS[@]} -gt 0 || ! -f "$INDEX_FILE" ]]; then
+    # 4a. Rapid Structural Index (Zsh)
     > "$INDEX_FILE.tmp"
     for arch in "$ARCHIVE_DIR"/activity_feed.*.jsonl; do
         if [[ "$arch" == *"index.jsonl"* ]]; then continue; fi
@@ -72,6 +73,10 @@ if [[ ${#ACTIONS[@]} -gt 0 || ! -f "$INDEX_FILE" ]]; then
         fi
     done
     mv "$INDEX_FILE.tmp" "$INDEX_FILE"
+    
+    # 4b. Deep Trace Index (Python)
+    python3 "$REPO_ROOT/tools/ops/activity_feed_indexer.py" >> "$MAINT_LOG" 2>&1
+    
     ACTIONS+=("indexed")
 fi
 

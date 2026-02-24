@@ -1,4 +1,12 @@
 phases:
+  PHASE_5:
+    verdict: PROVEN
+    requires:
+      - PHASE_8
+      - PHASE_2
+    last_verified_ts: 2026-02-25T04:40:00Z
+    commit_sha: e1312103ef649d1084eae5edc458e469006b0488
+    evidence_path: tools/ops/activity_feed_maintenance.zsh
   PHASE_10:
     verdict: PROVEN
     requires:
@@ -104,15 +112,3 @@ phases:
     last_verified_ts: 2026-02-12T18:27:15Z
     commit_sha: 6ac93c6
     evidence_path: observability/reports/dod_checker/20260212T182715045620Z_dod.json
-PHASE_3E:
-  state: IMPLEMENTED
-  requires:
-    - PHASE_1B
-    - PHASE_2
-    - PHASE_8
-    - PHASE_10
-    - PHASE_15_4
-    - PHASE_OPS
-  last_verified_ts: 2026-02-21T00:00:00Z
-  commit_sha: 843d7e2
-  evidence_path: core_brain/agents/tests
