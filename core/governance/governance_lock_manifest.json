@@ -22,7 +22,7 @@
     },
     {
       "path": "core/governance/auto_governor_contract.yaml",
-      "sha256": "f20895c23c38f6946891ebdb536d751fadf523356651a9ecf220de4d946766e6"
+      "sha256": "35d69f9c09f8d4e11da32910255055fbe01a0859b9f9585a29b6f89dec319966"
     },
     {
       "path": "core/governance/cross_repo_manifest.yaml",
