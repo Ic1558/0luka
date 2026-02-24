@@ -140,6 +140,7 @@ jobs:
           echo "ALERT_BODY_FILE=/tmp/alert_body.txt" >> $GITHUB_ENV
 
       - name: Send email (policy-safe)
+        continue-on-error: true
         if: steps.dedup.outputs.decision == 'emit_alert'
         env:
           SMTP_HOST: smtp-mail.outlook.com
