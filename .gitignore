@@ -77,6 +77,11 @@ dups.json
 # Runtime State (DO NOT COMMIT)
 # ------------------------------
 /state/
+/*.pid
+/nodes.json
+/curl_err.log
+/latest_job_id.txt
+/verify_out.txt
 
 # ============================================================
 # BUILD CACHE (GMX Review 2026-02-09)
