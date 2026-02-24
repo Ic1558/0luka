@@ -1,0 +1,37 @@
+# core/governance/runtime_consequence_policy.yaml
+# Specification for deterministic remediation actions based on activity feed escalations.
+
+version: "1.0"
+rules:
+  - id: "ram_pressure_remediation"
+    match:
+      action: "system_pressure_unresolved"
+      level: "HIGH"
+    condition:
+      # Required persistence in the last N query results or M minutes
+      duration_minutes: 10
+      min_events: 1
+    consequences:
+      - type: "throttle"
+        target: "opal_api"
+        params:
+          rate_limit_percent: 50
+      - type: "task_suppression"
+        target: "task_dispatcher"
+        duration_seconds: 300
+      - type: "emit_event"
+        action: "resource_throttle_engaged"
+        message: "Automated remediation triggered by persistent system pressure"
+
+  - id: "heartbeat_loss_remediation"
+    match:
+      action: "feed_anomaly"
+      anomaly_type: "heartbeat_lost"
+    condition:
+      min_events: 1
+    consequences:
+      - type: "restart_component"
+        target: "task_dispatcher"
+      - type: "emit_event"
+        action: "recovery_attempted"
+        component: "task_dispatcher"
