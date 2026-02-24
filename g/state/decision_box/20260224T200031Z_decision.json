@@ -1,0 +1,20 @@
+{
+  "schema_version": "decision_box_v1",
+  "ts": "2026-02-24T20:00:31Z",
+  "title": "Pack 6 - Activity Feed Integrity Guard",
+  "why": "To transform activity_feed.jsonl from a decorative log into a constitutional runtime contract surface with schema enforcement, watermark guarding, and system pressure escalation logic.",
+  "risk": "high",
+  "scope": "Pack 6: Activity Feed Schema & Integrity Guard",
+  "links": "N/A",
+  "artifacts": {
+    "md": "g/state/decision_box/20260224T200031Z_decision.md",
+    "md_sha256": "480a916d131d2f182ebabe97c43791a69bd3d5ffa013b27d47c0e46f821797aa"
+  },
+  "activity_append": {
+    "attempted": true,
+    "ok": true,
+    "path": "observability/logs/activity_feed.jsonl",
+    "reason": "N/A"
+  }
+  ,"json_sha256": "ad65efcb8243379e4cacdf34797de88fb1ae5cdaa0cd36d23cb4442551a99e56"
+}

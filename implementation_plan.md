@@ -1,35 +1,47 @@
-# Implementation Plan: WO-14A / PHASE 1 (Internal SOT Pack Builder)
+# Pack 6: Activity Feed as Canonical Runtime Bus
 
-**Mission**: Implement a governance-safe SOT synchronization boundary. Phase 1 focuses purely on the Internal SOT Pack Builder (`Class A`), ensuring it is atomic, seal-anchored, fail-closed, and has zero external egress. No background automation. No embedded STATE in tracked files.
+## Objective
 
-## Definition of Done (PR-1)
+To escalate `activity_feed.jsonl` from an untyped observability log to a strongly typed, fail-closed constitutional runtime contract. This enforces that the system cannot act, suffer anomalies, or maintain state without verifiable, strict correlation in the activity feed.
 
-1. `tools/ops/build_sot_pack.py` creates a valid pack atomically in `observability/artifacts/sot_packs/{ts}_{shortsha}` and updates `latest` pointer.
-2. The pack contains `0luka.md`, latest `_snapshot.md`, catalog index (`tools/catalog_lookup.zsh`), `manifest.json`, and `sha256sums.txt`.
-3. The activity feed (`observability/stl/ledger/activity_feed.jsonl`) contains the `sot_seal` event.
-4. `activity_feed_linter` passes.
-5. Builder aborts if the Git tree is dirty or HEAD does not match the latest verified activity feed commit (Seal Proof Chain Validation).
-6. Uses a `.build_lock` temporary file for an Anti-Race Guard during pack generation.
-7. Git status is entirely clean after the run (no tracked files modified).
-8. No references to NotebookLM in the codebase.
+## Phase 1: Schema Contract (The Foundation)
 
-## Execution Steps
+**File**: `core/observability/activity_feed.schema.json`
 
-1. **Pre-Checks**: Validate repository state (using `git log`, `git status`). Extract last verified activity feed commit.
-2. **Develop `tools/ops/build_sot_pack.py`**:
-   - Implement `check_preconditions()` ensuring Git working tree is clean and un-modified. Ensure HEAD matches the most recent verified commit in `activity_feed.jsonl`.
-   - Implement temporary dot lock file inside `observability/artifacts/sot_packs/.build_lock`. Fail if exists.
-   - Assemble `0luka.md`, latest `observability/artifacts/snapshots/*_snapshot.md`, `tools/catalog_lookup.zsh`, minimal docs like `docs/notebooklm_publish_design.md`.
-   - Hash (SHA-256) all files.
-   - Construct `manifest.json` and `sha256sums.txt`.
-   - Generate SOT Pack zip or folder and perform atomic `os.rename()` from `staging` to `sot_packs/<pack>`.
-   - Update `latest` symlink.
-   - Emit `sot_seal` to `activity_feed.jsonl`.
-3. **Develop `core/verify/test_build_sot_pack.py`**:
-   - Verify builder aborts if git tree dirty.
-   - Verify builder creates pack successfully if clean.
-   - Verify manifest exists and hashes match.
-   - Verify `activity_feed` contains a seal event.
-   - Verify tracked tree is perfectly clean post run.
-4. **Dry Run**: Execute `pytest core/verify/test_build_sot_pack.py -q`. Wait and review any failures to correct logic.
-5. **Verify**: Execute the full Proof Pack commands and generate `walkthrough.md`.
+- Define a rigid JSON schema covering:
+  - Required structural fields (e.g., `ts_utc`, `action`)
+  - Permitted conditional fields (e.g., `level` for RAM alerts, `lock_acquired` for maintenance).
+- **Rule**: If an emitter creates structurally invalid JSON against this schema, it fails aggressively *before* the append operation.
+- Emit mode enforcement to ensure all external agents explicitly define their operational mode (e.g., `runtime_auto` or `manual_invoke`).
+
+## Phase 2: Signal Integrity (The Linter)
+
+**Update**: `tools/ops/activity_feed_linter.py --strict`
+
+- Extend the linter to ingest `activity_feed.schema.json` and validate the `.jsonl`.
+- Add deterministic temporal/logical checks:
+  - Monotonically increasing `ts_utc` (no time regressions).
+  - Suppression/Alerting on duplicate ID bursts.
+  - Ensuring CRITICAL memory anomalies respect explicit cooldown backoffs.
+- Integrates into existing verification checks and fail-closed CI environments.
+
+## Phase 3: Runtime Watermark Anomalies (The Guard)
+
+**File**: `tools/ops/activity_feed_guard.py`
+
+- Operates on the runtime data to identify signal corruption and gaps:
+  - Tracks last epoch ms seen
+  - Raises exception on `ts` regressions or event bursts
+  - Monitors for silent gaps (e.g. heartbeat lost for >N seconds)
+- Action: Emits `feed_anomaly` and routes to standard exception mechanisms (potentially interacting with CANARY).
+
+## Phase 4: Escalation Logic Formulation (The Consequence)
+
+- The convergence point: Correlation Detection.
+  - Context: What happens if `ram_pressure_persistent == CRITICAL` AND `activity_feed_maintenance == noop`?
+  - Rule: If system pressure exceeds an unresolved threshold despite scheduled automated maintenance runs, it escalates to an explicit `system_pressure_unresolved` action at `HIGH` severity.
+  - This transitions the environment from "merely reporting" to "making verifiable judgments based on systemic correlation".
+
+## Governance Gate
+
+- Await strict user verification prior to moving from Plan -> Code -> Dry-Run -> Implementation.
