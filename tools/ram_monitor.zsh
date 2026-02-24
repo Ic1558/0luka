@@ -179,7 +179,7 @@ if [[ "$PRESSURE_LEVEL" == "CRITICAL" ]]; then
   printf '{"ts_utc":"%s","phase_id":"PHASE10_RAM","action":"ram_pressure_alert","emit_mode":"runtime_auto","tool":"ram_monitor","pressure_level":"CRITICAL","free_mb":%s,"compressed_gb":%s}\n' \
     "$TS_UTC" "$FREE_MB" "$COMP_GB" >> "$COMPONENT_FEED_PATH" 2>/dev/null || true
     
-  printf '{"ts_utc":"%s","action":"ram_pressure_alert","result":"CRITICAL","tool":"ram_monitor","free_mb":%s,"compressed_gb":%s}\n' \
+  printf '{"ts_utc":"%s","action":"ram_pressure_alert","emit_mode":"runtime_auto","level":"CRITICAL","result":"CRITICAL","tool":"ram_monitor","free_mb":%s,"compressed_gb":%s}\n' \
     "$TS_UTC" "$FREE_MB" "$COMP_GB" >> "$GLOBAL_FEED_PATH" 2>/dev/null || true
 fi
 
@@ -254,7 +254,7 @@ if [[ "$EMIT_PERSISTENT" == "1" ]]; then
   printf '{"ts_utc":"%s","phase_id":"PHASE10_RAM","action":"ram_pressure_persistent","emit_mode":"runtime_auto","tool":"ram_monitor","pressure_level":"CRITICAL","critical_for_sec":%s,"free_mb":%s,"compressed_gb":%s}\n' \
     "$TS_UTC" "$CRITICAL_FOR_SEC" "$FREE_MB" "$COMP_GB" >> "$COMPONENT_FEED_PATH" 2>/dev/null || true
     
-  printf '{"ts_utc":"%s","action":"ram_pressure_persistent","result":"CRITICAL","tool":"ram_monitor","critical_for_sec":%s,"free_mb":%s,"compressed_gb":%s}\n' \
+  printf '{"ts_utc":"%s","action":"ram_pressure_persistent","emit_mode":"runtime_auto","level":"CRITICAL","result":"CRITICAL","tool":"ram_monitor","critical_for_sec":%s,"free_mb":%s,"compressed_gb":%s}\n' \
     "$TS_UTC" "$CRITICAL_FOR_SEC" "$FREE_MB" "$COMP_GB" >> "$GLOBAL_FEED_PATH" 2>/dev/null || true
 fi
 

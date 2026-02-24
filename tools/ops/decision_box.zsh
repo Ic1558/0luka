@@ -73,10 +73,10 @@ ACTIVITY_OK="false"
 ACTIVITY_REASON="N/A"
 DISPLAY_FEED_PATH="${ACTIVITY_FEED#$ROOT/}"
 
-EVENT_TS_MS=$(date +%s%3N)
+EVENT_TS_MS=$(python3 -c 'import time; print(int(time.time() * 1000))')
 # Escape quotes for JSON string
 TITLE_ESC=$(echo "$TITLE" | sed 's/"/\\"/g')
-EVENT_JSON="{\"ts_utc\": \"$TS_ISO\", \"ts_epoch_ms\": $EVENT_TS_MS, \"category\": \"governance\", \"action\": \"decision\", \"title\": \"Decision: $TITLE_ESC\", \"status_badge\": \"SIGNED\", \"evidence\": {\"file\": \"g/state/decision_box/${BASE_NAME}.json\"}}"
+EVENT_JSON="{\"ts_utc\": \"$TS_ISO\", \"ts_epoch_ms\": $EVENT_TS_MS, \"category\": \"governance\", \"action\": \"decision\", \"emit_mode\": \"manual_invoke\", \"title\": \"Decision: $TITLE_ESC\", \"status_badge\": \"SIGNED\", \"evidence\": {\"file\": \"g/state/decision_box/${BASE_NAME}.json\"}}"
 
 if [[ -f "$ACTIVITY_FEED" && -w "$ACTIVITY_FEED" ]]; then
   if echo "$EVENT_JSON" >> "$ACTIVITY_FEED"; then
