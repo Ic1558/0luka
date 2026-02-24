@@ -140,6 +140,8 @@ def build_index(feed_path: Path):
         "status": "healthy",
         "files_indexed": len(all_files),
         "last_rebuild_ts": ts_now,
+        # feed_sha: truncated to 16 hex chars (collision-detection only; full sha may be added
+        # as feed_sha_full in a future pack without breaking sovereign_loop parsing)
         "feed_sha": hashlib.sha256(feed_path.read_bytes()).hexdigest()[:16] if feed_path.exists() else "",
         "feed_size": feed_path.stat().st_size if feed_path.exists() else 0,
         "max_indexed_offset": max_indexed_offset,
