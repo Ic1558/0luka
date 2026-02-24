@@ -61,7 +61,6 @@ modules/studio/outputs/
 runtime/logs/
 *.log
 observability/telemetry/*.jsonl
-observability/telemetry/*.jsonl
 
 # generated shims
 /system/bin/
