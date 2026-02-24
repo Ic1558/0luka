@@ -63,7 +63,7 @@ class SovereignControl:
         try:
             res = subprocess.run(cmd, capture_output=True, text=True, check=True)
             data = json.loads(res.stdout)
-            return data.get("results", [])
+            return [r for r in data.get("results", []) if "error" not in r]
         except Exception:
             return []
 
@@ -108,7 +108,7 @@ class SovereignControl:
         reverted = self.run_query("consequence_reverted", last_min=1440)
         
         active = {}
-        for ev in sorted(engaged, key=lambda x: x["ts_utc"]):
+        for ev in sorted(engaged, key=lambda x: x.get("ts_utc", "")):
             active[(ev.get("consequence_type"), ev.get("target"))] = ev
             
         for ev in released + reverted:
