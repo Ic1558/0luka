@@ -2,6 +2,7 @@
 from __future__ import annotations
 import json
 import os
+import subprocess
 import sys
 import argparse
 import time
@@ -10,6 +11,8 @@ from typing import Any, Dict, List
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 INDEX_DIR = ROOT / "observability/logs/index"
+INDEX_HEALTH_PATH = INDEX_DIR / "index_health.json"
+INDEXER = Path(__file__).parent / "activity_feed_indexer.py"
 
 def load_index_lines(path: Path) -> List[Dict[str, Any]]:
     if not path.exists(): return []
@@ -19,6 +22,28 @@ def load_index_lines(path: Path) -> List[Dict[str, Any]]:
             try: res.append(json.loads(line))
             except: continue
     return res
+
+def _has_stale_offsets(candidates: List[Dict[str, Any]]) -> bool:
+    """Return True if any candidate points past its file's current size."""
+    for c in candidates:
+        f_path = ROOT / c["file"]
+        try:
+            if not f_path.exists() or c["off"] + c["len"] > f_path.stat().st_size:
+                return True
+        except OSError:
+            return True
+    return False
+
+
+def _trigger_index_rebuild() -> bool:
+    """Run the indexer synchronously. Returns True on success."""
+    try:
+        subprocess.run([sys.executable, str(INDEXER)], timeout=60,
+                       capture_output=True, check=True)
+        return True
+    except Exception:
+        return False
+
 
 def query(action=None, run_id=None, since_ms=None, until_ms=None, last_min=None, limit=200):
     now_ms = int(time.time() * 1000)
@@ -38,6 +63,17 @@ def query(action=None, run_id=None, since_ms=None, until_ms=None, last_min=None,
         # Support only indexed queries for now as per contract.
         print("Error: Query must specify --action or --run-id for Pack 7.", file=sys.stderr)
         return {"ok": False, "error": "unindexed_query_not_supported"}
+
+    # Pack 10: Assert index_max_offset <= file_size; auto-rebuild if stale.
+    auto_rebuilt = False
+    if candidates and _has_stale_offsets(candidates):
+        if _trigger_index_rebuild():
+            # Reload candidates from freshly rebuilt index
+            if action:
+                candidates = load_index_lines(INDEX_DIR / "by_action" / f"{action}.idx.jsonl")
+            elif run_id:
+                candidates = load_index_lines(INDEX_DIR / "by_run" / f"{run_id}.idx.jsonl")
+            auto_rebuilt = True
 
     # Filter candidates by time
     filtered = []
@@ -88,6 +124,7 @@ def query(action=None, run_id=None, since_ms=None, until_ms=None, last_min=None,
         "matched_count": len(filtered),
         "results_count": len(results),
         "stale_skipped": stale_skipped,
+        "auto_rebuilt": auto_rebuilt,
         "files_scanned": 0,
         "indices_used": 1,
         "results": results
