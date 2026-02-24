@@ -113,7 +113,9 @@ def test_index_health_binds_to_feed_sha() -> None:
 
         health = json.loads((root / "observability/logs/index/index_health.json").read_text(encoding="utf-8"))
         expected_sha = hashlib.sha256(feed_path.read_bytes()).hexdigest()[:16]
+        assert health.get("feed_path") == "observability/logs/activity_feed.jsonl"
         assert health.get("feed_sha") == expected_sha
+        assert health.get("reason_if_unhealthy") is None
 
         with feed_path.open("a", encoding="utf-8") as handle:
             handle.write(
@@ -141,6 +143,10 @@ def test_index_health_binds_to_feed_sha() -> None:
         )
         status = ctrl.check_index_health()
         assert status == "stale"
+        updated_health = json.loads((root / "observability/logs/index/index_health.json").read_text(encoding="utf-8"))
+        assert updated_health.get("status") == "stale"
+        assert updated_health.get("reason_if_unhealthy") == "feed_sha_mismatch"
+        assert updated_health.get("stale_detected_ts_utc")
 
         events = _read_jsonl(feed_path)
         risk_events = [e for e in events if e.get("action") == "system_data_integrity_risk"]
@@ -200,8 +206,10 @@ def test_sovereign_emits_integrity_risk_when_sha_mismatch() -> None:
                 {
                     "ts_utc": "2026-02-25T00:00:00Z",
                     "status": "healthy",
+                    "reason_if_unhealthy": None,
                     "files_indexed": 1,
                     "last_rebuild_ts": "2026-02-25T00:00:00Z",
+                    "feed_path": "observability/logs/activity_feed.jsonl",
                     "feed_sha": "0000000000000000",
                     "feed_size": feed_path.stat().st_size,
                     "max_indexed_offset": 1,
@@ -221,6 +229,9 @@ def test_sovereign_emits_integrity_risk_when_sha_mismatch() -> None:
         )
         status = ctrl.check_index_health()
         assert status == "stale"
+        updated_health = json.loads(health_path.read_text(encoding="utf-8"))
+        assert updated_health.get("status") == "stale"
+        assert updated_health.get("reason_if_unhealthy") == "feed_sha_mismatch"
 
         events = _read_jsonl(feed_path)
         risk_events = [e for e in events if e.get("action") == "system_data_integrity_risk"]

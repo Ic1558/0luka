@@ -138,8 +138,10 @@ def build_index(feed_path: Path):
     health = {
         "ts_utc": ts_now,
         "status": "healthy",
+        "reason_if_unhealthy": None,
         "files_indexed": len(all_files),
         "last_rebuild_ts": ts_now,
+        "feed_path": current_feed_rel,
         "feed_sha": hashlib.sha256(feed_path.read_bytes()).hexdigest()[:16] if feed_path.exists() else "",
         "feed_size": feed_path.stat().st_size if feed_path.exists() else 0,
         "max_indexed_offset": max_indexed_offset,

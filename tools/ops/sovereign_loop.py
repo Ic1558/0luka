@@ -160,6 +160,21 @@ class SovereignControl:
                 "index_status": status,
                 "reason": reason,
             })
+            # Best-effort write-back: keep index health as live incident state.
+            try:
+                existing = {}
+                if INDEX_HEALTH_PATH.exists():
+                    existing = json.loads(INDEX_HEALTH_PATH.read_text())
+                existing.update({
+                    "status": "stale",
+                    "reason_if_unhealthy": reason,
+                    "stale_detected_ts_utc": get_now_utc().isoformat().replace("+00:00", "") + "Z",
+                })
+                tmp = INDEX_HEALTH_PATH.with_suffix(".tmp")
+                tmp.write_text(json.dumps(existing, indent=2))
+                tmp.replace(INDEX_HEALTH_PATH)
+            except Exception:
+                pass
         return status
 
     def run_loop(self):
