@@ -126,3 +126,5 @@ observability/telemetry/*.json
 !/ARCHITECTURE.md
 !/architecture.md
 
+# Housekeeping: Ignore local scratch workspace
+_scratch/
