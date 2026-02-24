@@ -5,7 +5,7 @@ phases:
       - PHASE_8
       - PHASE_2
     last_verified_ts: 2026-02-25T04:40:00Z
-    commit_sha: a4309fe
+    commit_sha: e1312103ef649d1084eae5edc458e469006b0488
     evidence_path: tools/ops/activity_feed_maintenance.zsh
   PHASE_10:
     verdict: PROVEN
