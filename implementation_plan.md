@@ -42,6 +42,23 @@ To escalate `activity_feed.jsonl` from an untyped observability log to a strongl
   - Rule: If system pressure exceeds an unresolved threshold despite scheduled automated maintenance runs, it escalates to an explicit `system_pressure_unresolved` action at `HIGH` severity.
   - This transitions the environment from "merely reporting" to "making verifiable judgments based on systemic correlation".
 
+## Pack 7: Index & Retrieval Contract
+
+**Objective**: Enable O(log n) seek performance for activity feed queries.
+
+**1. Deterministic Indexer**
+
+- **File**: `tools/ops/activity_feed_indexer.py`
+- Targets: `action`, `run_id`, `ts_epoch_ms`.
+- Component: Lightweight SQLite-based or sorted flat-file index.
+- Storage: `observability/logs/index/` (bounded growth, aligned with rotation).
+
+**2. Retrieval API**
+
+- **File**: `tools/ops/activity_feed_query.py`
+- Contract: `query --last-min X --action Y` must be O(log n).
+- Strict non-hallucination requirement: Reports exact matching lines from verified JSONL artifacts.
+
 ## Governance Gate
 
 - Await strict user verification prior to moving from Plan -> Code -> Dry-Run -> Implementation.

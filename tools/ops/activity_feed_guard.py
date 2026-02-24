@@ -1,60 +1,75 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 import json
 import sys
-import time
+import os
 from datetime import datetime
 from pathlib import Path
+import argparse
 
 DEFAULT_FEED = "observability/logs/activity_feed.jsonl"
 HEARTBEAT_TIMEOUT = 600  # 10 minutes
-BURST_LIMIT = 100        # Events per 10 seconds (anomaly)
 
-def run_guard(feed_path: Path):
+def run_guard(feed_path: Path, once: bool = False, emit: bool = True) -> Dict[str, Any]:
+    report = {
+        "ok": True,
+        "ts_utc": datetime.utcnow().isoformat() + "Z",
+        "checks": {
+            "heartbeat": {"ok": True},
+            "sequence": {"ok": True},
+            "escalation": {"found": False}
+        },
+        "anomalies": [],
+        "emitted": []
+    }
+
     if not feed_path.exists():
-        print(f"error: feed_missing at {feed_path}", file=sys.stderr)
-        return 1
+        report["ok"] = False
+        report["error"] = "feed_missing"
+        return report
 
     try:
         lines = feed_path.read_text(encoding="utf-8").splitlines()
     except Exception as exc:
-        print(f"error: read_failed: {exc}", file=sys.stderr)
-        return 1
-
-    if not lines:
-        return 0
+        report["ok"] = False
+        report["error"] = f"read_failed: {exc}"
+        return report
 
     events = []
-    for line in lines:
+    for line_no, line in enumerate(lines, start=1):
+        line = line.strip()
+        if not line: continue
         try:
-            events.append(json.loads(line))
+            events.append((line_no, json.loads(line)))
         except:
             continue
     
     if not events:
-        return 0
+        return report
 
     now_utc = datetime.utcnow()
-    last_event = events[-1]
+    _, last_event = events[-1]
     last_ts_str = last_event.get("ts_utc")
     
-    # 1. Detect Silent Gaps (Heartbeat Loss)
+    # 1. Heartbeat check
     if last_ts_str:
         try:
-            # Handle both ISO formats
             last_ts = datetime.fromisoformat(last_ts_str.replace("Z", "+00:00"))
-            gap = (now_utc.timestamp() - last_ts.timestamp())
+            gap = now_utc.timestamp() - last_ts.timestamp()
             if gap > HEARTBEAT_TIMEOUT:
-                emit_anomaly(feed_path, "heartbeat_lost", f"No events for {int(gap)}s")
-        except Exception:
-            pass
+                report["checks"]["heartbeat"] = {"ok": False, "gap_sec": int(gap)}
+                msg = f"No events for {int(gap)}s"
+                report["anomalies"].append({"type": "heartbeat_lost", "msg": msg})
+                if emit:
+                    emit_event(feed_path, "feed_anomaly", "CRITICAL", {"anomaly_type": "heartbeat_lost", "message": msg}, report)
+        except: pass
 
-    # 2. Detect Backwards Movement / Sequence Anomalies
+    # 2. Sequence check
     last_ms = 0
-    anomalies = []
-    for i, ev in enumerate(events):
+    seq_errors = []
+    for line_no, ev in events:
         curr_ms = ev.get("ts_epoch_ms")
         if not curr_ms:
-            # fallback to ts_utc if ms missing
             ts_str = ev.get("ts_utc")
             if ts_str:
                 try:
@@ -62,55 +77,71 @@ def run_guard(feed_path: Path):
                 except: continue
         
         if curr_ms and last_ms and curr_ms < last_ms:
-            anomalies.append(f"time_regression at line {i+1}")
-        
+            seq_errors.append(f"line {line_no}")
         if curr_ms:
             last_ms = curr_ms
 
-    if anomalies:
-        emit_anomaly(feed_path, "sequence_regression", "; ".join(anomalies[:5]))
+    if seq_errors:
+        report["checks"]["sequence"] = {"ok": False, "errors": seq_errors}
+        msg = f"Time regression at: {', '.join(seq_errors[:5])}"
+        report["anomalies"].append({"type": "sequence_regression", "msg": msg})
+        if emit:
+            emit_event(feed_path, "feed_anomaly", "CRITICAL", {"anomaly_type": "sequence_regression", "message": msg}, report)
 
-    # 3. Correlation: Unresolved System Pressure (RAM CRITICAL + Maintenance NOOP)
-    check_escalation(feed_path, events)
-
-    return 0
-
-def check_escalation(feed_path, events):
-    # Scan last 50 events for context
-    recent = events[-50:]
+    # 3. Escalation check
+    recent = [ev for _, ev in events[-50:]]
     has_ram_crit = any(e.get("action") == "ram_pressure_persistent" and e.get("level") == "CRITICAL" for e in recent)
     has_maint_noop = any(e.get("action") == "activity_feed_maintenance" and e.get("result") == "noop" for e in recent)
     
-    # Simple check: if we have both in the recent window, we are stuck
     if has_ram_crit and has_maint_noop:
-        # Check if we already complained recently to avoid spam
+        report["checks"]["escalation"]["found"] = True
         if not any(e.get("action") == "system_pressure_unresolved" for e in recent[-10:]):
-            ts = datetime.utcnow().isoformat() + "Z"
-            escalation = {
-                "ts_utc": ts,
-                "action": "system_pressure_unresolved",
-                "emit_mode": "runtime_auto",
-                "level": "HIGH",
-                "message": "RAM critical persists despite maintenance noop"
-            }
-            with open(feed_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(escalation) + "\n")
-            print("escalation_emitted: system_pressure_unresolved", file=sys.stderr)
+            if emit:
+                msg = "RAM critical persists despite maintenance noop"
+                emit_event(feed_path, "system_pressure_unresolved", "HIGH", {"message": msg}, report)
 
-def emit_anomaly(feed_path, type, message):
+    report["ok"] = len(report["anomalies"]) == 0
+    return report
+
+def emit_event(feed_path, action, level, data, report):
     ts = datetime.utcnow().isoformat() + "Z"
     event = {
         "ts_utc": ts,
-        "action": "feed_anomaly",
+        "action": action,
         "emit_mode": "runtime_auto",
-        "level": "CRITICAL",
-        "anomaly_type": type,
-        "message": message
+        "level": level
     }
-    with open(feed_path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(event) + "\n")
-    print(f"anomaly_detected: {type}: {message}", file=sys.stderr)
+    event.update(data)
+    try:
+        with open(feed_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(event) + "\n")
+        report["emitted"].append(event)
+    except:
+        pass
+
+def main():
+    parser = argparse.ArgumentParser(description="0luka Activity Feed Guard")
+    parser.add_argument("--once", action="store_true", help="Run once and exit")
+    parser.add_argument("--json", action="store_true", help="Emit JSON report")
+    parser.add_argument("--path", help="Path to activity feed")
+    parser.add_argument("--no-emit", action="store_false", dest="emit", help="Don't append to feed")
+    args = parser.parse_args()
+
+    feed = Path(args.path) if args.path else Path(DEFAULT_FEED)
+    report = run_guard(feed, once=args.once, emit=args.emit)
+
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        if not report["ok"]:
+            for a in report["anomalies"]:
+                print(f"ANOMALY: {a['type']}: {a['msg']}", file=sys.stderr)
+        if report["emitted"]:
+            for e in report["emitted"]:
+                print(f"EMITTED: {e['action']} ({e['level']})", file=sys.stderr)
+        print(f"Guard Status: {'OK' if report['ok'] else 'ANOMALY'} events_checked={report.get('ts_utc')}")
+    
+    return 0
 
 if __name__ == "__main__":
-    feed = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(DEFAULT_FEED)
-    sys.exit(run_guard(feed))
+    sys.exit(main())
