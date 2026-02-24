@@ -1,0 +1,45 @@
+# Remediation Policy Contract — v1
+# Ring: R3 (governance) — changes require governance-change PR label
+# Engine: core/remediation_engine.py
+#
+# Invariants:
+#   - Unknown actions are rejected at parse time (fail-closed)
+#   - All executions emit evidence to observability/artifacts/remediation/
+#   - Cooldown state stored at observability/telemetry/remediation_engine.state.json
+#   - Engine reads state files only; never calls monitors directly
+#   - REMEDIATION_ENABLED=1 env var required for live execution (off by default)
+
+version: 1
+
+# Allowed action types (whitelist — any action not in this list is rejected)
+allowed_actions:
+  - kill_process_group
+  - launchd_reload
+
+triggers:
+  - id: ram_critical_kill_renderers
+    condition: ram_monitor.pressure_level == CRITICAL
+    action: kill_process_group
+    params:
+      patterns:
+        - "Antigravity Helper (Renderer)"
+        - "Antigravity Helper (Plugin)"
+        - "Electron Helper (Renderer)"
+      signal: SIGTERM
+      max_targets: 3
+    cooldown_sec: 1800
+    require_evidence: true
+    description: >
+      When RAM pressure is CRITICAL, send SIGTERM to known heavyweight renderer
+      processes (max 3 targets). Cooldown 30min prevents re-firing storms.
+
+  - id: dispatcher_degraded_reload
+    condition: health.dev_health == DEGRADED
+    action: launchd_reload
+    params:
+      service: com.0luka.inbox_bridge
+    cooldown_sec: 300
+    require_evidence: true
+    description: >
+      When dev health reports DEGRADED, kick the inbox bridge launchd service
+      to attempt recovery. Cooldown 5min prevents reload loops.
