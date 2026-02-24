@@ -22,7 +22,7 @@
     },
     {
       "path": "core/governance/auto_governor_contract.yaml",
-      "sha256": "35d69f9c09f8d4e11da32910255055fbe01a0859b9f9585a29b6f89dec319966"
+      "sha256": "46ef4f12a840234a0b876a233e478140bf3870432d30a9c4694f49d534f2fdc8"
     },
     {
       "path": "core/governance/cross_repo_manifest.yaml",
@@ -54,11 +54,15 @@
     },
     {
       "path": "core/governance/phase_status.yaml",
-      "sha256": "29242b338bc225bad1073f211581e614b52a8c113b7dec4eacb9c82590af7033"
+      "sha256": "ce2c2ca839b808fe0129ae9fe6d9250f2a12c644bca97254981a9ad7f5a149cb"
     },
     {
       "path": "core/governance/prps.md",
       "sha256": "b7d023f90a6f7945d7e699ba35266fb5cbc4d95f039ea2351fbe77b47612baa3"
+    },
+    {
+      "path": "core/governance/remediation_policy.yaml",
+      "sha256": "bad647f912c6b56446109a5eec9f04ef112256d825fdd84c9be810db8e1c88cc"
     },
     {
       "path": "core/governance/router.md",
@@ -173,6 +177,6 @@
       "sha256": "5d1149dcb7acfdb4485f1b69cd462a3a441020a4c31256fe2a99f338aa5d888a"
     }
   ],
-  "generated_at_utc": "2026-02-23T19:55:25Z",
+  "generated_at_utc": "2026-02-24T22:19:54Z",
   "required_label": "governance-change"
 }
