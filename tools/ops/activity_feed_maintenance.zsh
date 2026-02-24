@@ -26,6 +26,8 @@ trap handle_error ERR
 if ! (set -o noclobber; echo $$ > "$LOCK_FILE") 2>/dev/null; then
     echo "lock_acquired=false"
     echo "actions_taken=lock_contention"
+    EVENT_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    echo "{\"ts_utc\":\"$EVENT_TS\",\"action\":\"activity_feed_maintenance\",\"result\":\"lock_contention\",\"lock_acquired\":false}" >> "$FEED_FILE"
     exit 0
 fi
 trap 'rm -f "$LOCK_FILE"' EXIT
@@ -78,3 +80,12 @@ if [[ ${#ACTIONS[@]} -eq 0 ]]; then
 fi
 
 echo "actions_taken=${ACTIONS[*]}"
+
+# Emit event to activity feed
+EVENT_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+if [[ "${ACTIONS[*]}" == "noop" ]]; then
+    RESULT="noop"
+else
+    RESULT=$(echo "${ACTIONS[*]}" | tr ' ' ',')
+fi
+echo "{\"ts_utc\":\"$EVENT_TS\",\"action\":\"activity_feed_maintenance\",\"result\":\"$RESULT\",\"lock_acquired\":true}" >> "$FEED_FILE"

@@ -172,10 +172,15 @@ PY
 # Emit activity feed event on CRITICAL memory pressure (fail-open)
 if [[ "$PRESSURE_LEVEL" == "CRITICAL" ]]; then
   COMPONENT_FEED_PATH="$OBS/logs/components/ram_monitor.jsonl"
+  GLOBAL_FEED_PATH="$OBS/logs/activity_feed.jsonl"
   TS_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   mkdir -p "$(dirname "$COMPONENT_FEED_PATH")" 2>/dev/null || true
+  
   printf '{"ts_utc":"%s","phase_id":"PHASE10_RAM","action":"ram_pressure_alert","emit_mode":"runtime_auto","tool":"ram_monitor","pressure_level":"CRITICAL","free_mb":%s,"compressed_gb":%s}\n' \
     "$TS_UTC" "$FREE_MB" "$COMP_GB" >> "$COMPONENT_FEED_PATH" 2>/dev/null || true
+    
+  printf '{"ts_utc":"%s","action":"ram_pressure_alert","result":"CRITICAL","tool":"ram_monitor","free_mb":%s,"compressed_gb":%s}\n' \
+    "$TS_UTC" "$FREE_MB" "$COMP_GB" >> "$GLOBAL_FEED_PATH" 2>/dev/null || true
 fi
 
 # Persistent CRITICAL detector (stateful, fail-open).
@@ -242,10 +247,15 @@ done <<< "$STABILITY_VARS"
 
 if [[ "$EMIT_PERSISTENT" == "1" ]]; then
   COMPONENT_FEED_PATH="$OBS/logs/components/ram_monitor.jsonl"
+  GLOBAL_FEED_PATH="$OBS/logs/activity_feed.jsonl"
   TS_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   mkdir -p "$(dirname "$COMPONENT_FEED_PATH")" 2>/dev/null || true
+  
   printf '{"ts_utc":"%s","phase_id":"PHASE10_RAM","action":"ram_pressure_persistent","emit_mode":"runtime_auto","tool":"ram_monitor","pressure_level":"CRITICAL","critical_for_sec":%s,"free_mb":%s,"compressed_gb":%s}\n' \
     "$TS_UTC" "$CRITICAL_FOR_SEC" "$FREE_MB" "$COMP_GB" >> "$COMPONENT_FEED_PATH" 2>/dev/null || true
+    
+  printf '{"ts_utc":"%s","action":"ram_pressure_persistent","result":"CRITICAL","tool":"ram_monitor","critical_for_sec":%s,"free_mb":%s,"compressed_gb":%s}\n' \
+    "$TS_UTC" "$CRITICAL_FOR_SEC" "$FREE_MB" "$COMP_GB" >> "$GLOBAL_FEED_PATH" 2>/dev/null || true
 fi
 
 # sha256 for artifact (portable)
