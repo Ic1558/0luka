@@ -70,6 +70,7 @@ TEST_SUITES = [
     "test_seal.py",
     "test_circuit_breaker.py",
     "test_watchdog.py",
+    "test_pack10_index_sovereignty.py",
 ]
 
 

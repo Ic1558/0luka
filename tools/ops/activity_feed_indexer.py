@@ -40,6 +40,8 @@ def build_index(feed_path: Path):
 
     last_ms = 0
     anomalies_flagged = False
+    current_feed_rel = str(feed_path.relative_to(ROOT)) if feed_path.is_relative_to(ROOT) else str(feed_path)
+    max_indexed_offset = 0
     
     archive_files = sorted(list(ARCHIVE_DIR.glob("activity_feed.*.jsonl")))
     archive_files = [f for f in archive_files if not f.name.endswith(".index.jsonl")]
@@ -107,11 +109,15 @@ def build_index(feed_path: Path):
                     idx_line = {"ms": curr_ms, "file": rel_path, "off": offset, "len": length}
                     with open(BY_ACTION_DIR / f"{action}.idx.jsonl", "a") as af:
                         af.write(json.dumps(idx_line) + "\n")
+                    if rel_path == current_feed_rel:
+                        max_indexed_offset = max(max_indexed_offset, offset + length)
                 
                 if run_id:
                     idx_line = {"ms": curr_ms, "file": rel_path, "off": offset, "len": length}
                     with open(BY_RUN_DIR / f"{run_id}.idx.jsonl", "a") as rf:
                         rf.write(json.dumps(idx_line) + "\n")
+                    if rel_path == current_feed_rel:
+                        max_indexed_offset = max(max_indexed_offset, offset + length)
                 
                 offset += length
         
@@ -134,6 +140,9 @@ def build_index(feed_path: Path):
         "status": "healthy",
         "files_indexed": len(all_files),
         "last_rebuild_ts": ts_now,
+        "feed_sha": hashlib.sha256(feed_path.read_bytes()).hexdigest()[:16] if feed_path.exists() else "",
+        "feed_size": feed_path.stat().st_size if feed_path.exists() else 0,
+        "max_indexed_offset": max_indexed_offset,
     }
     tmp = INDEX_HEALTH_PATH.with_suffix(".tmp")
     tmp.write_text(json.dumps(health, indent=2))

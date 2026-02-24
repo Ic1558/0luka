@@ -132,18 +132,33 @@ class SovereignControl:
     def check_index_health(self) -> str:
         """Return 'healthy' or 'stale'. Emits system_data_integrity_risk if unhealthy."""
         status = "stale"
+        reason = "index_health_missing"
         try:
             if INDEX_HEALTH_PATH.exists():
                 h = json.loads(INDEX_HEALTH_PATH.read_text())
-                status = h.get("status", "stale")
+                if h.get("status") == "healthy" and FEED_PATH.exists():
+                    current_sha = hashlib.sha256(FEED_PATH.read_bytes()).hexdigest()[:16]
+                    feed_size = FEED_PATH.stat().st_size
+                    max_off = h.get("max_indexed_offset", 0)
+
+                    if current_sha != h.get("feed_sha", ""):
+                        reason = "feed_sha_mismatch"
+                    elif max_off > feed_size:
+                        reason = "indexed_offset_exceeds_file_size"
+                    else:
+                        status = "healthy"
+                        reason = "all_checks_passed"
+                else:
+                    reason = "health_file_not_healthy"
         except Exception:
             status = "stale"
+            reason = "health_read_error"
 
         if status != "healthy":
             self.emit_event("system_data_integrity_risk", {
                 "component": "activity_feed_index",
                 "index_status": status,
-                "reason": "index_health.json missing or not healthy",
+                "reason": reason,
             })
         return status
 
