@@ -65,6 +65,10 @@
       "sha256": "2eac7d6b737c884a24c5d1e492b789616b1144f6be437151d839de487360e711"
     },
     {
+      "path": "core/governance/runtime_consequence_policy.yaml",
+      "sha256": "bae6f05014232561ba2950d7e41e6f1c7734b7be07253d9a19165ba3f9269600"
+    },
+    {
       "path": "core/governance/seals/phase13_seal.md",
       "sha256": "5711d0814bc0cdb606efd4910b41a6533b8a6bfa6d77d28f90b58dbf0dc0de38"
     },
@@ -79,6 +83,10 @@
     {
       "path": "core/governance/soul.md",
       "sha256": "a3dc3bc6b2984f464ff427fec21f8b7989e294082179a99814ecd5380da54695"
+    },
+    {
+      "path": "core/governance/sovereign_loop_policy.yaml",
+      "sha256": "5de7b43225ca22726d7ef166ac102f888dab9a95c178e184fcdf7a8f18bf3cff"
     },
     {
       "path": "core/governance/telemetry_contracts/phase13_guard_telemetry.md",

@@ -29,7 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          python -m pip install pyyaml pytest
+          python -m pip install pyyaml pytest jsonschema
 
       - name: Unit Tests
         run: |

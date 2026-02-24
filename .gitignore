@@ -107,3 +107,22 @@ tools/ops/luka-cloud-bridge/local/.env
 CLAUDE.md
 quarantine_bad_task.zsh
 observability/telemetry/*.json
+
+# 0luka Root Hygiene (Pack 8 Governance)
+# Prevent scratch files and transient reports from leaking into root.
+/*.json
+/*.jsonl
+/*.txt
+!/0luka.md
+!/README.md
+!/BACKLOG.md
+!/CLAUDE.md
+!/IDENTITY.md
+!/LIBRARIAN_POLICY.md
+!/NOTICE.md
+!/PHASE1_COMPLETE.md
+!/SECURITY.md
+!/SKILLs.md
+!/ARCHITECTURE.md
+!/architecture.md
+
