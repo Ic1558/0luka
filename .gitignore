@@ -128,3 +128,4 @@ observability/telemetry/*.json
 
 # Housekeeping: Ignore local scratch workspace
 _scratch/
+GEMINI.md
