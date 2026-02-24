@@ -36,11 +36,15 @@ rings:
       - "modules/"
       - "skills/"
       - "interface/"
+      - "tests/"
+      - "tools/"
+      - "cole/"
+      - "requirements*.txt"
     default_mode: "MED"
     
   R0:
     name: "Evidence & Artifacts"
-    description: "Observability, logs, reports, documentation"
+    description: "Observability, logs, reports, documentation, ephemeral outputs, and sandbox"
     paths:
       - "observability/"
       - "logs/"
@@ -49,10 +53,17 @@ rings:
       - "transcripts/"
       - "artifacts/"
       - "g/"
+      - "sandbox/"
       - "epoch_note.md"
       - "object_inventory.txt"
       - "recovery_report.md"
       - "system_next_move_plan.md"
+      - ".gitignore"
+      - "*.pid"
+      - "nodes.json"
+      - "latest_job_id.txt"
+      - "verify_out.txt"
+      - "curl_err.log"
     default_mode: "SOFT"
 
 # Mode Definitions
