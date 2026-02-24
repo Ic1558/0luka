@@ -48,6 +48,10 @@ if [[ -f "$FEED_FILE" ]]; then
         mv "$FEED_FILE" "$ROTATED_FILE"
         touch "$FEED_FILE"
         ACTIONS+=("rotated")
+        # Emit feed_rotated event (Pack 10: Index Sovereignty Contract)
+        ROTATED_BASE=$(basename "$ROTATED_FILE")
+        ROTATE_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        echo "{\"ts_utc\":\"$ROTATE_TS\",\"action\":\"feed_rotated\",\"emit_mode\":\"runtime_auto\",\"old_path\":\"observability/logs/archive/$ROTATED_BASE\",\"new_path\":\"observability/logs/activity_feed.jsonl\",\"cutoff_offset\":$SIZE}" >> "$FEED_FILE"
     fi
 fi
 
@@ -75,7 +79,9 @@ if [[ ${#ACTIONS[@]} -gt 0 || ! -f "$INDEX_FILE" ]]; then
     mv "$INDEX_FILE.tmp" "$INDEX_FILE"
     
     # 4b. Deep Trace Index (Python)
-    python3 "$REPO_ROOT/tools/ops/activity_feed_indexer.py" >> "$MAINT_LOG" 2>&1
+    EMIT_FLAG=""
+    if [[ " ${ACTIONS[*]} " == *" rotated "* ]]; then EMIT_FLAG="--emit-event"; fi
+    python3 "$REPO_ROOT/tools/ops/activity_feed_indexer.py" $EMIT_FLAG >> "$MAINT_LOG" 2>&1
     
     ACTIONS+=("indexed")
 fi

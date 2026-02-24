@@ -6,6 +6,7 @@ import sys
 import hashlib
 import argparse
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Set, Tuple
 
@@ -17,6 +18,7 @@ INDEX_DIR = ROOT / "observability/logs/index"
 BY_ACTION_DIR = INDEX_DIR / "by_action"
 BY_RUN_DIR = INDEX_DIR / "by_run"
 TS_RANGES_DIR = INDEX_DIR / "ts_ranges"
+INDEX_HEALTH_PATH = INDEX_DIR / "index_health.json"
 
 def get_ms(ev: Dict[str, Any]) -> int:
     ms = ev.get("ts_epoch_ms")
@@ -38,6 +40,8 @@ def build_index(feed_path: Path):
 
     last_ms = 0
     anomalies_flagged = False
+    current_feed_rel = str(feed_path.relative_to(ROOT)) if feed_path.is_relative_to(ROOT) else str(feed_path)
+    max_indexed_offset = 0
     
     archive_files = sorted(list(ARCHIVE_DIR.glob("activity_feed.*.jsonl")))
     archive_files = [f for f in archive_files if not f.name.endswith(".index.jsonl")]
@@ -105,11 +109,15 @@ def build_index(feed_path: Path):
                     idx_line = {"ms": curr_ms, "file": rel_path, "off": offset, "len": length}
                     with open(BY_ACTION_DIR / f"{action}.idx.jsonl", "a") as af:
                         af.write(json.dumps(idx_line) + "\n")
+                    if rel_path == current_feed_rel:
+                        max_indexed_offset = max(max_indexed_offset, offset + length)
                 
                 if run_id:
                     idx_line = {"ms": curr_ms, "file": rel_path, "off": offset, "len": length}
                     with open(BY_RUN_DIR / f"{run_id}.idx.jsonl", "a") as rf:
                         rf.write(json.dumps(idx_line) + "\n")
+                    if rel_path == current_feed_rel:
+                        max_indexed_offset = max(max_indexed_offset, offset + length)
                 
                 offset += length
         
@@ -119,16 +127,49 @@ def build_index(feed_path: Path):
     with open(TS_RANGES_DIR / "manifest.json", "w") as mf:
         json.dump(manifest, mf, indent=2)
 
-    print(json.dumps({
+    result = {
         "status": "complete",
         "files_processed": len(all_files),
         "manifest_sha256": hashlib.sha256((TS_RANGES_DIR / "manifest.json").read_bytes()).hexdigest()
-    }))
+    }
+
+    # Write index health file (Pack 10: Index Sovereignty Contract)
+    ts_now = datetime.now(timezone.utc).isoformat().replace("+00:00", "") + "Z"
+    health = {
+        "ts_utc": ts_now,
+        "status": "healthy",
+        "files_indexed": len(all_files),
+        "last_rebuild_ts": ts_now,
+        "feed_sha": hashlib.sha256(feed_path.read_bytes()).hexdigest()[:16] if feed_path.exists() else "",
+        "feed_size": feed_path.stat().st_size if feed_path.exists() else 0,
+        "max_indexed_offset": max_indexed_offset,
+    }
+    tmp = INDEX_HEALTH_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(health, indent=2))
+    tmp.replace(INDEX_HEALTH_PATH)
+
+    print(json.dumps(result))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--feed", help="Override feed path")
+    parser.add_argument("--emit-event", action="store_true",
+                        help="Emit index_rebuilt_after_rotation event to activity feed after rebuild")
     args = parser.parse_args()
-    
+
     feed = Path(args.feed) if args.feed else DEFAULT_FEED_PATH
     build_index(feed)
+
+    if args.emit_event:
+        try:
+            ts_now = datetime.now(timezone.utc).isoformat().replace("+00:00", "") + "Z"
+            event = json.dumps({
+                "ts_utc": ts_now,
+                "action": "index_rebuilt_after_rotation",
+                "emit_mode": "runtime_auto",
+                "triggered_by": "feed_rotated",
+            })
+            with open(DEFAULT_FEED_PATH, "a") as f:
+                f.write(event + "\n")
+        except Exception:
+            pass

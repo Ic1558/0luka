@@ -19,6 +19,7 @@ POLICY_PATH = ROOT / "core/governance/runtime_consequence_policy.yaml"
 LOOP_POLICY_PATH = ROOT / "core/governance/sovereign_loop_policy.yaml"
 QUERY_TOOL = ROOT / "tools/ops/activity_feed_query.py"
 INDEX_DIR = ROOT / "observability/logs/index"
+INDEX_HEALTH_PATH = INDEX_DIR / "index_health.json"
 FEED_PATH = ROOT / "observability/logs/activity_feed.jsonl"
 AUDIT_DIR = ROOT / "observability/artifacts/sovereign_runs"
 
@@ -128,18 +129,56 @@ class SovereignControl:
                         "consequence_type": ctype, "target": target, "rule_id": ev.get("details", {}).get("rule_id")
                     })
 
+    def check_index_health(self) -> str:
+        """Return 'healthy' or 'stale'. Emits system_data_integrity_risk if unhealthy."""
+        status = "stale"
+        reason = "index_health_missing"
+        try:
+            if INDEX_HEALTH_PATH.exists():
+                h = json.loads(INDEX_HEALTH_PATH.read_text())
+                if h.get("status") == "healthy" and FEED_PATH.exists():
+                    current_sha = hashlib.sha256(FEED_PATH.read_bytes()).hexdigest()[:16]
+                    feed_size = FEED_PATH.stat().st_size
+                    max_off = h.get("max_indexed_offset", 0)
+
+                    if current_sha != h.get("feed_sha", ""):
+                        reason = "feed_sha_mismatch"
+                    elif max_off > feed_size:
+                        reason = "indexed_offset_exceeds_file_size"
+                    else:
+                        status = "healthy"
+                        reason = "all_checks_passed"
+                else:
+                    reason = "health_file_not_healthy"
+        except Exception:
+            status = "stale"
+            reason = "health_read_error"
+
+        if status != "healthy":
+            self.emit_event("system_data_integrity_risk", {
+                "component": "activity_feed_index",
+                "index_status": status,
+                "reason": reason,
+            })
+        return status
+
     def run_loop(self):
-        # 0. Tick
+        # 0. Assert index health (Pack 10: Index Sovereignty Contract)
+        index_status = self.check_index_health()
+
+        # 1. Tick
         self.emit_event("sovereign_tick", {
             "run_id": self.run_id,
             "policy_sha": self.policy_sha,
             "engine_sha": self.engine_sha
         })
 
-        # 1. Reconcile
+        self.index_status = index_status
+
+        # 2. Reconcile
         self.reconcile()
 
-        # 2. Evaluate
+        # 3. Evaluate
         for rule in self.consequence_policy.get("rules", []):
             match = rule.get("match", {})
             cond = rule.get("condition", {})
@@ -163,7 +202,7 @@ class SovereignControl:
                     else:
                         self.decisions.append({"action": "rate_limited", "type": ctype, "target": target, "rule_id": rule["id"]})
 
-        # 3. Audit Bundle
+        # 4. Audit Bundle
         self.save_audit()
 
     def save_audit(self):
@@ -172,6 +211,7 @@ class SovereignControl:
             "run_id": self.run_id,
             "ts_utc": get_now_utc().isoformat(),
             "flags": {"confirmed": self.confirmed, "env_enabled": self.env_enabled, "replay": self.replay_mode},
+            "index_status": getattr(self, "index_status", "unknown"),
             "triggers": self.triggers_found,
             "decisions": self.decisions,
             "shas": {"policy": self.policy_sha, "engine": self.engine_sha}
