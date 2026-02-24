@@ -56,12 +56,23 @@ def query(action=None, run_id=None, since_ms=None, until_ms=None, last_min=None,
     
     results = []
     files_opened = set()
-    
+    stale_skipped = 0
+
     for c in last_n:
         f_path = ROOT / c["file"]
         off = c["off"]
         length = c["len"]
-        
+
+        # Guard: skip stale index entries whose offsets exceed the current file size.
+        # This happens when the feed is rotated but the index has not been rebuilt yet.
+        try:
+            if not f_path.exists() or off + length > f_path.stat().st_size:
+                stale_skipped += 1
+                continue
+        except OSError:
+            stale_skipped += 1
+            continue
+
         try:
             with open(f_path, "rb") as f:
                 f.seek(off)
@@ -76,7 +87,8 @@ def query(action=None, run_id=None, since_ms=None, until_ms=None, last_min=None,
         "query_mode": "index",
         "matched_count": len(filtered),
         "results_count": len(results),
-        "files_scanned": 0, # Index seek
+        "stale_skipped": stale_skipped,
+        "files_scanned": 0,
         "indices_used": 1,
         "results": results
     }
