@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Set, Tuple
 # Configuration
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
-from core.config import RUNTIME_ROOT
+from core.config import RUNTIME_ROOT, ACTIVITY_FEED_PATH
 
 DEFAULT_FEED_PATH = RUNTIME_ROOT / "logs/activity_feed.jsonl"
 ARCHIVE_DIR = RUNTIME_ROOT / "logs/archive"
@@ -143,6 +143,7 @@ def build_index(feed_path: Path):
         "status": "healthy",
         "files_indexed": len(all_files),
         "last_rebuild_ts": ts_now,
+        "feed_path": str(ACTIVITY_FEED_PATH.resolve()),
         # feed_sha: truncated to 16 hex chars (collision-detection only; full sha may be added
         # as feed_sha_full in a future pack without breaking sovereign_loop parsing)
         "feed_sha": hashlib.sha256(feed_path.read_bytes()).hexdigest()[:16] if feed_path.exists() else "",
