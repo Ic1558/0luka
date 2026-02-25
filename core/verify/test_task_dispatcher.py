@@ -19,10 +19,12 @@ def _set_env(root: Path):
         "ROOT": os.environ.get("ROOT"),
         "0LUKA_ROOT": os.environ.get("0LUKA_ROOT"),
         "OUTBOX_ROOT": os.environ.get("OUTBOX_ROOT"),
+        "LUKA_RUNTIME_ROOT": os.environ.get("LUKA_RUNTIME_ROOT"),
     }
     os.environ["ROOT"] = str(root)
     os.environ["0LUKA_ROOT"] = str(root)
     os.environ["OUTBOX_ROOT"] = str(root / "interface" / "outbox" / "tasks")
+    os.environ["LUKA_RUNTIME_ROOT"] = str(root / "runtime")
     return old
 
 
@@ -35,6 +37,8 @@ def _restore_env(old):
 
 
 def _load_dispatcher(root: Path):
+    # Ensure config constants bind to per-test runtime root.
+    importlib.reload(importlib.import_module("core.config"))
     importlib.reload(importlib.import_module("core.ref_resolver"))
     importlib.reload(importlib.import_module("core.phase1a_resolver"))
     importlib.reload(importlib.import_module("core.clec_executor"))
@@ -85,10 +89,11 @@ def _mkdirs(root: Path) -> None:
     (root / "artifacts/tasks/rejected").mkdir(parents=True, exist_ok=True)
     (root / "observability/artifacts/router_audit").mkdir(parents=True, exist_ok=True)
     (root / "observability/logs").mkdir(parents=True, exist_ok=True)
+    (root / "runtime/logs").mkdir(parents=True, exist_ok=True)
 
 
 def _read_activity_rows(root: Path) -> list[dict]:
-    path = root / "observability" / "logs" / "activity_feed.jsonl"
+    path = root / "runtime" / "logs" / "activity_feed.jsonl"
     if not path.exists():
         return []
     rows: list[dict] = []
@@ -263,7 +268,7 @@ def test_dispatch_invalid_yaml_is_quarantined() -> None:
             matched = list(quarantine_dir.glob("task_bad_001.yaml.*.bad.yaml*"))
             assert matched, "expected quarantined file with collision-safe suffix"
 
-            feed_path = root / "observability" / "logs" / "activity_feed.jsonl"
+            feed_path = root / "runtime" / "logs" / "activity_feed.jsonl"
             lines = [json.loads(line) for line in feed_path.read_text(encoding="utf-8").splitlines() if line.strip()]
             hygiene_events = [e for e in lines if e.get("action") == "hygiene_quarantine"]
             assert hygiene_events, "missing hygiene_quarantine event"
