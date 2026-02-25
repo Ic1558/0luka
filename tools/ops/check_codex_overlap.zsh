@@ -1,6 +1,9 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
+# Guard: detect overlapping codex app-server instances
+# Policy: canonical = /Applications/Codex.app/Contents/Resources/codex
+# Mode: detect + advice only (no process termination)
 CANONICAL_CODEX="/Applications/Codex.app/Contents/Resources/codex"
 
 usage() {
