@@ -129,3 +129,9 @@ observability/telemetry/*.json
 # Housekeeping
 _scratch/
 GEMINI.md
+
+# local-only workspace
+Boss_works/
+
+# local incident evidence (not for main)
+cole/evidence/incident_codex_overlay_antigravity_runbook.md
