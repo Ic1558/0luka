@@ -15,6 +15,10 @@ cat core/governance/agent_culture.md > "$OUTPUT_DIR/CORE_PROTOCOL.md"
 if ls core/governance/*.md >/dev/null 2>&1; then
     cp core/governance/*.md "$OUTPUT_DIR/"
 fi
+# Ensure the supreme law is ingested
+if [ -f "core/docs/KERNEL_CONSTITUTION.md" ]; then
+    cp core/docs/KERNEL_CONSTITUTION.md "$OUTPUT_DIR/"
+fi
 # Copy Manuals if they exist
 if [ -d "g/manuals" ]; then
     cp g/manuals/*.md "$OUTPUT_DIR/" 2>/dev/null

@@ -22,7 +22,7 @@ case $TOOL_VERB in
     verify-core)
         echo "[0luka] Verifying Core Integrity..."
         EXIT_CODE=0
-        CORE_FILES=("core_brain/governance/agents.md" "core_brain/governance/router.md" "0luka.md")
+        CORE_FILES=("core_brain/governance/agents.md" "core_brain/governance/router.md" "0luka.md" "core/docs/KERNEL_CONSTITUTION.md")
         for f in "${CORE_FILES[@]}"; do
             if [[ -f "$f" ]]; then
                 echo "  ✅ $f: EXISTS"
