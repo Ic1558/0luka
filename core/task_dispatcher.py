@@ -28,6 +28,7 @@ except ImportError:
 
 try:
     from core.config import (
+        ACTIVITY_FEED_PATH,
         COMPLETED,
         DEFAULT_WATCH_INTERVAL_SEC,
         DISPATCH_HEARTBEAT,
@@ -40,6 +41,7 @@ try:
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from core.config import (
+        ACTIVITY_FEED_PATH,
         COMPLETED,
         DEFAULT_WATCH_INTERVAL_SEC,
         DISPATCH_HEARTBEAT,
@@ -106,11 +108,13 @@ def _log_event(event: Dict[str, Any]) -> None:
 
 
 def _resolve_activity_feed_path() -> Path:
-    raw = os.environ.get("LUKA_ACTIVITY_FEED_JSONL", "observability/logs/activity_feed.jsonl").strip()
-    p = Path(raw).expanduser()
-    if p.is_absolute():
-        return p
-    return ROOT / p
+    raw = os.environ.get("LUKA_ACTIVITY_FEED_JSONL", "").strip()
+    if raw:
+        p = Path(raw).expanduser()
+        if p.is_absolute():
+            return p
+        return ROOT / p
+    return ACTIVITY_FEED_PATH
 
 
 def _append_runtime_heartbeat_event() -> None:

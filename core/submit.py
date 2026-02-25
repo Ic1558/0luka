@@ -33,10 +33,10 @@ except ImportError:
     yaml = None
 
 try:
-    from core.config import COMPLETED, INBOX, OUTBOX_TASKS, ROOT
+    from core.config import ACTIVITY_FEED_PATH, COMPLETED, INBOX, OUTBOX_TASKS, ROOT
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from core.config import COMPLETED, INBOX, OUTBOX_TASKS, ROOT
+    from core.config import ACTIVITY_FEED_PATH, COMPLETED, INBOX, OUTBOX_TASKS, ROOT
 
 OUTBOX = OUTBOX_TASKS
 
@@ -61,11 +61,13 @@ def _utc_now() -> str:
 
 
 def _resolve_activity_feed_path() -> Path:
-    raw = os.environ.get("LUKA_ACTIVITY_FEED_JSONL", "observability/logs/activity_feed.jsonl").strip()
-    p = Path(raw).expanduser()
-    if p.is_absolute():
-        return p
-    return ROOT / p
+    raw = os.environ.get("LUKA_ACTIVITY_FEED_JSONL", "").strip()
+    if raw:
+        p = Path(raw).expanduser()
+        if p.is_absolute():
+            return p
+        return ROOT / p
+    return ACTIVITY_FEED_PATH
 
 
 def _emit_submit_rejection(task_id: str, reason: str, *, envelope: Optional[Dict[str, Any]] = None) -> None:

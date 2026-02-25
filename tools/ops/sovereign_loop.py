@@ -15,13 +15,16 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(ROOT))
+from core.config import RUNTIME_ROOT
+
 POLICY_PATH = ROOT / "core/governance/runtime_consequence_policy.yaml"
 LOOP_POLICY_PATH = ROOT / "core/governance/sovereign_loop_policy.yaml"
 QUERY_TOOL = ROOT / "tools/ops/activity_feed_query.py"
-INDEX_DIR = ROOT / "observability/logs/index"
+INDEX_DIR = RUNTIME_ROOT / "logs/index"
 INDEX_HEALTH_PATH = INDEX_DIR / "index_health.json"
-FEED_PATH = ROOT / "observability/logs/activity_feed.jsonl"
-AUDIT_DIR = ROOT / "observability/artifacts/sovereign_runs"
+FEED_PATH = RUNTIME_ROOT / "logs/activity_feed.jsonl"
+AUDIT_DIR = RUNTIME_ROOT / "artifacts/sovereign_runs"
 
 ALLOWED_TARGETS = {"opal_api", "task_dispatcher", "com.0luka.kernel", "com.0luka.obs"}
 ALLOWED_ACTIONS = {"throttle", "task_suppression", "restart_component", "emit_event", "suppress_new_tasks"}
@@ -78,8 +81,8 @@ class SovereignControl:
             "verifier_mode": "control_plane"
         }
         event.update(data)
-        with open(FEED_PATH, "a") as f:
-            f.write(json.dumps(event) + "\n")
+        from core.activity_feed_guard import guarded_append_activity_feed
+        guarded_append_activity_feed(FEED_PATH, event)
 
     def check_rate_limits(self, ctype: str) -> bool:
         """Enforce global and per-consequence limits."""

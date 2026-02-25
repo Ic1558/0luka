@@ -9,25 +9,13 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from core.config import ROOT
+    from core.config import ROOT, RUNTIME_ROOT, ACTIVITY_FEED_PATH, VIOLATION_LOG_PATH
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from core.config import ROOT
+    from core.config import ROOT, RUNTIME_ROOT, ACTIVITY_FEED_PATH, VIOLATION_LOG_PATH
 
-STATE_PATH = ROOT / "runtime" / "activity_feed_state.json"
-VIOLATION_LOG_PATH = ROOT / "observability" / "logs" / "feed_guard_violations.jsonl"
-
-
-def _discover_repo_root() -> Path:
-    current = Path(__file__).resolve()
-    for parent in [current] + list(current.parents):
-        if (parent / "core").is_dir() and (parent / "observability").is_dir():
-            return parent
-    return Path(__file__).resolve().parents[1]
-
-
-REPO_ROOT = _discover_repo_root()
-CANONICAL_PRODUCTION_FEED_PATH = (REPO_ROOT / "observability" / "logs" / "activity_feed.jsonl").resolve()
+STATE_PATH = RUNTIME_ROOT / "activity_feed_state.json"
+CANONICAL_PRODUCTION_FEED_PATH = ACTIVITY_FEED_PATH.resolve()
 
 
 def _utc_now() -> str:
@@ -95,6 +83,12 @@ def guarded_append_activity_feed(
     violation_log_path: Path = VIOLATION_LOG_PATH,
 ) -> bool:
     incoming = Path(feed_path).resolve()
+    old_repo_path = (ROOT / "observability/logs/activity_feed.jsonl").resolve()
+
+    # Migration Redirect: If caller uses the legacy repo path, force it to the canonical runtime path.
+    if incoming == old_repo_path and incoming != CANONICAL_PRODUCTION_FEED_PATH:
+        incoming = CANONICAL_PRODUCTION_FEED_PATH
+
     if incoming != CANONICAL_PRODUCTION_FEED_PATH:
         incoming.parent.mkdir(parents=True, exist_ok=True)
         with incoming.open("a", encoding="utf-8") as handle:
@@ -148,3 +142,35 @@ def guarded_append_activity_feed(
         },
     )
     return True
+
+
+def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Guarded Activity Feed Append CLI")
+    parser.add_argument("payload", help="JSON payload to append")
+    parser.add_argument("--feed", help="Optional path override")
+
+    args = parser.parse_args()
+
+    try:
+        from core.config import ACTIVITY_FEED_PATH
+    except ImportError:
+        ACTIVITY_FEED_PATH = Path("observability/logs/activity_feed.jsonl")
+
+    feed = Path(args.feed) if args.feed else ACTIVITY_FEED_PATH
+    try:
+        payload = json.loads(args.payload)
+    except json.JSONDecodeError as exc:
+        print(f"Error: Invalid JSON payload: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if guarded_append_activity_feed(feed, payload):
+        sys.exit(0)
+    else:
+        print("Error: Guard blocked append (check violations log)", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

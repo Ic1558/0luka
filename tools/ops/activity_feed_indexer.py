@@ -12,9 +12,12 @@ from typing import Any, Dict, List, Set, Tuple
 
 # Configuration
 ROOT = Path(__file__).resolve().parent.parent.parent
-DEFAULT_FEED_PATH = ROOT / "observability/logs/activity_feed.jsonl"
-ARCHIVE_DIR = ROOT / "observability/logs/archive"
-INDEX_DIR = ROOT / "observability/logs/index"
+sys.path.insert(0, str(ROOT))
+from core.config import RUNTIME_ROOT
+
+DEFAULT_FEED_PATH = RUNTIME_ROOT / "logs/activity_feed.jsonl"
+ARCHIVE_DIR = RUNTIME_ROOT / "logs/archive"
+INDEX_DIR = RUNTIME_ROOT / "logs/index"
 BY_ACTION_DIR = INDEX_DIR / "by_action"
 BY_RUN_DIR = INDEX_DIR / "by_run"
 TS_RANGES_DIR = INDEX_DIR / "ts_ranges"
@@ -165,13 +168,13 @@ if __name__ == "__main__":
     if args.emit_event:
         try:
             ts_now = datetime.now(timezone.utc).isoformat().replace("+00:00", "") + "Z"
-            event = json.dumps({
+            event = {
                 "ts_utc": ts_now,
                 "action": "index_rebuilt_after_rotation",
                 "emit_mode": "runtime_auto",
                 "triggered_by": "feed_rotated",
-            })
-            with open(DEFAULT_FEED_PATH, "a") as f:
-                f.write(event + "\n")
+            }
+            from core.activity_feed_guard import guarded_append_activity_feed
+            guarded_append_activity_feed(feed, event)
         except Exception:
             pass

@@ -4,13 +4,25 @@ set -euo pipefail
 ROOT="${ROOT:-$HOME/0luka}"
 ROOT="${ROOT%/}"
 export ROOT
-ROOT_REF='${ROOT}'
-OBS="$ROOT/observability"
-OBS_REF="${ROOT_REF}/observability"
+
+# Support Phase 1 Runtime Root
+if [[ -n "${LUKA_RUNTIME_ROOT:-}" ]]; then
+    OBS="${LUKA_RUNTIME_ROOT}/logs"
+    ARTIFACTS_ROOT="${LUKA_RUNTIME_ROOT}/artifacts"
+    # For relative references in artifacts
+    OBS_REF="${LUKA_RUNTIME_ROOT}/logs"
+    ARTIFACTS_REF="${LUKA_RUNTIME_ROOT}/artifacts"
+else
+    OBS="$ROOT/observability"
+    ARTIFACTS_ROOT="$ROOT/artifacts"
+    OBS_REF='${ROOT}/observability'
+    ARTIFACTS_REF='${ROOT}/artifacts'
+fi
+
 cd "$ROOT"
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
-OUT_DIR="$OBS/artifacts/ram"
+OUT_DIR="$ARTIFACTS_ROOT/ram"
 TASK_DIR="$OBS/quarantine/tasks"
 TEL_DIR="$OBS/telemetry"
 mkdir -p "$OUT_DIR" "$TASK_DIR" "$TEL_DIR"
@@ -19,7 +31,7 @@ OUT_JSON="$OUT_DIR/${TS}_ram_snapshot.json"
 TEL_JSON="$TEL_DIR/ram_monitor.latest.json"
 STATE_JSON="$TEL_DIR/ram_monitor.state.json"
 TASK_YAML="$TASK_DIR/${TS}_ram_monitor.task.yaml"
-OUT_JSON_REF="$OBS_REF/artifacts/ram/${TS}_ram_snapshot.json"
+OUT_JSON_REF="$ARTIFACTS_REF/ram/${TS}_ram_snapshot.json"
 TEL_JSON_REF="$OBS_REF/telemetry/ram_monitor.latest.json"
 PERSIST_WINDOW_SEC=300
 PERSIST_EMIT_COOLDOWN_SEC=300
@@ -179,8 +191,9 @@ if [[ "$PRESSURE_LEVEL" == "CRITICAL" ]]; then
   printf '{"ts_utc":"%s","phase_id":"PHASE10_RAM","action":"ram_pressure_alert","emit_mode":"runtime_auto","tool":"ram_monitor","pressure_level":"CRITICAL","free_mb":%s,"compressed_gb":%s}\n' \
     "$TS_UTC" "$FREE_MB" "$COMP_GB" >> "$COMPONENT_FEED_PATH" 2>/dev/null || true
     
-  printf '{"ts_utc":"%s","action":"ram_pressure_alert","emit_mode":"runtime_auto","level":"CRITICAL","result":"CRITICAL","tool":"ram_monitor","free_mb":%s,"compressed_gb":%s}\n' \
-    "$TS_UTC" "$FREE_MB" "$COMP_GB" >> "$GLOBAL_FEED_PATH" 2>/dev/null || true
+  python3 -m core.activity_feed_guard \
+    "{\"ts_utc\":\"$TS_UTC\",\"action\":\"ram_pressure_alert\",\"emit_mode\":\"runtime_auto\",\"level\":\"CRITICAL\",\"result\":\"CRITICAL\",\"tool\":\"ram_monitor\",\"free_mb\":$FREE_MB,\"compressed_gb\":$COMP_GB}" \
+    --feed "$GLOBAL_FEED_PATH" 2>/dev/null || true
 fi
 
 # Persistent CRITICAL detector (stateful, fail-open).
@@ -254,8 +267,9 @@ if [[ "$EMIT_PERSISTENT" == "1" ]]; then
   printf '{"ts_utc":"%s","phase_id":"PHASE10_RAM","action":"ram_pressure_persistent","emit_mode":"runtime_auto","tool":"ram_monitor","pressure_level":"CRITICAL","critical_for_sec":%s,"free_mb":%s,"compressed_gb":%s}\n' \
     "$TS_UTC" "$CRITICAL_FOR_SEC" "$FREE_MB" "$COMP_GB" >> "$COMPONENT_FEED_PATH" 2>/dev/null || true
     
-  printf '{"ts_utc":"%s","action":"ram_pressure_persistent","emit_mode":"runtime_auto","level":"CRITICAL","result":"CRITICAL","tool":"ram_monitor","critical_for_sec":%s,"free_mb":%s,"compressed_gb":%s}\n' \
-    "$TS_UTC" "$CRITICAL_FOR_SEC" "$FREE_MB" "$COMP_GB" >> "$GLOBAL_FEED_PATH" 2>/dev/null || true
+  python3 -m core.activity_feed_guard \
+    "{\"ts_utc\":\"$TS_UTC\",\"action\":\"ram_pressure_persistent\",\"emit_mode\":\"runtime_auto\",\"level\":\"CRITICAL\",\"result\":\"CRITICAL\",\"tool\":\"ram_monitor\",\"critical_for_sec\":$CRITICAL_FOR_SEC,\"free_mb\":$FREE_MB,\"compressed_gb\":$COMP_GB}" \
+    --feed "$GLOBAL_FEED_PATH" 2>/dev/null || true
 fi
 
 # sha256 for artifact (portable)

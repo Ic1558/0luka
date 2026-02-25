@@ -15,9 +15,12 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+from core.config import RUNTIME_ROOT, ACTIVITY_FEED_PATH
+from core.activity_feed_guard import guarded_append_activity_feed
+
 POLICY_PATH = ROOT / "core/governance/runtime_consequence_policy.yaml"
 QUERY_TOOL = ROOT / "tools/ops/activity_feed_query.py"
-FEED_PATH = ROOT / "observability/logs/activity_feed.jsonl"
+FEED_PATH = ACTIVITY_FEED_PATH
 
 # --- 1. Governance Allowlist ---
 ALLOWED_TARGETS = {"opal_api", "task_dispatcher", "com.0luka.kernel", "com.0luka.obs"}
@@ -51,8 +54,7 @@ def emit_event(action: str, data: Dict[str, Any]):
     }
     event.update(data)
     try:
-        with open(FEED_PATH, "a") as f:
-            f.write(json.dumps(event) + "\n")
+        guarded_append_activity_feed(FEED_PATH, event)
     except Exception as e:
         print(f"CRITICAL: Failed to append ledger: {e}", file=sys.stderr)
         sys.exit(1)
