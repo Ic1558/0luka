@@ -12,9 +12,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 
 def _set_env(root: Path) -> dict:
-    old = {"ROOT": os.environ.get("ROOT"), "0LUKA_ROOT": os.environ.get("0LUKA_ROOT")}
+    old = {
+        "ROOT": os.environ.get("ROOT"),
+        "0LUKA_ROOT": os.environ.get("0LUKA_ROOT"),
+        "LUKA_RUNTIME_ROOT": os.environ.get("LUKA_RUNTIME_ROOT"),
+    }
     os.environ["ROOT"] = str(root)
     os.environ["0LUKA_ROOT"] = str(root)
+    os.environ["LUKA_RUNTIME_ROOT"] = str(root / "runtime")
     return old
 
 
@@ -145,10 +150,55 @@ def test_scenario_c_reflect_update() -> None:
             _restore_env(old)
 
 
+def test_scenario_d_runtime_bootstrap_and_legacy_detection() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td).resolve()
+        old = _set_env(root)
+        try:
+            legacy_path = root / "core" / "state" / "policy_memory.json"
+            legacy_path.parent.mkdir(parents=True, exist_ok=True)
+            legacy_path.write_text('{"legacy": true}\n', encoding="utf-8")
+
+            pol = _load_policy_module()
+            _ = pol.load_policy_memory()
+
+            runtime_path = root / "runtime" / "state" / "policy_memory.json"
+            assert runtime_path.exists()
+
+            events = _read_events(root / "observability" / "events.jsonl")
+            legacy_events = [e for e in events if e.get("type") == "policy.memory.legacy_detected"]
+            assert legacy_events
+            assert legacy_events[-1].get("legacy_path") == str(legacy_path)
+            assert legacy_events[-1].get("runtime_path") == str(runtime_path)
+            print("test_scenario_d_runtime_bootstrap_and_legacy_detection: ok")
+        finally:
+            _restore_env(old)
+
+
+def test_scenario_e_legacy_path_reference_emits_event() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td).resolve()
+        old = _set_env(root)
+        try:
+            pol = _load_policy_module()
+            legacy_path = str(root / "core" / "state" / "policy_memory.json")
+            pol.sense_target({"target": legacy_path, "task_text": "inspect legacy policy memory"})
+
+            events = _read_events(root / "observability" / "events.jsonl")
+            ref_events = [e for e in events if e.get("type") == "policy.memory.legacy_referenced"]
+            assert ref_events
+            assert ref_events[-1].get("legacy_path") == legacy_path
+            print("test_scenario_e_legacy_path_reference_emits_event: ok")
+        finally:
+            _restore_env(old)
+
+
 def main() -> int:
     test_scenario_a_protected()
     test_scenario_b_local()
     test_scenario_c_reflect_update()
+    test_scenario_d_runtime_bootstrap_and_legacy_detection()
+    test_scenario_e_legacy_path_reference_emits_event()
     print("test_tool_selection_policy: all ok")
     return 0
 
