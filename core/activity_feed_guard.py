@@ -84,23 +84,15 @@ def guarded_append_activity_feed(
 ) -> bool:
     incoming = Path(feed_path).resolve()
     old_repo_path = (ROOT / "observability/logs/activity_feed.jsonl").resolve()
+    emit_redirect_telemetry = False
+    redirect_source_path = ""
 
     # Migration Redirect: If caller uses the legacy repo path, force it to the canonical runtime path.
     if incoming == old_repo_path and incoming != CANONICAL_PRODUCTION_FEED_PATH:
-        telemetry_event = {
-            "ts_utc": _utc_now(),
-            "action": "legacy_feed_path_redirected",
-            "emit_mode": "runtime_auto",
-            "verifier_mode": "guard_intercept",
-            "detail": {"original_path": str(incoming)}
-        }
-        # Recursively call to append the telemetry event safely updating the state
-        guarded_append_activity_feed(
-            CANONICAL_PRODUCTION_FEED_PATH, 
-            telemetry_event, 
-            state_path=state_path, 
-            violation_log_path=violation_log_path
-        )
+        # Prevent recursive redirect loops for telemetry events.
+        if payload.get("action") != "legacy_feed_path_redirected":
+            emit_redirect_telemetry = True
+            redirect_source_path = str(incoming)
         incoming = CANONICAL_PRODUCTION_FEED_PATH
 
     if incoming != CANONICAL_PRODUCTION_FEED_PATH:
@@ -142,9 +134,21 @@ def guarded_append_activity_feed(
         return False
 
     feed_path.parent.mkdir(parents=True, exist_ok=True)
+    lines: list[str] = []
+    if emit_redirect_telemetry:
+        telemetry_event = {
+            "ts_utc": _utc_now(),
+            "action": "legacy_feed_path_redirected",
+            "emit_mode": "runtime_auto",
+            "verifier_mode": "guard_intercept",
+            "detail": {"original_path": redirect_source_path},
+        }
+        lines.append(json.dumps(telemetry_event, ensure_ascii=False))
     line = json.dumps(payload, ensure_ascii=False)
+    lines.append(line)
     with feed_path.open("a", encoding="utf-8") as handle:
-        handle.write(line + "\n")
+        for item in lines:
+            handle.write(item + "\n")
 
     _write_state_atomic(
         state_path,
