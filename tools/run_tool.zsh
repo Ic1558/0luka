@@ -42,6 +42,18 @@ case $TOOL_VERB in
         echo "[0luka] Applying Patch Plan: $PLAN..."
         python3 tools/patch/apply_patch.py "$PLAN"
         ;;
+    warroom)
+        echo "[0luka] Opening Decision Box (Warroom)..."
+        zsh tools/ops/decision_box.zsh "$@"
+        ;;
+    lock-refresh)
+        echo "[0luka] Refreshing Governance Lock Manifest..."
+        python3 tools/ops/governance_file_lock.py --build-manifest "$@"
+        ;;
+    lock-verify)
+        echo "[0luka] Verifying Governance Integrity..."
+        python3 tools/ops/governance_file_lock.py --verify-manifest "$@"
+        ;;
     cole-run)
         SUBCMD="${1:-}"
         if [[ -z "$SUBCMD" ]]; then
@@ -54,7 +66,7 @@ case $TOOL_VERB in
         ;;
     *)
         echo "Error: Unknown tool verb '$TOOL_VERB'"
-        echo "Available: save, discover, verify-core, verify-health, apply-patch, cole-run"
+        echo "Available: save, discover, verify-core, verify-health, apply-patch, cole-run, warroom, lock-refresh, lock-verify"
         exit 1
         ;;
 esac

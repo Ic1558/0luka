@@ -2,7 +2,7 @@
 set -euo pipefail
 umask 077
 
-ROOT="${ROOT:-${LUKA_SOT:-${HOME}/0luka}}"
+ROOT="${ROOT:-${LUKA_SOT:-${0:A:h:h}}}"
 
 phase=""
 agent_id=""

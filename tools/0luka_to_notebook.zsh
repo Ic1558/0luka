@@ -2,7 +2,8 @@
 # 0luka Knowledge Collator v1.0
 # Purpose: Collate 0luka Intelligence for NotebookLM Ingestion
 
-OUTPUT_DIR="$HOME/0luka/observability/notebook_ingest"
+ROOT="${0:A:h:h}"
+OUTPUT_DIR="$ROOT/observability/notebook_ingest"
 mkdir -p "$OUTPUT_DIR"
 
 echo "📦 Collating 0luka Intelligence..."
