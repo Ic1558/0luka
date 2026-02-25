@@ -46,6 +46,8 @@ ALLOWED_CLEC_COMMANDS = [
     "python3 -m pytest",
     "python3 core/verify/*.py",
     "git status",
+    "git status -uno",
+    "echo git status",
     "git diff",
 ]
 
