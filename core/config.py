@@ -16,7 +16,10 @@ def _resolve_root() -> Path:
 def _resolve_runtime_root() -> Path:
     raw = os.environ.get("LUKA_RUNTIME_ROOT")
     if not raw or not raw.strip():
-        raise RuntimeError("LUKA_RUNTIME_ROOT is required (fail-closed)")
+        raise RuntimeError(
+            "LUKA_RUNTIME_ROOT is required (fail-closed). "
+            "Set LUKA_RUNTIME_ROOT=/Users/icmini/0luka_runtime"
+        )
     return Path(raw).expanduser().resolve()
 
 
