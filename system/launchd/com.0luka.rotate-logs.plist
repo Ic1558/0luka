@@ -38,8 +38,8 @@
     
     <!-- Logging -->
     <key>StandardOutPath</key>
-    <string>/tmp/0luka-rotate-logs.stdout.log</string>
+    <string>/Users/icmini/0luka_runtime/logs/rotate_logs.launchd.out.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/0luka-rotate-logs.stderr.log</string>
+    <string>/Users/icmini/0luka_runtime/logs/rotate_logs.launchd.err.log</string>
 </dict>
 </plist>
