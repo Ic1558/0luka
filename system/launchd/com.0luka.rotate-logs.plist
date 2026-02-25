@@ -28,6 +28,8 @@
     <!-- Environment -->
     <key>EnvironmentVariables</key>
     <dict>
+        <key>LUKA_RUNTIME_ROOT</key>
+        <string>/Users/icmini/0luka_runtime</string>
         <key>KEEP_DAYS</key>
         <string>14</string>
         <key>PATH</key>

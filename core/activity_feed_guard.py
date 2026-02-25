@@ -87,6 +87,20 @@ def guarded_append_activity_feed(
 
     # Migration Redirect: If caller uses the legacy repo path, force it to the canonical runtime path.
     if incoming == old_repo_path and incoming != CANONICAL_PRODUCTION_FEED_PATH:
+        telemetry_event = {
+            "ts_utc": _utc_now(),
+            "action": "legacy_feed_path_redirected",
+            "emit_mode": "runtime_auto",
+            "verifier_mode": "guard_intercept",
+            "detail": {"original_path": str(incoming)}
+        }
+        # Recursively call to append the telemetry event safely updating the state
+        guarded_append_activity_feed(
+            CANONICAL_PRODUCTION_FEED_PATH, 
+            telemetry_event, 
+            state_path=state_path, 
+            violation_log_path=violation_log_path
+        )
         incoming = CANONICAL_PRODUCTION_FEED_PATH
 
     if incoming != CANONICAL_PRODUCTION_FEED_PATH:

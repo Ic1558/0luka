@@ -21,6 +21,8 @@
 
     <key>EnvironmentVariables</key>
     <dict>
+      <key>LUKA_RUNTIME_ROOT</key>
+      <string>/Users/icmini/0luka_runtime</string>
       <key>ROOT</key>
       <string>/Users/icmini/0luka</string>
       <key>PYTHONUNBUFFERED</key>
@@ -34,9 +36,9 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>/Users/icmini/0luka/observability/logs/dispatcher.launchd.out.log</string>
+    <string>/Users/icmini/0luka_runtime/logs/dispatcher.launchd.out.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/icmini/0luka/observability/logs/dispatcher.launchd.err.log</string>
+    <string>/Users/icmini/0luka_runtime/logs/dispatcher.launchd.err.log</string>
   </dict>
 </plist>

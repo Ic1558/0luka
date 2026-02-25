@@ -4,6 +4,14 @@
 
 Implemented Phase 1 of LUKA_RUNTIME_ROOT architecture to move observability and runtime artifacts out of the repository into `~/0luka_runtime`.
 
+### Architecture Components Separation
+
+With this migration, the system components are distinctly separated to allow for a pure stateless codebase:
+
+- **Codebase Source of Truth**: `~/0luka` (Contains all static logic, core behaviors, tools, and scripts)
+- **Runtime Environment (venv)**: `~/0luka/runtime/venv` (Python dependencies and the isolated execution environment for tools like opal, etc.)
+- **Runtime State & Observability**: `~/0luka_runtime` (Contains the activity feeds, index files, and all dynamic state mutated by the running instances).
+
 ## Changes
 
 ### 1. Bootstrap Script
@@ -95,6 +103,19 @@ lsof /Users/icmini/0luka/observability/logs/activity_feed.jsonl
 tail -n 3 ~/0luka_runtime/logs/activity_feed.jsonl
 # Output: Recent heartbeats from task_dispatcher, sovereign_loop, etc.
 ```
+
+### 4. Launchd Output Separation
+
+```bash
+launchctl print gui/$(id -u)/com.0luka.dispatcher | grep LUKA_RUNTIME_ROOT
+# Output: Confirms runtime environment injection
+launchctl print gui/$(id -u)/com.0luka.dispatcher | grep Standard
+# Output: StandardOutPath/StandardErrorPath pointing to ~/0luka_runtime/logs/
+```
+
+### 5. Legacy Code Auditing via Telemetry
+
+To prevent silent architectural debt, the transparent `activity_feed_guard.py` redirect emits a `legacy_feed_path_redirected` telemetry event containing the original path utilized, creating a reliable audit log for refactoring out hardcoded repo routes.
 
 ## Definition of Done (DoD) Checklist
 
