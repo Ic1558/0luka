@@ -129,3 +129,6 @@ observability/telemetry/*.json
 # Housekeeping
 _scratch/
 GEMINI.md
+
+# Generated runtime-style summary artifact
+reports/summary/latest.md
