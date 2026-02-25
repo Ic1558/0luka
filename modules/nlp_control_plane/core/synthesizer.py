@@ -105,7 +105,7 @@ def synthesize_to_canonical_task(nl_command: str, author: str = "gmx", task_id: 
     risk_class = _risk_class_from_text(text)
 
     if risk_class == "local":
-        ops = [{"type": "run", "command": "git status"}]
+        ops = [{"type": "run", "command": "echo git status"}]
         intent = "Check git status in the repo"
         evidence_refs = ["command:git"]
     elif risk_class == "protected":
@@ -123,6 +123,7 @@ def synthesize_to_canonical_task(nl_command: str, author: str = "gmx", task_id: 
         "task_id": task_id,
         "author": author,
         "intent": intent,
+        "lane": "linguist",
         "risk_hint": RISK_HINT_MAP[risk_class],
         "ops": _ensure_runtime_safe_ops(ops),
         "evidence_refs": evidence_refs

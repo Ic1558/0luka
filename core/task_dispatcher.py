@@ -63,6 +63,7 @@ _stats = {
     "total_guard_blocked": 0,
     "total_malformed": 0,
     "total_guard_blocked_by_reason": {},
+    "recent_dispatched_ts": [],
 }
 
 sys.path.insert(0, str(ROOT))
@@ -138,6 +139,7 @@ def _emit_activity_event(
     status_badge: str = "NOT_PROVEN",
     evidence: list | None = None,
     telemetry: dict[str, Any] | None = None,
+    lane: str | None = None,
 ) -> None:
     """Emit lifecycle event to activity feed. Fail-open."""
     try:
@@ -155,6 +157,10 @@ def _emit_activity_event(
             "status_badge": status_badge,
             "evidence": evidence or [],
         }
+        if lane:
+            payload["lane"] = lane
+            if lane == "linguist":
+                payload["component"] = "linguist"
         if telemetry:
             payload.update(telemetry)
         guarded_append_activity_feed(feed_path, payload)
@@ -621,6 +627,7 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             _emit_activity_event(
                 "started",
                 task_id,
+                lane=str(raw.get("lane", "")),
                 evidence=[{"kind": "log", "ref": "observability/logs/dispatcher.jsonl"}],
             )
         except Exception as exc:
@@ -654,6 +661,7 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             _emit_activity_event(
                 "completed",
                 task_id,
+                lane=str(raw.get("lane", "")),
                 evidence=[{"kind": "log", "ref": "observability/logs/dispatcher.jsonl"}],
             )
             return result
@@ -735,6 +743,7 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             _emit_activity_event(
                 "completed",
                 task_id,
+                lane=str(raw.get("lane", "")),
                 evidence=[{"kind": "log", "ref": "observability/logs/dispatcher.jsonl"}],
             )
             return result
@@ -777,6 +786,7 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             _emit_activity_event(
                 "completed",
                 task_id,
+                lane=str(task.get("lane", "")),
                 evidence=[{"kind": "log", "ref": "observability/logs/dispatcher.jsonl"}],
             )
             return result
@@ -843,6 +853,7 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             _emit_activity_event(
                 "blocked",
                 task_id,
+                lane=str(task.get("lane", "")),
                 phase_id="GOAL3_GATE_ENFORCE",
                 evidence=[{"kind": "prerequisite", "ref": str(item)} for item in missing],
             )
@@ -883,6 +894,7 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             _emit_activity_event(
                 "completed",
                 task_id,
+                lane=str(task.get("lane", "")),
                 evidence=[{"kind": "log", "ref": "observability/logs/dispatcher.jsonl"}],
             )
             return result
@@ -905,6 +917,7 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             _emit_activity_event(
                 "failed",
                 task_id,
+                lane=str(task.get("lane", "")),
                 evidence=[
                     {"kind": "error", "ref": "dispatch_error:CircuitOpenError"},
                     {"kind": "reason", "ref": f"circuit_open:{exc}"},
@@ -936,6 +949,7 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
             _emit_activity_event(
                 "completed",
                 task_id,
+                lane=str(task.get("lane", "")),
                 evidence=[{"kind": "log", "ref": "observability/logs/dispatcher.jsonl"}],
             )
             return result
@@ -1010,12 +1024,14 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
         _emit_activity_event(
             "completed",
             task_id,
+            lane=str(task.get("lane", "")),
             evidence=[{"kind": "log", "ref": "observability/logs/dispatcher.jsonl"}],
         )
         if pending_verified_evidence:
             _emit_activity_event(
                 "verified",
                 task_id,
+                lane=str(task.get("lane", "")),
                 status_badge="PROVEN",
                 evidence=pending_verified_evidence,
             )
@@ -1062,12 +1078,33 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
         return error_result
 
 
+def _check_stability_storm() -> None:
+    """Detect task storm (>50/min) and emit stability_risk."""
+    now = time.time()
+    recent = [t for t in _stats["recent_dispatched_ts"] if now - t < 60]
+    recent.append(now)
+    _stats["recent_dispatched_ts"] = recent
+
+    if len(recent) > 50:
+        _emit_activity_event(
+            "stability_risk",
+            "storm_detected",
+            phase_id="PHASE10_SENTRY",
+            status_badge="STABILITY_RISK",
+            telemetry={
+                "task_count_60s": len(recent),
+                "threshold": 50,
+            },
+        )
+
+
 def dispatch_all(*, dry_run: bool = False) -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
     if not INBOX.exists():
         return results
     for file_path in sorted(INBOX.glob("task_*.yaml")):
         if file_path.is_file():
+            _check_stability_storm()
             results.append(dispatch_one(file_path, dry_run=dry_run))
     return results
 

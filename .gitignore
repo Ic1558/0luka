@@ -129,3 +129,8 @@ observability/telemetry/*.json
 # Housekeeping
 _scratch/
 GEMINI.md
+
+# User-specific work folders (Not related to system)
+Boss_works/
+skills/*.skill
+skills/*/
