@@ -51,7 +51,7 @@ def test_config_honors_root_env() -> None:
             assert mod.ROOT == root
             assert mod.RUNTIME_ROOT == runtime
             assert mod.POLICY_MEMORY_PATH == runtime / "state" / "policy_memory.json"
-            assert mod.DISPATCH_LOG == root / "observability" / "logs" / "dispatcher.jsonl"
+            assert mod.DISPATCH_LOG == runtime / "logs" / "dispatcher.jsonl"
             assert mod.SCHEMA_REGISTRY == root / "core" / "contracts" / "v1" / "0luka_schemas.json"
             print("test_config_honors_root_env: ok")
         finally:

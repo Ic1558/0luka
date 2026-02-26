@@ -14,6 +14,8 @@
     <dict>
         <key>CONSEQUENCE_ENABLED</key>
         <string>1</string>
+        <key>LUKA_RUNTIME_ROOT</key>
+        <string>/Users/icmini/0luka_runtime</string>
     </dict>
     <key>RunAtLoad</key>
     <true/>

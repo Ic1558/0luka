@@ -32,6 +32,8 @@
         <string>14</string>
         <key>PATH</key>
         <string>/usr/local/bin:/usr/bin:/bin</string>
+        <key>LUKA_RUNTIME_ROOT</key>
+        <string>/Users/icmini/0luka_runtime</string>
     </dict>
     
     <!-- Logging -->

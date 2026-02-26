@@ -9,8 +9,12 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List
 
-ROOT = Path(__file__).resolve().parent.parent.parent
-INDEX_DIR = ROOT / "observability/logs/index"
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from core.config import RUNTIME_ROOT  # single source — fail-closed enforced in core.config
+
+INDEX_DIR = RUNTIME_ROOT / "logs/index"
 INDEX_HEALTH_PATH = INDEX_DIR / "index_health.json"
 INDEXER = Path(__file__).parent / "activity_feed_indexer.py"
 

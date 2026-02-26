@@ -28,24 +28,28 @@ RUNTIME_ROOT = _resolve_runtime_root()
 
 CORE_DIR = ROOT / "core"
 INTERFACE_DIR = ROOT / "interface"
-OBSERVABILITY_DIR = ROOT / "observability"
-ARTIFACTS_DIR = ROOT / "artifacts"
+OBSERVABILITY_DIR = ROOT / "observability"   # repo-local: incidents, router_audit, run_provenance
+ARTIFACTS_DIR = ROOT / "observability" / "artifacts"  # legacy alias
 RUNTIME_STATE_DIR = RUNTIME_ROOT / "state"
+
+# Runtime write paths (Phase 1: logs + artifacts → LUKA_RUNTIME_ROOT)
+RUNTIME_LOGS_DIR = RUNTIME_ROOT / "logs"
+RUNTIME_ARTIFACTS_DIR = RUNTIME_ROOT / "artifacts"
 
 INBOX = INTERFACE_DIR / "inbox"
 OUTBOX_TASKS = INTERFACE_DIR / "outbox" / "tasks"
 COMPLETED = INTERFACE_DIR / "completed"
 REJECTED = INTERFACE_DIR / "rejected"
 
-DISPATCH_LOG = OBSERVABILITY_DIR / "logs" / "dispatcher.jsonl"
-DISPATCH_LATEST = OBSERVABILITY_DIR / "artifacts" / "dispatch_latest.json"
-DISPATCH_HEARTBEAT = OBSERVABILITY_DIR / "artifacts" / "dispatcher_heartbeat.json"
-DISPATCH_LEDGER = OBSERVABILITY_DIR / "artifacts" / "dispatch_ledger.json"
+DISPATCH_LOG = RUNTIME_LOGS_DIR / "dispatcher.jsonl"
+DISPATCH_LATEST = RUNTIME_ARTIFACTS_DIR / "dispatch_latest.json"
+DISPATCH_HEARTBEAT = RUNTIME_ARTIFACTS_DIR / "dispatcher_heartbeat.json"
+DISPATCH_LEDGER = RUNTIME_ARTIFACTS_DIR / "dispatch_ledger.json"
 
 SCHEMA_REGISTRY = CORE_DIR / "contracts" / "v1" / "0luka_schemas.json"
 VERIFY_DIR = CORE_DIR / "verify"
 
-RETENTION_ACTIVITY = OBSERVABILITY_DIR / "activity" / "activity.jsonl"
+RETENTION_ACTIVITY = RUNTIME_LOGS_DIR / "activity.jsonl"
 POLICY_MEMORY_PATH = RUNTIME_STATE_DIR / "policy_memory.json"
 LEGACY_POLICY_MEMORY_PATH = CORE_DIR / "state" / "policy_memory.json"
 

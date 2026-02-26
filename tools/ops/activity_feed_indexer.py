@@ -11,10 +11,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Set, Tuple
 
 # Configuration
-ROOT = Path(__file__).resolve().parent.parent.parent
-DEFAULT_FEED_PATH = ROOT / "observability/logs/activity_feed.jsonl"
-ARCHIVE_DIR = ROOT / "observability/logs/archive"
-INDEX_DIR = ROOT / "observability/logs/index"
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from core.config import RUNTIME_ROOT  # single source — fail-closed enforced in core.config
+
+DEFAULT_FEED_PATH = RUNTIME_ROOT / "logs/activity_feed.jsonl"
+ARCHIVE_DIR = RUNTIME_ROOT / "logs/archive"
+INDEX_DIR = RUNTIME_ROOT / "logs/index"
 BY_ACTION_DIR = INDEX_DIR / "by_action"
 BY_RUN_DIR = INDEX_DIR / "by_run"
 TS_RANGES_DIR = INDEX_DIR / "ts_ranges"
