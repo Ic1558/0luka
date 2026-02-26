@@ -1,0 +1,42 @@
+name: Governance Enforcement Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  governance_gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Layer Separation Gate
+        run: |
+          python3 tools/ops/gate_layer_separation.py
+      
+      - name: Fetch base branch
+        if: github.event_name == 'pull_request'
+        run: git fetch origin ${{ github.event.pull_request.base.ref }}
+
+      - name: Frozen Paths Gate
+        if: github.event_name == 'pull_request'
+        run: |
+          python3 tools/ops/governance_file_lock.py --check-mutation \
+            --base origin/${{ github.event.pull_request.base.ref }} \
+            --head ${{ github.event.pull_request.head.sha }} \
+            --metadata "${{ github.event.pull_request.title }} ${{ github.event.pull_request.body }}"

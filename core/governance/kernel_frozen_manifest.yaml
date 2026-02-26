@@ -1,0 +1,114 @@
+version: 1.0
+freeze_tag: v3_kernel_hygiene_hardened
+date_utc: 2026-02-20
+status: FROZEN
+
+intent:
+  - Lock execution loop semantics
+  - Preserve lifecycle emission contract
+  - Preserve submit-time schema enforcement
+  - Preserve runtime prerequisite enforcement
+  - Preserve hygiene quarantine semantics
+  - Preserve feed invariants
+
+canonical_sot:
+  path: /Users/icmini/0luka/observability/logs/activity_feed.jsonl
+  mode: append-only
+  mutable: false
+
+canonical_linter:
+  command: >
+    cd /Users/icmini/0luka &&
+    python3 /Users/icmini/0luka/tools/ops/activity_feed_linter.py --json
+  invariant:
+    ok: true
+    violations: 0
+
+frozen_contracts:
+
+  lifecycle_ordering:
+    sequence:
+      - started
+      - completed
+      - verified
+    verified_requires:
+      - commit_success
+      - outbox_exists
+      - audit_exists
+    forbidden:
+      - verified_before_completed
+      - orphan_started
+      - orphan_completed
+
+  submit_gate:
+    phase_id: PHASE_1B_SCHEMA
+    enforcement: pre_inbox_write
+    on_failure:
+      action: failed
+      status_badge: NOT_PROVEN
+    invariant:
+      invalid_payload_never_reaches_inbox: true
+
+  runtime_gate:
+    enforcement: pre_execution
+    unmet_requires:
+      move_to: interface/rejected/
+      action: blocked
+      status_badge: NOT_PROVEN
+      outbox_created: false
+
+  hygiene_quarantine:
+    trigger:
+      - malformed_yaml
+      - non_dict_yaml
+    action:
+      move_to: runtime/quarantine/
+      emit_event: hygiene_quarantine
+    invariant:
+      no_infinite_dispatch_loop: true
+
+frozen_paths:
+  - core/
+  - tools/ops/activity_feed_linter.py
+  - interface/inbox/
+  - interface/outbox/
+  - interface/completed/
+  - interface/rejected/
+  - observability/logs/
+
+governance_rules:
+  core_change_requires:
+    - RFC_document
+    - watch_lane_proof
+    - pytest_pass
+    - linter_pass
+    - proof_pack_reference
+  forbidden_without_rfc:
+    - lifecycle_semantic_change
+    - gate_removal
+    - gate_reordering
+    - SOT_path_change
+    - status_badge_redefinition
+
+layer_separation:
+
+  kernel:
+    description: Deterministic execution core
+    write_access: restricted
+
+  extension:
+    description: Read-only projection (Mission Control, analytics)
+    may_read:
+      - canonical_sot
+      - outbox
+    may_write:
+      - external_index_only
+    must_not_write:
+      - frozen_paths
+
+  experimental:
+    description: Feature-flagged or separate branch
+    restriction:
+      - cannot_modify_frozen_contracts
+
+status: GOVERNANCE_LOCK_ACTIVE
