@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -18,11 +19,21 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.ops.audit_feed_chain import _audit
-from tools.ops.audit_epoch_manifest import _audit_epoch_manifest
+try:
+    from tools.ops.audit_feed_chain import _audit as _audit_feed_chain_ext
+except Exception:  # pragma: no cover - fallback kept for transition safety
+    _audit_feed_chain_ext = None  # type: ignore[assignment]
+
+try:
+    from tools.ops.audit_epoch_manifest import _audit_epoch_manifest as _audit_epoch_manifest_ext
+except Exception:  # pragma: no cover - fallback kept for transition safety
+    _audit_epoch_manifest_ext = None  # type: ignore[assignment]
 
 LEDGER_WATCHDOG_EPOCH_FAIL_PREFIX = "ledger_watchdog_epoch_fail_"
 LEDGER_WATCHDOG_FAIL_PREFIX_LEGACY = "ledger_watchdog_fail_"  # backward-compat read-only
+GENESIS_PREV_HASH = "GENESIS"
+ANCHOR_ACTION = "ledger_anchor"
+GENESIS_PREV_EPOCH_HASH = "0000000000000000"
 
 
 def _utc_now() -> str:
@@ -61,6 +72,285 @@ def _summary_errors(report: dict[str, Any], limit: int = 3) -> list[dict[str, An
         else:
             out.append({"error": str(item)})
     return out
+
+
+def _fallback_compute_feed_hash(entry: dict[str, Any]) -> str:
+    payload = dict(entry)
+    payload.pop("hash", None)
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def _fallback_audit_feed_chain(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {
+            "ok": False,
+            "path": str(path),
+            "lines_total": 0,
+            "legacy_lines": 0,
+            "hashed_lines": 0,
+            "anchor_seen": False,
+            "first_anchor_line": None,
+            "last_hash": None,
+            "errors": [{"line": 0, "error": f"missing_file:{path}"}],
+        }
+    if not path.is_file():
+        return {
+            "ok": False,
+            "path": str(path),
+            "lines_total": 0,
+            "legacy_lines": 0,
+            "hashed_lines": 0,
+            "anchor_seen": False,
+            "first_anchor_line": None,
+            "last_hash": None,
+            "errors": [{"line": 0, "error": f"not_a_file:{path}"}],
+        }
+
+    errors: list[dict[str, Any]] = []
+    lines_total = 0
+    legacy_lines = 0
+    hashed_lines = 0
+    anchor_seen = False
+    first_anchor_line: int | None = None
+    last_hash: str | None = None
+
+    with path.open("r", encoding="utf-8") as handle:
+        for line_no, raw in enumerate(handle, start=1):
+            lines_total += 1
+            line = raw.strip()
+            if not line:
+                if not anchor_seen:
+                    legacy_lines += 1
+                    continue
+                errors.append({"line": line_no, "error": "empty_line_after_anchor"})
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError as exc:
+                if not anchor_seen:
+                    legacy_lines += 1
+                    continue
+                errors.append({"line": line_no, "error": "invalid_json", "detail": str(exc)})
+                continue
+            if not isinstance(entry, dict):
+                if not anchor_seen:
+                    legacy_lines += 1
+                    continue
+                errors.append({"line": line_no, "error": "non_object_json"})
+                continue
+
+            entry_hash = entry.get("hash")
+            has_hash = isinstance(entry_hash, str) and bool(entry_hash.strip())
+            if not anchor_seen:
+                if not has_hash:
+                    legacy_lines += 1
+                    continue
+                if entry.get("action") != ANCHOR_ACTION:
+                    errors.append({"line": line_no, "error": "hashed_entry_before_anchor"})
+                    continue
+                if entry.get("prev_hash") != GENESIS_PREV_HASH:
+                    errors.append({"line": line_no, "error": "anchor_prev_hash_mismatch"})
+                    continue
+                computed = _fallback_compute_feed_hash(entry)
+                if computed != entry_hash:
+                    errors.append({"line": line_no, "error": "anchor_hash_mismatch", "computed": computed, "stored": entry_hash})
+                    continue
+                anchor_seen = True
+                first_anchor_line = line_no
+                hashed_lines += 1
+                last_hash = entry_hash
+                continue
+
+            if not has_hash:
+                errors.append({"line": line_no, "error": "unhashed_entry_after_anchor"})
+                continue
+            computed = _fallback_compute_feed_hash(entry)
+            if computed != entry_hash:
+                errors.append({"line": line_no, "error": "hash_mismatch", "computed": computed, "stored": entry_hash})
+                continue
+            if entry.get("prev_hash") != last_hash:
+                errors.append(
+                    {
+                        "line": line_no,
+                        "error": "prev_hash_mismatch",
+                        "expected": last_hash,
+                        "observed": entry.get("prev_hash"),
+                    }
+                )
+                continue
+            hashed_lines += 1
+            last_hash = entry_hash
+
+    return {
+        "ok": len(errors) == 0,
+        "path": str(path),
+        "lines_total": lines_total,
+        "legacy_lines": legacy_lines,
+        "hashed_lines": hashed_lines,
+        "anchor_seen": anchor_seen,
+        "first_anchor_line": first_anchor_line,
+        "last_hash": last_hash,
+        "rotation_registry_path": str(path.parent / "rotation_registry.jsonl"),
+        "rotation_entries_checked": 0,
+        "errors": errors[:5],
+    }
+
+
+def _fallback_compute_epoch_hash(epoch_id: int, prev_epoch_hash: str, log_heads: dict[str, Any]) -> str:
+    canonical = str(epoch_id) + prev_epoch_hash + json.dumps(log_heads, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _fallback_validate_head_shape(head: Any) -> bool:
+    if not isinstance(head, dict):
+        return False
+    if (
+        isinstance(head.get("path"), str)
+        and isinstance(head.get("exists"), bool)
+        and isinstance(head.get("size_bytes"), int)
+        and isinstance(head.get("tail_sha256"), str)
+    ):
+        return True
+    if (
+        isinstance(head.get("last_event_hash"), str)
+        and isinstance(head.get("line_count"), int)
+    ):
+        return True
+    return False
+
+
+def _fallback_audit_epoch_manifest(path: Path) -> dict[str, Any]:
+    required_logs = ["dispatcher"]
+    if not path.exists():
+        return {
+            "ok": False,
+            "path": str(path),
+            "lines_total": 0,
+            "epoch_lines": 0,
+            "required_logs": required_logs,
+            "head_completeness_ok": False,
+            "first_epoch_line": None,
+            "last_epoch_hash": None,
+            "errors": [{"line": 0, "error": f"missing_file:{path}"}],
+        }
+    if not path.is_file():
+        return {
+            "ok": False,
+            "path": str(path),
+            "lines_total": 0,
+            "epoch_lines": 0,
+            "required_logs": required_logs,
+            "head_completeness_ok": False,
+            "first_epoch_line": None,
+            "last_epoch_hash": None,
+            "errors": [{"line": 0, "error": f"not_a_file:{path}"}],
+        }
+
+    errors: list[dict[str, Any]] = []
+    lines_total = 0
+    epoch_lines = 0
+    first_epoch_line: int | None = None
+    last_epoch_hash: str | None = None
+    head_completeness_ok = True
+
+    with path.open("r", encoding="utf-8") as handle:
+        for line_no, raw in enumerate(handle, start=1):
+            lines_total += 1
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError as exc:
+                errors.append({"line": line_no, "error": "invalid_json", "detail": str(exc)})
+                continue
+            if not isinstance(entry, dict):
+                errors.append({"line": line_no, "error": "non_object_json"})
+                continue
+
+            epoch_id = entry.get("epoch_id")
+            prev_epoch_hash = entry.get("prev_epoch_hash")
+            epoch_hash = entry.get("epoch_hash")
+            log_heads = entry.get("log_heads")
+            if not isinstance(epoch_id, int) or epoch_id < 1:
+                errors.append({"line": line_no, "error": "invalid_epoch_id"})
+                continue
+            if not isinstance(prev_epoch_hash, str) or not prev_epoch_hash:
+                errors.append({"line": line_no, "error": "invalid_prev_epoch_hash"})
+                continue
+            if not isinstance(epoch_hash, str) or not epoch_hash:
+                errors.append({"line": line_no, "error": "invalid_epoch_hash"})
+                continue
+            if not isinstance(log_heads, dict):
+                errors.append({"line": line_no, "error": "invalid_log_heads"})
+                continue
+
+            if first_epoch_line is None:
+                first_epoch_line = line_no
+                if prev_epoch_hash != GENESIS_PREV_EPOCH_HASH:
+                    errors.append(
+                        {
+                            "line": line_no,
+                            "error": "genesis_prev_epoch_hash_mismatch",
+                            "expected": GENESIS_PREV_EPOCH_HASH,
+                            "observed": prev_epoch_hash,
+                        }
+                    )
+            elif prev_epoch_hash != last_epoch_hash:
+                errors.append(
+                    {
+                        "line": line_no,
+                        "error": "prev_epoch_hash_mismatch",
+                        "expected": last_epoch_hash,
+                        "observed": prev_epoch_hash,
+                    }
+                )
+
+            missing = [key for key in required_logs if key not in log_heads]
+            if missing:
+                head_completeness_ok = False
+                errors.append({"line": line_no, "error": "missing_registered_head", "missing": missing})
+            for key in required_logs:
+                if key not in log_heads:
+                    continue
+                if not _fallback_validate_head_shape(log_heads[key]):
+                    head_completeness_ok = False
+                    errors.append({"line": line_no, "error": "invalid_log_head_shape", "log": key})
+            if "activity_feed" in log_heads:
+                head_completeness_ok = False
+                errors.append({"line": line_no, "error": "forbidden_log_head", "log": "activity_feed"})
+
+            computed = _fallback_compute_epoch_hash(epoch_id, prev_epoch_hash, log_heads)
+            if computed != epoch_hash:
+                errors.append({"line": line_no, "error": "epoch_hash_mismatch", "computed": computed, "stored": epoch_hash})
+                continue
+            epoch_lines += 1
+            last_epoch_hash = epoch_hash
+
+    return {
+        "ok": len(errors) == 0,
+        "path": str(path),
+        "lines_total": lines_total,
+        "epoch_lines": epoch_lines,
+        "required_logs": required_logs,
+        "head_completeness_ok": head_completeness_ok,
+        "first_epoch_line": first_epoch_line,
+        "last_epoch_hash": last_epoch_hash,
+        "errors": errors[:5],
+    }
+
+
+def _audit_feed(path: Path) -> dict[str, Any]:
+    if _audit_feed_chain_ext is not None:
+        return _audit_feed_chain_ext(path)
+    return _fallback_audit_feed_chain(path)
+
+
+def _audit_epoch(path: Path) -> dict[str, Any]:
+    if _audit_epoch_manifest_ext is not None:
+        return _audit_epoch_manifest_ext(path)
+    return _fallback_audit_epoch_manifest(path)
 
 
 def _read_compat_fail_reports() -> list[Path]:
@@ -140,26 +430,26 @@ def _emit_integrity_failed(path: Path, report: dict[str, Any], report_path: Path
 
 def _run_audit_with_shared_lock(path: Path) -> dict[str, Any]:
     if fcntl is None:
-        return _audit(path)
+        return _audit_feed(path)
     if not path.exists():
-        return _audit(path)
+        return _audit_feed(path)
     with path.open("rb") as handle:
         fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
         try:
-            return _audit(path)
+            return _audit_feed(path)
         finally:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _run_epoch_audit_with_shared_lock(path: Path) -> dict[str, Any]:
     if fcntl is None:
-        return _audit_epoch_manifest(path)
+        return _audit_epoch(path)
     if not path.exists():
-        return _audit_epoch_manifest(path)
+        return _audit_epoch(path)
     with path.open("rb") as handle:
         fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
         try:
-            return _audit_epoch_manifest(path)
+            return _audit_epoch(path)
         finally:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
