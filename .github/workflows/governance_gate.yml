@@ -38,5 +38,4 @@ jobs:
         run: |
           python3 tools/ops/governance_file_lock.py --check-mutation \
             --base origin/${{ github.event.pull_request.base.ref }} \
-            --head ${{ github.event.pull_request.head.sha }} \
-            --metadata "${{ github.event.pull_request.title }} ${{ github.event.pull_request.body }}"
+            --head ${{ github.event.pull_request.head.sha }}
