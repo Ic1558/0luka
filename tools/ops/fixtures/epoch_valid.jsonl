@@ -1,0 +1,2 @@
+{"epoch_id":1,"prev_epoch_hash":"0000000000000000","log_heads":{"dispatcher":{"last_event_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","line_count":10}},"epoch_hash":"9e663bae980c3f06b3a5cfd6d51679a596a5f69371a5efefedd7cfeb8ac6849f"}
+{"epoch_id":2,"prev_epoch_hash":"9e663bae980c3f06b3a5cfd6d51679a596a5f69371a5efefedd7cfeb8ac6849f","log_heads":{"dispatcher":{"last_event_hash":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","line_count":11}},"epoch_hash":"f3bc0e11cfb6de589a36f7647f6a18cee104d3b9c7c9557a77f981f6b492bec3"}
