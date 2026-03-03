@@ -30,6 +30,59 @@ def _compute_hash(entry: dict[str, Any]) -> str:
     return hashlib.sha256(canonical).hexdigest()
 
 
+def _scan_rotation_registry(registry_path: Path, *, log_name: str) -> tuple[list[dict[str, Any]], int]:
+    if not registry_path.exists():
+        return [], 0
+    if not registry_path.is_file():
+        return [{"line": 0, "error": f"rotation_registry_not_file:{registry_path}"}], 0
+
+    errors: list[dict[str, Any]] = []
+    seals_seen: set[str] = set()
+    entries_checked = 0
+
+    with registry_path.open("r", encoding="utf-8") as handle:
+        for line_no, raw in enumerate(handle, start=1):
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError as exc:
+                errors.append({"line": line_no, "error": "rotation_invalid_json", "detail": str(exc)})
+                continue
+            if not isinstance(entry, dict):
+                errors.append({"line": line_no, "error": "rotation_non_object_json"})
+                continue
+            if entry.get("log") != log_name:
+                continue
+            action = entry.get("action")
+            if action == "rotation_seal":
+                entries_checked += 1
+                seal_hash = entry.get("seal_hash")
+                if not isinstance(seal_hash, str) or not seal_hash.strip():
+                    errors.append({"line": line_no, "error": "rotation_seal_missing_hash"})
+                    continue
+                seals_seen.add(seal_hash)
+            elif action == "rotation_continuation":
+                entries_checked += 1
+                prev_seal_hash = entry.get("prev_seal_hash")
+                if not isinstance(prev_seal_hash, str) or not prev_seal_hash.strip():
+                    errors.append({"line": line_no, "error": "rotation_continuation_missing_prev"})
+                    continue
+                if prev_seal_hash not in seals_seen:
+                    errors.append(
+                        {
+                            "line": line_no,
+                            "error": "rotation_continuation_prev_not_found",
+                            "observed_prev_seal_hash": prev_seal_hash,
+                        }
+                    )
+            else:
+                continue
+
+    return errors, entries_checked
+
+
 def _audit(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {
@@ -133,6 +186,11 @@ def _audit(path: Path) -> dict[str, Any]:
             hashed_lines += 1
             last_hash = entry_hash
 
+    log_name = path.stem
+    rotation_registry_path = path.parent / "rotation_registry.jsonl"
+    rotation_errors, rotation_entries_checked = _scan_rotation_registry(rotation_registry_path, log_name=log_name)
+    errors.extend(rotation_errors)
+
     ok = len(errors) == 0
     return {
         "ok": ok,
@@ -143,6 +201,8 @@ def _audit(path: Path) -> dict[str, Any]:
         "anchor_seen": anchor_seen,
         "first_anchor_line": first_anchor_line,
         "last_hash": last_hash,
+        "rotation_registry_path": str(rotation_registry_path),
+        "rotation_entries_checked": rotation_entries_checked,
         "errors": errors[:5],
     }
 

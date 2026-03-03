@@ -11,6 +11,9 @@ set -euo pipefail
 ROOT="${ROOT:-$HOME/0luka}"
 ROOT="${ROOT%/}"
 export ROOT
+RUNTIME_ROOT="${LUKA_RUNTIME_ROOT:-$HOME/0luka_runtime}"
+RUNTIME_ROOT="${RUNTIME_ROOT%/}"
+export LUKA_RUNTIME_ROOT="$RUNTIME_ROOT"
 ROOT_REF='${ROOT}'
 OBS="$ROOT/observability"
 OBS_REF="${ROOT_REF}/observability"
@@ -30,6 +33,40 @@ OUT_JSON_REF="$OBS_REF/artifacts/ram/${TS}_ram_snapshot.json"
 TEL_JSON_REF="$OBS_REF/telemetry/ram_monitor.latest.json"
 PERSIST_WINDOW_SEC=300
 PERSIST_EMIT_COOLDOWN_SEC=300
+
+emit_global_feed_event() {
+  local action="$1"
+  local free_mb="$2"
+  local comp_gb="$3"
+  local critical_for_sec="${4:-}"
+
+  LUKA_RUNTIME_ROOT="$RUNTIME_ROOT" python3 - "$action" "$free_mb" "$comp_gb" "$critical_for_sec" <<'PY'
+from __future__ import annotations
+
+import sys
+import time
+from pathlib import Path
+
+from core.activity_feed_guard import guarded_append_activity_feed
+
+action, free_mb, comp_gb, critical_for = sys.argv[1:5]
+payload = {
+    "ts_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    "action": action,
+    "emit_mode": "runtime_auto",
+    "level": "CRITICAL",
+    "result": "CRITICAL",
+    "tool": "ram_monitor",
+    "free_mb": int(free_mb),
+    "compressed_gb": float(comp_gb),
+}
+if critical_for:
+    payload["critical_for_sec"] = int(critical_for)
+
+ok = guarded_append_activity_feed(Path("runtime/logs/activity_feed.jsonl"), payload)
+raise SystemExit(0 if ok else 2)
+PY
+}
 
 parse_int_env() {
   local name="$1"
@@ -435,29 +472,25 @@ echo "decision: pressure_level=$PRESSURE_LEVEL base_pressure_level=$BASE_PRESSUR
 
 # Emit activity feed event on CRITICAL memory pressure (fail-open)
 if [[ "$PRESSURE_LEVEL" == "CRITICAL" ]]; then
-  COMPONENT_FEED_PATH="$OBS/logs/components/ram_monitor.jsonl"
-  GLOBAL_FEED_PATH="$OBS/logs/activity_feed.jsonl"
+  COMPONENT_FEED_PATH="$RUNTIME_ROOT/logs/components/ram_monitor.jsonl"
   TS_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   mkdir -p "$(dirname "$COMPONENT_FEED_PATH")" 2>/dev/null || true
 
   printf '{"ts_utc":"%s","phase_id":"PHASE10_RAM","action":"ram_pressure_alert","emit_mode":"runtime_auto","tool":"ram_monitor","pressure_level":"CRITICAL","free_mb":%s,"compressed_gb":%s}\n' \
     "$TS_UTC" "$FREE_MB" "$COMP_GB" >> "$COMPONENT_FEED_PATH" 2>/dev/null || true
 
-  printf '{"ts_utc":"%s","action":"ram_pressure_alert","emit_mode":"runtime_auto","level":"CRITICAL","result":"CRITICAL","tool":"ram_monitor","free_mb":%s,"compressed_gb":%s}\n' \
-    "$TS_UTC" "$FREE_MB" "$COMP_GB" >> "$GLOBAL_FEED_PATH" 2>/dev/null || true
+  emit_global_feed_event "ram_pressure_alert" "$FREE_MB" "$COMP_GB"
 fi
 
 if [[ "$EMIT_PERSISTENT" == "1" ]]; then
-  COMPONENT_FEED_PATH="$OBS/logs/components/ram_monitor.jsonl"
-  GLOBAL_FEED_PATH="$OBS/logs/activity_feed.jsonl"
+  COMPONENT_FEED_PATH="$RUNTIME_ROOT/logs/components/ram_monitor.jsonl"
   TS_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   mkdir -p "$(dirname "$COMPONENT_FEED_PATH")" 2>/dev/null || true
 
   printf '{"ts_utc":"%s","phase_id":"PHASE10_RAM","action":"ram_pressure_persistent","emit_mode":"runtime_auto","tool":"ram_monitor","pressure_level":"CRITICAL","critical_for_sec":%s,"free_mb":%s,"compressed_gb":%s}\n' \
     "$TS_UTC" "$CRITICAL_FOR_SEC" "$FREE_MB" "$COMP_GB" >> "$COMPONENT_FEED_PATH" 2>/dev/null || true
 
-  printf '{"ts_utc":"%s","action":"ram_pressure_persistent","emit_mode":"runtime_auto","level":"CRITICAL","result":"CRITICAL","tool":"ram_monitor","critical_for_sec":%s,"free_mb":%s,"compressed_gb":%s}\n' \
-    "$TS_UTC" "$CRITICAL_FOR_SEC" "$FREE_MB" "$COMP_GB" >> "$GLOBAL_FEED_PATH" 2>/dev/null || true
+  emit_global_feed_event "ram_pressure_persistent" "$FREE_MB" "$COMP_GB" "$CRITICAL_FOR_SEC"
 fi
 
 # sha256 for artifact (portable)
