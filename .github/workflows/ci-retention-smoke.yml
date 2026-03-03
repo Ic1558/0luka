@@ -28,6 +28,14 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
 
+      - name: Configure runtime root (fail-closed contract)
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNTIME_ROOT="$RUNNER_TEMP/0luka_runtime"
+          mkdir -p "$RUNTIME_ROOT/logs/archive"
+          echo "LUKA_RUNTIME_ROOT=$RUNTIME_ROOT" >> "$GITHUB_ENV"
+
       - name: Compile core
         shell: bash
         run: |
