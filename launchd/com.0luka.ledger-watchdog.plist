@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.0luka.ledger-watchdog</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>/Users/icmini/0luka/tools/ops/ledger_watchdog.py</string>
+        <string>--check-epoch</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>LUKA_RUNTIME_ROOT</key>
+        <string>/Users/icmini/0luka_runtime</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>600</integer>
+    <key>StandardErrorPath</key>
+    <string>/Users/icmini/0luka_runtime/logs/ledger_watchdog.launchd.err.log</string>
+    <key>StandardOutPath</key>
+    <string>/Users/icmini/0luka_runtime/logs/ledger_watchdog.launchd.out.log</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/icmini/0luka</string>
+</dict>
+</plist>
