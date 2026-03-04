@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import argparse
+import calendar
+import hashlib
 import json
 import os
 import sys
@@ -50,6 +52,10 @@ def _canonical_epoch_manifest_path() -> Path:
 
 def _default_reports_dir(runtime_root: Path) -> Path:
     return runtime_root / "state" / "reports"
+
+
+def _emit_state_path(runtime_root: Path) -> Path:
+    return runtime_root / "state" / "watchdog_emit_state.json"
 
 
 def _legacy_repo_reports_dir() -> Path:
@@ -234,6 +240,98 @@ def _emit_remediation_request(runtime_root: Path, payload: dict[str, Any]) -> tu
         return None, f"append_failed:{exc}"
 
 
+def _incident_id(
+    primary_failure: str | None,
+    error_text: str | None,
+    active_feed_path: str,
+    epoch_path: str,
+    rotated_glob: str,
+) -> str | None:
+    if not primary_failure:
+        return None
+    material = (
+        f"{primary_failure}|{error_text or ''}|"
+        f"{active_feed_path}|{epoch_path}|{rotated_glob}"
+    )
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def _first_error_code(report: Any) -> str:
+    if not isinstance(report, dict):
+        return ""
+    errors = report.get("errors")
+    if not isinstance(errors, list) or not errors:
+        return ""
+    first = errors[0]
+    if isinstance(first, dict):
+        return str(first.get("error", ""))
+    return str(first)
+
+
+def _primary_error(
+    primary_failure: str | None,
+    feed_report: dict[str, Any],
+    epoch_report: dict[str, Any] | None,
+    rotated_report: dict[str, Any] | None,
+) -> str:
+    if primary_failure == "active_feed":
+        return _first_error_code(feed_report)
+    if primary_failure == "epoch_manifest":
+        return _first_error_code(epoch_report)
+    if primary_failure == "rotated_feeds":
+        if not isinstance(rotated_report, dict):
+            return ""
+        files = rotated_report.get("files")
+        if isinstance(files, list):
+            for item in files:
+                code = _first_error_code(item)
+                if code:
+                    return code
+        return _first_error_code(rotated_report)
+    return ""
+
+
+def _parse_utc_seconds(value: Any) -> float | None:
+    if not isinstance(value, str) or not value:
+        return None
+    for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y%m%dT%H%M%SZ"):
+        try:
+            parsed = time.strptime(value, fmt)
+            return float(calendar.timegm(parsed))
+        except ValueError:
+            continue
+    return None
+
+
+def _load_emit_state(path: Path) -> tuple[dict[str, Any], str | None]:
+    empty_state = {"version": 1, "last_emits": {}}
+    if not path.exists():
+        return empty_state, None
+    try:
+        obj = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(obj, dict):
+            raise ValueError("state_not_object")
+        last_emits = obj.get("last_emits")
+        if not isinstance(last_emits, dict):
+            raise ValueError("state_last_emits_not_object")
+        return {"version": int(obj.get("version", 1)), "last_emits": last_emits}, None
+    except Exception as exc:
+        return empty_state, f"state_load_failed:{exc}"
+
+
+def _save_emit_state(path: Path, state: dict[str, Any]) -> str | None:
+    try:
+        if not path.parent.exists():
+            return f"state_missing_dir:{path.parent}"
+        temp = path.with_name(f"{path.name}.tmp.{os.getpid()}.{time.time_ns()}")
+        payload = json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        temp.write_text(payload, encoding="utf-8")
+        os.replace(temp, path)
+        return None
+    except Exception as exc:
+        return f"state_write_failed:{exc}"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Ledger runtime hash-chain watchdog.")
     parser.add_argument("--path", type=Path, help="Override feed path (default: runtime canonical feed)")
@@ -243,6 +341,7 @@ def main() -> int:
     parser.add_argument("--no-emit", action="store_true", help="Do not emit integrity incident event on FAIL")
     parser.add_argument("--heal", action="store_true", help="Create required runtime log dirs only (no ledger mutation).")
     parser.add_argument("--emit-remediation", action="store_true", help="Append remediation request under $LUKA_RUNTIME_ROOT/state on FAIL.")
+    parser.add_argument("--emit-cooldown-sec", type=int, default=1800, help="Cooldown seconds for duplicate remediation emits per incident_id.")
     parser.add_argument("--report-dir", type=Path, help="Override fail report directory (default: $LUKA_RUNTIME_ROOT/state/reports)")
     parser.add_argument("--no-report", action="store_true", help="Do not write fail report files.")
     args = parser.parse_args()
@@ -252,12 +351,24 @@ def main() -> int:
     remediation_emitted = False
     remediation_path: Optional[str] = None
     remediation_error: Optional[str] = None
+    incident_id: Optional[str] = None
+    emit_state_path: Optional[str] = None
+    emit_state_error: Optional[str] = None
+    emit_cooldown_sec = max(0, int(args.emit_cooldown_sec))
+    remediation_emit_decision = "not_requested"
 
     try:
         runtime_root = _runtime_root()
     except Exception as exc:
         missing_detail = str(exc)
         exit_code = 2
+        incident_id = _incident_id(
+            "active_feed",
+            "runtime_root_missing",
+            "",
+            "",
+            "",
+        )
         report = {
             "ok": False,
             "exit_code": exit_code,
@@ -276,6 +387,11 @@ def main() -> int:
             "remediation_emitted": False,
             "remediation_path": None,
             "remediation_error": None,
+            "incident_id": incident_id,
+            "emit_cooldown_sec": emit_cooldown_sec,
+            "remediation_emit_decision": "skipped_no_runtime_root",
+            "emit_state_path": None,
+            "emit_state_error": None,
         }
         if args.json:
             print(json.dumps(report, ensure_ascii=False))
@@ -290,6 +406,8 @@ def main() -> int:
     canonical = _canonical_feed_path().resolve()
     target = (args.path.expanduser().resolve() if args.path else canonical)
     report_dir = (args.report_dir.expanduser().resolve() if args.report_dir else _default_reports_dir(runtime_root))
+    emit_state = _emit_state_path(runtime_root)
+    emit_state_path = str(emit_state)
     canonical_epoch_path = _canonical_epoch_manifest_path().resolve()
     epoch_target = args.epoch_path.expanduser().resolve() if args.epoch_path else canonical_epoch_path
 
@@ -336,42 +454,81 @@ def main() -> int:
             emitted = _emit_integrity_failed(target, combined_report, report_path)
 
         if args.emit_remediation:
-            payload = {
-                "ts_utc": _utc_compact(),
-                "tool": "ledger_watchdog",
-                "mode": "check_epoch",
-                "primary_failure": primary_failure,
-                "rc": 2,
-                "runtime_root": str(runtime_root),
-                "paths": {
-                    "active_feed_path": str(target),
-                    "epoch_path": str(epoch_target),
-                    "rotated_glob": str(runtime_root / "logs" / "archive" / "activity_feed.*.jsonl"),
-                },
-                "heads": {
-                    "active_feed_last_hash": feed_report.get("last_hash"),
-                    "epoch_last_epoch_hash": epoch_report.get("last_epoch_hash") if isinstance(epoch_report, dict) else None,
-                },
-                "checks_summary": {
-                    "active_feed": {
-                        "ok": bool(feed_report.get("ok")),
-                        "lines_total": int(feed_report.get("lines_total", 0) or 0),
-                    },
-                    "epoch_manifest": {
-                        "ok": bool(epoch_report.get("ok")) if isinstance(epoch_report, dict) else False,
-                        "lines_total": int(epoch_report.get("lines_total", 0) or 0) if isinstance(epoch_report, dict) else 0,
-                    },
-                    "rotated_feeds": {
-                        "ok": bool(rotated_report.get("ok")) if isinstance(rotated_report, dict) else False,
-                        "files_total": int(rotated_report.get("files_total", 0) or 0) if isinstance(rotated_report, dict) else 0,
-                    },
-                },
-                "hint": _remediation_hint(primary_failure),
-            }
-            remediation_path, remediation_error = _emit_remediation_request(runtime_root, payload)
-            remediation_emitted = remediation_path is not None
-            if remediation_emitted:
+            primary_error = _primary_error(primary_failure, feed_report, epoch_report, rotated_report)
+            rotated_glob = str(runtime_root / "logs" / "archive" / "activity_feed.*.jsonl")
+            incident_id = _incident_id(
+                primary_failure,
+                primary_error,
+                str(target),
+                str(epoch_target),
+                rotated_glob,
+            )
+            state_obj, emit_state_error = _load_emit_state(emit_state)
+            last_emits = state_obj.get("last_emits", {})
+            if not isinstance(last_emits, dict):
+                last_emits = {}
+                state_obj["last_emits"] = last_emits
+            prior = last_emits.get(incident_id) if incident_id else None
+            prior_ts = _parse_utc_seconds(prior.get("ts_utc")) if isinstance(prior, dict) else None
+            now_ts = time.time()
+            if prior_ts is not None and emit_cooldown_sec > 0 and (now_ts - prior_ts) < emit_cooldown_sec:
+                remediation_emit_decision = "skipped_cooldown"
+            else:
+                remediation_emit_decision = "failed_emit_io"
                 remediation_error = None
+                payload = {
+                    "ts_utc": _utc_compact(),
+                    "tool": "ledger_watchdog",
+                    "mode": "check_epoch",
+                    "primary_failure": primary_failure,
+                    "rc": 2,
+                    "runtime_root": str(runtime_root),
+                    "paths": {
+                        "active_feed_path": str(target),
+                        "epoch_path": str(epoch_target),
+                        "rotated_glob": str(runtime_root / "logs" / "archive" / "activity_feed.*.jsonl"),
+                    },
+                    "heads": {
+                        "active_feed_last_hash": feed_report.get("last_hash"),
+                        "epoch_last_epoch_hash": epoch_report.get("last_epoch_hash") if isinstance(epoch_report, dict) else None,
+                    },
+                    "checks_summary": {
+                        "active_feed": {
+                            "ok": bool(feed_report.get("ok")),
+                            "lines_total": int(feed_report.get("lines_total", 0) or 0),
+                        },
+                        "epoch_manifest": {
+                            "ok": bool(epoch_report.get("ok")) if isinstance(epoch_report, dict) else False,
+                            "lines_total": int(epoch_report.get("lines_total", 0) or 0) if isinstance(epoch_report, dict) else 0,
+                        },
+                        "rotated_feeds": {
+                            "ok": bool(rotated_report.get("ok")) if isinstance(rotated_report, dict) else False,
+                            "files_total": int(rotated_report.get("files_total", 0) or 0) if isinstance(rotated_report, dict) else 0,
+                        },
+                    },
+                    "hint": _remediation_hint(primary_failure),
+                    "incident_id": incident_id,
+                }
+                remediation_path, remediation_error = _emit_remediation_request(runtime_root, payload)
+                remediation_emitted = remediation_path is not None
+                if remediation_emitted:
+                    remediation_emit_decision = "emitted"
+                    remediation_error = None
+                    last_emits[incident_id] = {
+                        "ts_utc": _utc_now(),
+                        "rc": 2,
+                        "primary_failure": primary_failure,
+                        "error": primary_error,
+                    }
+                    save_error = _save_emit_state(emit_state, state_obj)
+                    if save_error:
+                        emit_state_error = f"{emit_state_error};{save_error}" if emit_state_error else save_error
+                else:
+                    remediation_emit_decision = "failed_emit_io"
+        else:
+            remediation_emit_decision = "not_requested"
+    else:
+        remediation_emit_decision = "not_requested"
     exit_code = 0 if ok else 2
 
     if args.json:
@@ -390,6 +547,11 @@ def main() -> int:
             "remediation_emitted": remediation_emitted,
             "remediation_path": remediation_path,
             "remediation_error": remediation_error,
+            "incident_id": incident_id,
+            "emit_cooldown_sec": emit_cooldown_sec,
+            "remediation_emit_decision": remediation_emit_decision,
+            "emit_state_path": emit_state_path,
+            "emit_state_error": emit_state_error,
             "checks": {
                 "active_feed": feed_report,
                 "epoch_manifest": epoch_report,
