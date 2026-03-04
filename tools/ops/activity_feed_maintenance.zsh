@@ -7,11 +7,11 @@ REPO_ROOT="/Users/icmini/0luka"
 FEED_FILE="$REPO_ROOT/observability/logs/activity_feed.jsonl"
 ARCHIVE_DIR="$REPO_ROOT/observability/logs/archive"
 INDEX_FILE="$ARCHIVE_DIR/activity_feed.index.jsonl"
-LOCK_FILE="$FEED_FILE.lock"
+LOCK_DIR="$FEED_FILE.lock.d"
 MAINT_LOG="$REPO_ROOT/observability/logs/maintenance_err.log"
 
 mkdir -p "$ARCHIVE_DIR"
-mkdir -p "$(dirname "$LOCK_FILE")"
+mkdir -p "$(dirname "$LOCK_DIR")"
 
 # Lock/retry tuning (bounded wait to reduce contention)
 LOCK_MAX_WAIT_MS=${LOCK_MAX_WAIT_MS:-1200}
@@ -26,86 +26,63 @@ function handle_error() {
     local ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     # Write observability record
     echo "{\"ts\":\"$ts\",\"level\":\"ERROR\",\"source\":\"activity_feed_maintenance\",\"event\":\"maintenance_failed\",\"exit_code\":$err}" >> "$MAINT_LOG"
-    rm -f "$LOCK_FILE"
+    rm -rf "$LOCK_DIR"
     exit $err
 }
 trap handle_error ERR
 
-# 1. Acquire Lock (bounded retry via flock on a dedicated lockfile)
-PYTHON_OUT_TMP=$(mktemp)
-export LOCK_MAX_WAIT_MS="$LOCK_MAX_WAIT_MS"
-export LOCK_INITIAL_BACKOFF_MS="$LOCK_INITIAL_BACKOFF_MS"
-export LOCK_MAX_BACKOFF_MS="$LOCK_MAX_BACKOFF_MS"
-export LOCK_JITTER_MS="$LOCK_JITTER_MS"
-export LOCK_FILE="$LOCK_FILE"
-
-"$PYTHON_BIN" - > "$PYTHON_OUT_TMP" <<'PY'
-import os, sys, time, json, random
-try:
-    import fcntl
-except ImportError:
-    fcntl = None
-
-lock_path = os.environ.get("LOCK_FILE", "").strip()
-max_wait_ms = int(os.environ.get("LOCK_MAX_WAIT_MS", "1200"))
-initial_backoff_ms = int(os.environ.get("LOCK_INITIAL_BACKOFF_MS", "20"))
-max_backoff_ms = int(os.environ.get("LOCK_MAX_BACKOFF_MS", "200"))
-jitter_ms = int(os.environ.get("LOCK_JITTER_MS", "30"))
-
-start = time.monotonic()
-attempts = 0
-backoff = initial_backoff_ms
-
-if not lock_path:
-    print(json.dumps({"ok": False, "reason": "lock_path_missing", "attempts": 0, "wait_ms": 0}))
-    sys.exit(0)
-
-os.makedirs(os.path.dirname(lock_path), exist_ok=True)
-
-if fcntl is None:
-    print(json.dumps({"ok": False, "reason": "fcntl_unavailable", "attempts": 0, "wait_ms": 0}))
-    sys.exit(0)
-
-f = open(lock_path, "a+")
-while True:
-    attempts += 1
-    try:
-        fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        wait_ms = int((time.monotonic() - start) * 1000)
-        print(json.dumps({"ok": True, "attempts": attempts, "wait_ms": wait_ms}))
-        break
-    except BlockingIOError:
-        elapsed_ms = int((time.monotonic() - start) * 1000)
-        if elapsed_ms >= max_wait_ms:
-            print(json.dumps({"ok": False, "reason": "lock_contention", "attempts": attempts, "wait_ms": elapsed_ms}))
-            break
-        sleep_ms = min(max_backoff_ms, backoff) + random.randint(0, max(0, jitter_ms))
-        time.sleep(sleep_ms / 1000.0)
-        backoff = min(max_backoff_ms, max(initial_backoff_ms, backoff * 2))
+# 1. Acquire Lock (bounded retry via atomic mkdir lockdir)
+LOCK_ATTEMPTS=0
+LOCK_WAIT_MS=0
+LOCK_BACKOFF_MS=$LOCK_INITIAL_BACKOFF_MS
+LOCK_START_NS=$(python3 - <<'PY'
+import time
+print(time.monotonic_ns())
 PY
+)
 
-LOCK_OUT=$(<"$PYTHON_OUT_TMP")
-rm -f "$PYTHON_OUT_TMP"
+while true; do
+  LOCK_ATTEMPTS=$((LOCK_ATTEMPTS + 1))
+  if mkdir "$LOCK_DIR" 2>/dev/null; then
+    echo $$ > "$LOCK_DIR/pid" 2>/dev/null || true
+    break
+  fi
 
-LOCK_OK=$(echo "$LOCK_OUT" | sed -E -n 's/.*"ok": *(true|false).*/\1/p' | tail -n 1)
-LOCK_ATTEMPTS=$(echo "$LOCK_OUT" | sed -E -n 's/.*"attempts": *([0-9]+).*/\1/p' | tail -n 1)
-LOCK_WAIT_MS=$(echo "$LOCK_OUT" | sed -E -n 's/.*"wait_ms": *([0-9]+).*/\1/p' | tail -n 1)
+  LOCK_NOW_NS=$(python3 - <<'PY'
+import time
+print(time.monotonic_ns())
+PY
+)
+  LOCK_WAIT_MS=$(((LOCK_NOW_NS - LOCK_START_NS) / 1000000))
 
-if [[ "$LOCK_OK" != "true" ]]; then
+  if (( LOCK_WAIT_MS >= LOCK_MAX_WAIT_MS )); then
     echo "lock_acquired=false"
     echo "actions_taken=lock_contention"
     EVENT_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    # IMPORTANT: Do NOT write contention events into the shared feed without a lock.
-    echo "{\"ts\":\"$EVENT_TS\",\"level\":\"WARN\",\"source\":\"activity_feed_maintenance\",\"event\":\"lock_contention\",\"lock_file\":\"$LOCK_FILE\",\"attempts\":${LOCK_ATTEMPTS:-0},\"wait_ms\":${LOCK_WAIT_MS:-0}}" >> "$MAINT_LOG"
+    echo "{\"ts\":\"$EVENT_TS\",\"level\":\"WARN\",\"source\":\"activity_feed_maintenance\",\"event\":\"lock_contention\",\"lock_dir\":\"$LOCK_DIR\",\"attempts\":$LOCK_ATTEMPTS,\"wait_ms\":$LOCK_WAIT_MS}" >> "$MAINT_LOG"
     exit 0
-fi
+  fi
 
-trap 'rm -f "$LOCK_FILE"' EXIT
+  JITTER=$(( RANDOM % (LOCK_JITTER_MS + 1) ))
+  SLEEP_MS=$(( LOCK_BACKOFF_MS + JITTER ))
+  sleep $(python3 - <<PY
+ms=$SLEEP_MS
+print(ms/1000.0)
+PY
+)
+
+  LOCK_BACKOFF_MS=$(( LOCK_BACKOFF_MS * 2 ))
+  if (( LOCK_BACKOFF_MS > LOCK_MAX_BACKOFF_MS )); then
+    LOCK_BACKOFF_MS=$LOCK_MAX_BACKOFF_MS
+  fi
+done
+
+trap 'rm -rf "$LOCK_DIR"' EXIT
 echo "lock_acquired=true"
 
 ACTIONS=()
 
-# 2. Rotate (Threshold: 5MB)
+# 2. Rotate (Threshold: 100KB)
 MAX_BYTES=$((100 * 1024))
 if [[ -f "$FEED_FILE" ]]; then
     
@@ -146,7 +123,7 @@ fi
 # 4. Rebuild Index
 if [[ ${#ACTIONS[@]} -gt 0 || ! -f "$INDEX_FILE" ]]; then
     # 4a. Rapid Structural Index (Zsh)
-    touch "$INDEX_FILE.tmp"
+    : > "$INDEX_FILE.tmp"
     for arch in "$ARCHIVE_DIR"/activity_feed.*.jsonl(N); do
         if [[ "$arch" == *"index.jsonl"* ]]; then continue; fi
         FILE_TS=$(echo "$arch" | grep -o -E '[0-9]{8}T[0-9]{6}Z' || true)
@@ -177,4 +154,4 @@ if [[ "${ACTIONS[*]}" == "noop" ]]; then
 else
     RESULT=$(echo "${ACTIONS[*]}" | tr ' ' ',')
 fi
-echo "{\"ts_utc\":\"$EVENT_TS\",\"action\":\"activity_feed_maintenance\",\"emit_mode\":\"runtime_auto\",\"result\":\"$RESULT\",\"lock_acquired\":true,\"lock_file\":\"$LOCK_FILE\",\"lock_attempts\":${LOCK_ATTEMPTS:-1},\"lock_wait_ms\":${LOCK_WAIT_MS:-0}}" >> "$FEED_FILE"
+echo "{\"ts_utc\":\"$EVENT_TS\",\"action\":\"activity_feed_maintenance\",\"emit_mode\":\"runtime_auto\",\"result\":\"$RESULT\",\"lock_acquired\":true,\"lock_dir\":\"$LOCK_DIR\",\"lock_attempts\":${LOCK_ATTEMPTS:-1},\"lock_wait_ms\":${LOCK_WAIT_MS:-0}}" >> "$FEED_FILE"
