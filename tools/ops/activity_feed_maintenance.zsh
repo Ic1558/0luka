@@ -6,10 +6,18 @@ REPO_ROOT="/Users/icmini/0luka"
 FEED_FILE="$REPO_ROOT/observability/logs/activity_feed.jsonl"
 ARCHIVE_DIR="$REPO_ROOT/observability/logs/archive"
 INDEX_FILE="$ARCHIVE_DIR/activity_feed.index.jsonl"
-LOCK_FILE="$ARCHIVE_DIR/.rotation.lock"
+LOCK_FILE="$FEED_FILE.lock"
 MAINT_LOG="$REPO_ROOT/observability/logs/maintenance_err.log"
 
 mkdir -p "$ARCHIVE_DIR"
+mkdir -p "$(dirname "$LOCK_FILE")"
+
+# Lock/retry tuning (bounded wait to reduce contention)
+LOCK_MAX_WAIT_MS=${LOCK_MAX_WAIT_MS:-1200}
+LOCK_INITIAL_BACKOFF_MS=${LOCK_INITIAL_BACKOFF_MS:-20}
+LOCK_MAX_BACKOFF_MS=${LOCK_MAX_BACKOFF_MS:-200}
+LOCK_JITTER_MS=${LOCK_JITTER_MS:-30}
+PYTHON_BIN=${PYTHON_BIN:-python3}
 
 # Fail-closed error handling
 function handle_error() {
@@ -22,14 +30,75 @@ function handle_error() {
 }
 trap handle_error ERR
 
-# 1. Acquire Lock
-if ! (set -o noclobber; echo $$ > "$LOCK_FILE") 2>/dev/null; then
+# 1. Acquire Lock (bounded retry via flock on a dedicated lockfile)
+PYTHON_OUT_TMP=$(mktemp)
+export LOCK_MAX_WAIT_MS="$LOCK_MAX_WAIT_MS"
+export LOCK_INITIAL_BACKOFF_MS="$LOCK_INITIAL_BACKOFF_MS"
+export LOCK_MAX_BACKOFF_MS="$LOCK_MAX_BACKOFF_MS"
+export LOCK_JITTER_MS="$LOCK_JITTER_MS"
+export LOCK_FILE="$LOCK_FILE"
+
+"$PYTHON_BIN" - > "$PYTHON_OUT_TMP" <<'PY'
+import os, sys, time, json, random
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+
+lock_path = os.environ.get("LOCK_FILE", "").strip()
+max_wait_ms = int(os.environ.get("LOCK_MAX_WAIT_MS", "1200"))
+initial_backoff_ms = int(os.environ.get("LOCK_INITIAL_BACKOFF_MS", "20"))
+max_backoff_ms = int(os.environ.get("LOCK_MAX_BACKOFF_MS", "200"))
+jitter_ms = int(os.environ.get("LOCK_JITTER_MS", "30"))
+
+start = time.monotonic()
+attempts = 0
+backoff = initial_backoff_ms
+
+if not lock_path:
+    print(json.dumps({"ok": False, "reason": "lock_path_missing", "attempts": 0, "wait_ms": 0}))
+    sys.exit(0)
+
+os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+
+if fcntl is None:
+    print(json.dumps({"ok": False, "reason": "fcntl_unavailable", "attempts": 0, "wait_ms": 0}))
+    sys.exit(0)
+
+f = open(lock_path, "a+")
+while True:
+    attempts += 1
+    try:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        wait_ms = int((time.monotonic() - start) * 1000)
+        print(json.dumps({"ok": True, "attempts": attempts, "wait_ms": wait_ms}))
+        break
+    except BlockingIOError:
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        if elapsed_ms >= max_wait_ms:
+            print(json.dumps({"ok": False, "reason": "lock_contention", "attempts": attempts, "wait_ms": elapsed_ms}))
+            break
+        sleep_ms = min(max_backoff_ms, backoff) + random.randint(0, max(0, jitter_ms))
+        time.sleep(sleep_ms / 1000.0)
+        backoff = min(max_backoff_ms, max(initial_backoff_ms, backoff * 2))
+PY
+
+LOCK_OUT=$(<"$PYTHON_OUT_TMP")
+rm -f "$PYTHON_OUT_TMP"
+
+LOCK_OK=$(echo "$LOCK_OUT" | sed -E -n 's/.*"ok": *(true|false).*/\1/p' | tail -n 1)
+LOCK_ATTEMPTS=$(echo "$LOCK_OUT" | sed -E -n 's/.*"attempts": *([0-9]+).*/\1/p' | tail -n 1)
+LOCK_WAIT_MS=$(echo "$LOCK_OUT" | sed -E -n 's/.*"wait_ms": *([0-9]+).*/\1/p' | tail -n 1)
+
+if [[ "$LOCK_OK" != "true" ]]; then
     echo "lock_acquired=false"
     echo "actions_taken=lock_contention"
     EVENT_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    echo "{\"ts_utc\":\"$EVENT_TS\",\"action\":\"activity_feed_maintenance\",\"emit_mode\":\"runtime_auto\",\"result\":\"lock_contention\",\"lock_acquired\":false}" >> "$FEED_FILE"
+    # IMPORTANT: Do NOT write contention events into the shared feed without a lock.
+    echo "{\"ts\":\"$EVENT_TS\",\"level\":\"WARN\",\"source\":\"activity_feed_maintenance\",\"event\":\"lock_contention\",\"lock_file\":\"$LOCK_FILE\",\"attempts\":${LOCK_ATTEMPTS:-0},\"wait_ms\":${LOCK_WAIT_MS:-0}}" >> "$MAINT_LOG"
     exit 0
 fi
+
 trap 'rm -f "$LOCK_FILE"' EXIT
 echo "lock_acquired=true"
 
@@ -56,7 +125,15 @@ if [[ -f "$FEED_FILE" ]]; then
 fi
 
 # 3. Prune (keep=5)
-ARCHIVES=($(ls -1 "$ARCHIVE_DIR"/activity_feed.*.jsonl 2>/dev/null | grep -v 'index.jsonl' | sort || true))
+ARCHIVES=()
+for f in "$ARCHIVE_DIR"/activity_feed.*.jsonl(N); do
+    if [[ "$f" != *"index.jsonl"* ]]; then
+        ARCHIVES+=("$f")
+    fi
+done
+# Ensure sorted
+ARCHIVES=("${(@o)ARCHIVES}")
+
 if (( ${#ARCHIVES[@]} > 5 )); then
     TO_DELETE=$(( ${#ARCHIVES[@]} - 5 ))
     for (( i=1; i<=TO_DELETE; i++ )); do
@@ -68,8 +145,8 @@ fi
 # 4. Rebuild Index
 if [[ ${#ACTIONS[@]} -gt 0 || ! -f "$INDEX_FILE" ]]; then
     # 4a. Rapid Structural Index (Zsh)
-    > "$INDEX_FILE.tmp"
-    for arch in "$ARCHIVE_DIR"/activity_feed.*.jsonl; do
+    touch "$INDEX_FILE.tmp"
+    for arch in "$ARCHIVE_DIR"/activity_feed.*.jsonl(N); do
         if [[ "$arch" == *"index.jsonl"* ]]; then continue; fi
         FILE_TS=$(echo "$arch" | grep -o -E '[0-9]{8}T[0-9]{6}Z' || true)
         if [[ -n "$FILE_TS" ]]; then
@@ -99,4 +176,4 @@ if [[ "${ACTIONS[*]}" == "noop" ]]; then
 else
     RESULT=$(echo "${ACTIONS[*]}" | tr ' ' ',')
 fi
-echo "{\"ts_utc\":\"$EVENT_TS\",\"action\":\"activity_feed_maintenance\",\"emit_mode\":\"runtime_auto\",\"result\":\"$RESULT\",\"lock_acquired\":true}" >> "$FEED_FILE"
+echo "{\"ts_utc\":\"$EVENT_TS\",\"action\":\"activity_feed_maintenance\",\"emit_mode\":\"runtime_auto\",\"result\":\"$RESULT\",\"lock_acquired\":true,\"lock_file\":\"$LOCK_FILE\",\"lock_attempts\":${LOCK_ATTEMPTS:-1},\"lock_wait_ms\":${LOCK_WAIT_MS:-0}}" >> "$FEED_FILE"
