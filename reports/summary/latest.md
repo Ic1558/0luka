@@ -161,3 +161,10 @@ bridge_consumer | 🟡 idle | 2026-01-31T21:00:18Z | 0s | 3m | yes
 executor_lisa | 🟢 ok | 2026-01-31T20:59:55Z | 23s | 3m | yes
 
 <!-- end:agent_monitoring -->
+
+## Phase 3.1.5 — CLOSED
+- PR #157: https://github.com/Ic1558/0luka/pull/157
+- Merge commit: `11f9670` (`11f9670d3ec5fadd76dedf50e298984e7e116d42`)
+- Criteria: merged + main synced + worktree clean
+- Recorded (UTC): 2026-03-04T19:35:27Z
+
