@@ -7,7 +7,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 try:
     import fcntl
@@ -44,10 +44,12 @@ def _canonical_epoch_manifest_path() -> Path:
     return _runtime_root() / "logs" / "epoch_manifest.jsonl"
 
 
-def _reports_dir() -> Path:
-    path = ROOT / "g" / "reports"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+def _default_reports_dir(runtime_root: Path) -> Path:
+    return runtime_root / "state" / "reports"
+
+
+def _legacy_repo_reports_dir() -> Path:
+    return ROOT / "g" / "reports"
 
 
 def _summary_errors(report: dict[str, Any], limit: int = 3) -> list[dict[str, Any]]:
@@ -63,20 +65,23 @@ def _summary_errors(report: dict[str, Any], limit: int = 3) -> list[dict[str, An
     return out
 
 
-def _read_compat_fail_reports() -> list[Path]:
-    base = _reports_dir()
-    paths = [
-        *base.glob(f"{LEDGER_WATCHDOG_EPOCH_FAIL_PREFIX}*.md"),
-        *base.glob(f"{LEDGER_WATCHDOG_FAIL_PREFIX_LEGACY}*.md"),
-    ]
+def _read_compat_fail_reports(report_dirs: list[Path]) -> list[Path]:
+    paths: list[Path] = []
+    for base in report_dirs:
+        if not base.exists() or not base.is_dir():
+            continue
+        paths.extend(base.glob(f"{LEDGER_WATCHDOG_EPOCH_FAIL_PREFIX}*.md"))
+        paths.extend(base.glob(f"{LEDGER_WATCHDOG_FAIL_PREFIX_LEGACY}*.md"))
     return sorted(paths, key=lambda p: (p.stat().st_mtime_ns, p.name))
 
 
-def _write_fail_report(path: Path, report: dict[str, Any]) -> Path:
+def _write_fail_report(path: Path, report: dict[str, Any], report_dir: Path) -> Path:
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    out = _reports_dir() / f"{LEDGER_WATCHDOG_EPOCH_FAIL_PREFIX}{stamp}.md"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    out = report_dir / f"{LEDGER_WATCHDOG_EPOCH_FAIL_PREFIX}{stamp}.md"
     errors = _summary_errors(report, limit=5)
-    previous_reports = _read_compat_fail_reports()
+    legacy_repo = _legacy_repo_reports_dir()
+    previous_reports = _read_compat_fail_reports([report_dir, legacy_repo])
     previous_latest = str(previous_reports[-1]) if previous_reports else None
     lines = [
         "# Ledger Watchdog Epoch Failure",
@@ -188,6 +193,30 @@ def _run_rotated_feeds_audit(runtime_root: Path) -> dict[str, Any]:
     }
 
 
+def _auto_heal_env(runtime_root: Path) -> list[str]:
+    actions: list[str] = []
+    log_dir = runtime_root / "logs"
+    archive_dir = log_dir / "archive"
+    for d in (log_dir, archive_dir):
+        if not d.exists():
+            d.mkdir(parents=True, exist_ok=True)
+            actions.append(f"mkdir:{d}")
+    return actions
+
+
+def _emit_remediation_request(runtime_root: Path, payload: dict[str, Any]) -> Optional[str]:
+    req_path = runtime_root / "logs" / "remediation_requests.jsonl"
+    # BEST-EFFORT: Only write if directory exists (do not create root/logs)
+    if not req_path.parent.is_dir():
+        return None
+    try:
+        with req_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        return str(req_path)
+    except Exception:
+        return None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Ledger runtime hash-chain watchdog.")
     parser.add_argument("--path", type=Path, help="Override feed path (default: runtime canonical feed)")
@@ -195,38 +224,35 @@ def main() -> int:
     parser.add_argument("--check-epoch", action="store_true", help="Also verify epoch manifest chain and head completeness")
     parser.add_argument("--json", action="store_true", help="Emit JSON report")
     parser.add_argument("--no-emit", action="store_true", help="Do not emit integrity incident event on FAIL")
+    parser.add_argument("--heal", action="store_true", help="Create required runtime log dirs only (no ledger mutation).")
+    parser.add_argument("--report-dir", type=Path, help="Override fail report directory (default: $LUKA_RUNTIME_ROOT/state/reports)")
+    parser.add_argument("--no-report", action="store_true", help="Do not write fail report files.")
     args = parser.parse_args()
+
+    healing_attempted = False
+    healing_actions: list[str] = []
+    remediation_emitted = False
+    remediation_path: Optional[str] = None
 
     try:
         runtime_root = _runtime_root()
     except Exception as exc:
         missing_detail = str(exc)
-        active_feed = {
-            "ok": False,
-            "path": None,
-            "errors": [{"error": "runtime_root_missing", "detail": missing_detail}],
-        }
-        epoch_manifest = {
-            "ok": False,
-            "path": None,
-            "errors": [{"error": "runtime_root_missing", "detail": missing_detail}],
-        }
-        rotated_feeds = {
-            "ok": False,
-            "files_total": 0,
-            "files": [],
-            "errors": [{"error": "runtime_root_missing", "detail": missing_detail}],
-        }
         report = {
             "ok": False,
             "error": "runtime_root_missing",
             "detail": missing_detail,
+            "report_path": None,
             "checks": {
-                "active_feed": active_feed,
-                "epoch_manifest": epoch_manifest,
-                "rotated_feeds": rotated_feeds,
+                "active_feed": {"ok": False, "path": None, "errors": [{"error": "runtime_root_missing"}]},
+                "epoch_manifest": {"ok": False, "path": None, "errors": [{"error": "runtime_root_missing"}]},
+                "rotated_feeds": {"ok": False, "files_total": 0, "files": []},
             },
             "primary_failure": "active_feed",
+            "healing_attempted": False,
+            "healing_actions": [],
+            "remediation_emitted": False,
+            "remediation_path": None,
         }
         if args.json:
             print(json.dumps(report, ensure_ascii=False))
@@ -234,8 +260,13 @@ def main() -> int:
             print(f"ledger_watchdog:fail error={report['error']} detail={report['detail']}", file=sys.stderr)
         return 2
 
+    if args.heal:
+        healing_attempted = True
+        healing_actions = _auto_heal_env(runtime_root)
+
     canonical = _canonical_feed_path().resolve()
     target = (args.path.expanduser().resolve() if args.path else canonical)
+    report_dir = (args.report_dir.expanduser().resolve() if args.report_dir else _default_reports_dir(runtime_root))
     canonical_epoch_path = _canonical_epoch_manifest_path().resolve()
     epoch_target = args.epoch_path.expanduser().resolve() if args.epoch_path else canonical_epoch_path
 
@@ -276,9 +307,40 @@ def main() -> int:
     emitted = False
 
     if not ok:
-        report_path = _write_fail_report(target, combined_report)
-        if should_emit:
+        if not args.no_report:
+            report_path = _write_fail_report(target, combined_report, report_dir)
+        if should_emit and report_path is not None:
             emitted = _emit_integrity_failed(target, combined_report, report_path)
+
+        # Integrity check: emit remediation only for specific failure types
+        is_integrity_failure = False
+        all_errors = []
+        if feed_report: all_errors.extend(feed_report.get("errors", []))
+        if epoch_report: all_errors.extend(epoch_report.get("errors", []))
+        
+        integrity_keywords = ["hash", "missing_registered_head", "seal", "continuation"]
+        for err in all_errors:
+            code = str(err.get("error", ""))
+            if any(k in code for k in integrity_keywords):
+                is_integrity_failure = True
+                break
+        
+        if is_integrity_failure:
+            payload = {
+                "ts": _utc_now(),
+                "source": "ledger_watchdog",
+                "mode": "check-epoch" if args.check_epoch else "unknown",
+                "severity": "SEV-1",
+                "primary_failure": primary_failure,
+                "exit": 2,
+                "suggested_actions": [
+                    "run tools/ops/audit_epoch_manifest.py against runtime manifest",
+                    "verify rotation registry seals",
+                    "DO NOT write to ledger artifacts; use remediator lane",
+                ],
+            }
+            remediation_path = _emit_remediation_request(runtime_root, payload)
+            remediation_emitted = remediation_path is not None
 
     if args.json:
         out = {
@@ -289,6 +351,10 @@ def main() -> int:
             "canonical_epoch_path": str(canonical_epoch_path),
             "report_path": str(report_path) if report_path else None,
             "emitted": emitted,
+            "healing_attempted": healing_attempted,
+            "healing_actions": healing_actions,
+            "remediation_emitted": remediation_emitted,
+            "remediation_path": remediation_path,
             "checks": {
                 "active_feed": feed_report,
                 "epoch_manifest": epoch_report,
