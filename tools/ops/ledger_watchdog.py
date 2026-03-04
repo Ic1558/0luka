@@ -44,10 +44,12 @@ def _canonical_epoch_manifest_path() -> Path:
     return _runtime_root() / "logs" / "epoch_manifest.jsonl"
 
 
-def _reports_dir() -> Path:
-    path = ROOT / "g" / "reports"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+def _default_reports_dir(runtime_root: Path) -> Path:
+    return runtime_root / "state" / "reports"
+
+
+def _legacy_repo_reports_dir() -> Path:
+    return ROOT / "g" / "reports"
 
 
 def _summary_errors(report: dict[str, Any], limit: int = 3) -> list[dict[str, Any]]:
@@ -63,20 +65,23 @@ def _summary_errors(report: dict[str, Any], limit: int = 3) -> list[dict[str, An
     return out
 
 
-def _read_compat_fail_reports() -> list[Path]:
-    base = _reports_dir()
-    paths = [
-        *base.glob(f"{LEDGER_WATCHDOG_EPOCH_FAIL_PREFIX}*.md"),
-        *base.glob(f"{LEDGER_WATCHDOG_FAIL_PREFIX_LEGACY}*.md"),
-    ]
+def _read_compat_fail_reports(report_dirs: list[Path]) -> list[Path]:
+    paths: list[Path] = []
+    for base in report_dirs:
+        if not base.exists() or not base.is_dir():
+            continue
+        paths.extend(base.glob(f"{LEDGER_WATCHDOG_EPOCH_FAIL_PREFIX}*.md"))
+        paths.extend(base.glob(f"{LEDGER_WATCHDOG_FAIL_PREFIX_LEGACY}*.md"))
     return sorted(paths, key=lambda p: (p.stat().st_mtime_ns, p.name))
 
 
-def _write_fail_report(path: Path, report: dict[str, Any]) -> Path:
+def _write_fail_report(path: Path, report: dict[str, Any], report_dir: Path) -> Path:
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    out = _reports_dir() / f"{LEDGER_WATCHDOG_EPOCH_FAIL_PREFIX}{stamp}.md"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    out = report_dir / f"{LEDGER_WATCHDOG_EPOCH_FAIL_PREFIX}{stamp}.md"
     errors = _summary_errors(report, limit=5)
-    previous_reports = _read_compat_fail_reports()
+    legacy_repo = _legacy_repo_reports_dir()
+    previous_reports = _read_compat_fail_reports([report_dir, legacy_repo])
     previous_latest = str(previous_reports[-1]) if previous_reports else None
     lines = [
         "# Ledger Watchdog Epoch Failure",
@@ -220,6 +225,8 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", help="Emit JSON report")
     parser.add_argument("--no-emit", action="store_true", help="Do not emit integrity incident event on FAIL")
     parser.add_argument("--heal", action="store_true", help="Create required runtime log dirs only (no ledger mutation).")
+    parser.add_argument("--report-dir", type=Path, help="Override fail report directory (default: $LUKA_RUNTIME_ROOT/state/reports)")
+    parser.add_argument("--no-report", action="store_true", help="Do not write fail report files.")
     args = parser.parse_args()
 
     healing_attempted = False
@@ -235,6 +242,7 @@ def main() -> int:
             "ok": False,
             "error": "runtime_root_missing",
             "detail": missing_detail,
+            "report_path": None,
             "checks": {
                 "active_feed": {"ok": False, "path": None, "errors": [{"error": "runtime_root_missing"}]},
                 "epoch_manifest": {"ok": False, "path": None, "errors": [{"error": "runtime_root_missing"}]},
@@ -258,6 +266,7 @@ def main() -> int:
 
     canonical = _canonical_feed_path().resolve()
     target = (args.path.expanduser().resolve() if args.path else canonical)
+    report_dir = (args.report_dir.expanduser().resolve() if args.report_dir else _default_reports_dir(runtime_root))
     canonical_epoch_path = _canonical_epoch_manifest_path().resolve()
     epoch_target = args.epoch_path.expanduser().resolve() if args.epoch_path else canonical_epoch_path
 
@@ -298,8 +307,9 @@ def main() -> int:
     emitted = False
 
     if not ok:
-        report_path = _write_fail_report(target, combined_report)
-        if should_emit:
+        if not args.no_report:
+            report_path = _write_fail_report(target, combined_report, report_dir)
+        if should_emit and report_path is not None:
             emitted = _emit_integrity_failed(target, combined_report, report_path)
 
         # Integrity check: emit remediation only for specific failure types
