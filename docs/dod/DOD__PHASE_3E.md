@@ -8,6 +8,11 @@
 - **v1.1**: Clarify activity chain ownership, migration scope (2026-02-12).
 - **v1.0**: Initial DoD creation (2026-02-12).
 
+## Phase 3.1.5 Close Marker
+- ✅ Phase 3.1.5 DONE
+  - PR: https://github.com/Ic1558/0luka/pull/157
+  - Merge: 11f9670
+
 ## 0. Metadata (MANDATORY)
 - **Phase / Task ID**: PHASE_3E
 - **Owner (Actor)**: ops-governance
