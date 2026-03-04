@@ -1,5 +1,6 @@
 #!/usr/bin/env zsh
 set -euo pipefail
+setopt NULL_GLOB
 
 # Path setup
 REPO_ROOT="/Users/icmini/0luka"
