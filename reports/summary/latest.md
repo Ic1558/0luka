@@ -168,3 +168,10 @@ executor_lisa | 🟢 ok | 2026-01-31T20:59:55Z | 23s | 3m | yes
 - Criteria: merged + main synced + worktree clean
 - Recorded (UTC): 2026-03-04T19:35:27Z
 
+## Phase 3.1.7B (PR-3) — DONE
+- PR #166: https://github.com/Ic1558/0luka/pull/166
+- Merge commit: `d5f378e` (`d5f378eb5949fbeaf57ecb229e2f53b5f8c638a3`)
+- Verify: `python3 core/health.py --full` => `HEALTH_RC=0`
+- Verify: `python3 tools/ops/ledger_watchdog.py --check-epoch --json` => `WATCHDOG_RC=0`
+- Snapshot: `observability/artifacts/sot_packs/20260305T053847Z_d5f378e/260305_123739_snapshot.md`
+- Recorded (UTC): 2026-03-05T05:39:44Z
