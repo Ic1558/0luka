@@ -24,8 +24,13 @@ DEFAULT_SCHEMA_PATH = "core/observability/activity_feed.schema.json"
 
 
 def _default_feed() -> Path:
-    raw = os.environ.get("LUKA_ACTIVITY_FEED_JSONL", "observability/logs/activity_feed.jsonl").strip()
-    return Path(raw)
+    feed_override = os.environ.get("LUKA_ACTIVITY_FEED_JSONL", "").strip()
+    if feed_override:
+        return Path(feed_override).expanduser()
+    runtime_root = os.environ.get("LUKA_RUNTIME_ROOT", "").strip()
+    if runtime_root:
+        return Path(runtime_root).expanduser() / "logs" / "activity_feed.jsonl"
+    raise RuntimeError("runtime_root_missing:set LUKA_RUNTIME_ROOT or LUKA_ACTIVITY_FEED_JSONL or pass --path")
 
 
 def _runtime_error(message: str, as_json: bool) -> int:
@@ -174,10 +179,9 @@ def main() -> int:
     parser.add_argument("--schema", help="Path to JSON schema file")
     args = parser.parse_args()
 
-    feed = Path(args.path) if args.path else _default_feed()
-    schema_path = Path(args.schema) if args.schema else Path(DEFAULT_SCHEMA_PATH)
-    
     try:
+        feed = Path(args.path) if args.path else _default_feed()
+        schema_path = Path(args.schema) if args.schema else Path(DEFAULT_SCHEMA_PATH)
         report = _validate(feed, strict=args.strict, schema_path=schema_path)
     except RuntimeError as exc:
         return _runtime_error(str(exc), args.json)
