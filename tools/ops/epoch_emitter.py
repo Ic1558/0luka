@@ -106,6 +106,7 @@ def main() -> int:
                 "path": rel_path,
                 "last_event_hash": _sha256_text(last_line),
                 "line_count": _count_nonempty_lines(abs_path),
+                "byte_offset": abs_path.stat().st_size,
             }
 
     epoch_id = prev_epoch_id + 1
