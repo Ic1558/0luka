@@ -15,6 +15,7 @@ LOCK_MAX_WAIT_MS = 1200
 LOCK_INITIAL_BACKOFF_MS = 20
 LOCK_MAX_BACKOFF_MS = 200
 LOCK_JITTER_MS = 30
+ROOT = Path(__file__).resolve().parents[2]
 
 def check_stale_lock(lock_dir: Path) -> bool:
     """Checks if a lock is stale and removes it if safe to do so. Returns True if removed."""
@@ -99,7 +100,6 @@ def main():
         payload = json.loads(payload_str)
         if not isinstance(payload, dict):
             raise ValueError("Payload must be a JSON object")
-        output_line = json.dumps(payload, separators=(',', ':')) + "\n"
     except Exception as e:
         print_result(False, False, f"invalid_json: {e}", 0, 0, feed_path)
         sys.exit(3)
@@ -148,11 +148,15 @@ def main():
 
     # Append
     try:
-        with open(feed_path, "a") as f:
-            f.write(output_line)
-            f.flush()
-            os.fsync(f.fileno())
-        print_result(True, True, reason, attempts, wait_ms, feed_path)
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from core.activity_feed_guard import CANONICAL_PRODUCTION_FEED_PATH, guarded_append_activity_feed
+
+        if not guarded_append_activity_feed(feed_path, payload):
+            print_result(False, False, "guard_rejected", attempts, wait_ms, CANONICAL_PRODUCTION_FEED_PATH)
+            shutil.rmtree(lock_dir, ignore_errors=True)
+            sys.exit(4)
+        print_result(True, True, reason, attempts, wait_ms, CANONICAL_PRODUCTION_FEED_PATH)
     except Exception as e:
         print_result(False, False, f"io_error_writing: {e}", attempts, wait_ms, feed_path)
         shutil.rmtree(lock_dir, ignore_errors=True)
