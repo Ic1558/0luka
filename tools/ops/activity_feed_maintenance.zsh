@@ -7,8 +7,9 @@ REPO_ROOT="/Users/icmini/0luka"
 FEED_FILE="$REPO_ROOT/observability/logs/activity_feed.jsonl"
 ARCHIVE_DIR="$REPO_ROOT/observability/logs/archive"
 INDEX_FILE="$ARCHIVE_DIR/activity_feed.index.jsonl"
-LOCK_DIR="$FEED_FILE.lock.d"
+LOCK_DIR="$ARCHIVE_DIR/.rotation.lock.d"
 MAINT_LOG="$REPO_ROOT/observability/logs/maintenance_err.log"
+APPEND_HELPER="$REPO_ROOT/tools/ops/activity_feed_append.py"
 
 mkdir -p "$ARCHIVE_DIR"
 mkdir -p "$(dirname "$LOCK_DIR")"
@@ -30,6 +31,17 @@ function handle_error() {
     exit $err
 }
 trap handle_error ERR
+
+function emit_feed_event() {
+    local payload="$1"
+    local ts
+    ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    if [[ ! -f "$APPEND_HELPER" ]]; then
+        echo "{\"ts\":\"$ts\",\"level\":\"WARN\",\"source\":\"activity_feed_maintenance\",\"event\":\"append_helper_missing\",\"path\":\"$APPEND_HELPER\"}" >> "$MAINT_LOG"
+        return 0
+    fi
+    "$PYTHON_BIN" "$APPEND_HELPER" --feed "$FEED_FILE" --json "$payload" >/dev/null 2>>"$MAINT_LOG" || true
+}
 
 # 1. Acquire Lock (bounded retry via atomic mkdir lockdir)
 LOCK_ATTEMPTS=0
@@ -98,7 +110,8 @@ if [[ -f "$FEED_FILE" ]]; then
         # Emit feed_rotated event (Pack 10: Index Sovereignty Contract)
         ROTATED_BASE=$(basename "$ROTATED_FILE")
         ROTATE_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-        echo "{\"ts_utc\":\"$ROTATE_TS\",\"action\":\"feed_rotated\",\"emit_mode\":\"runtime_auto\",\"old_path\":\"observability/logs/archive/$ROTATED_BASE\",\"new_path\":\"observability/logs/activity_feed.jsonl\",\"cutoff_offset\":$SIZE}" >> "$FEED_FILE"
+        ROTATE_PAYLOAD="{\"ts_utc\":\"$ROTATE_TS\",\"action\":\"feed_rotated\",\"emit_mode\":\"runtime_auto\",\"old_path\":\"observability/logs/archive/$ROTATED_BASE\",\"new_path\":\"observability/logs/activity_feed.jsonl\",\"cutoff_offset\":$SIZE}"
+        emit_feed_event "$ROTATE_PAYLOAD"
     fi
 fi
 
@@ -154,4 +167,5 @@ if [[ "${ACTIONS[*]}" == "noop" ]]; then
 else
     RESULT=$(echo "${ACTIONS[*]}" | tr ' ' ',')
 fi
-echo "{\"ts_utc\":\"$EVENT_TS\",\"action\":\"activity_feed_maintenance\",\"emit_mode\":\"runtime_auto\",\"result\":\"$RESULT\",\"lock_acquired\":true,\"lock_dir\":\"$LOCK_DIR\",\"lock_attempts\":${LOCK_ATTEMPTS:-1},\"lock_wait_ms\":${LOCK_WAIT_MS:-0}}" >> "$FEED_FILE"
+MAINT_PAYLOAD="{\"ts_utc\":\"$EVENT_TS\",\"action\":\"activity_feed_maintenance\",\"emit_mode\":\"runtime_auto\",\"result\":\"$RESULT\",\"lock_acquired\":true,\"lock_dir\":\"$LOCK_DIR\",\"lock_attempts\":${LOCK_ATTEMPTS:-1},\"lock_wait_ms\":${LOCK_WAIT_MS:-0}}"
+emit_feed_event "$MAINT_PAYLOAD"
