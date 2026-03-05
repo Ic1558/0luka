@@ -4,15 +4,18 @@ setopt NULL_GLOB
 
 # Path setup
 REPO_ROOT="/Users/icmini/0luka"
-FEED_FILE="$REPO_ROOT/observability/logs/activity_feed.jsonl"
-ARCHIVE_DIR="$REPO_ROOT/observability/logs/archive"
+RUNTIME_ROOT="${LUKA_RUNTIME_ROOT:-/Users/icmini/0luka_runtime}"
+FEED_FILE="$RUNTIME_ROOT/logs/activity_feed.jsonl"
+ARCHIVE_DIR="$RUNTIME_ROOT/logs/archive"
 INDEX_FILE="$ARCHIVE_DIR/activity_feed.index.jsonl"
+SEALS_FILE="$RUNTIME_ROOT/logs/rotation_seals.jsonl"
 LOCK_DIR="$ARCHIVE_DIR/.rotation.lock.d"
-MAINT_LOG="$REPO_ROOT/observability/logs/maintenance_err.log"
+MAINT_LOG="$RUNTIME_ROOT/logs/maintenance_err.log"
 APPEND_HELPER="$REPO_ROOT/tools/ops/activity_feed_append.py"
 
 mkdir -p "$ARCHIVE_DIR"
 mkdir -p "$(dirname "$LOCK_DIR")"
+mkdir -p "$(dirname "$SEALS_FILE")"
 
 # Lock/retry tuning (bounded wait to reduce contention)
 LOCK_MAX_WAIT_MS=${LOCK_MAX_WAIT_MS:-1200}
@@ -41,6 +44,72 @@ function emit_feed_event() {
         return 0
     fi
     "$PYTHON_BIN" "$APPEND_HELPER" --feed "$FEED_FILE" --json "$payload" >/dev/null 2>>"$MAINT_LOG" || true
+}
+
+function emit_rotation_seal() {
+    local segment_path="$1"
+    local seals_path="$2"
+    local seal_ts
+    seal_ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    if ! "$PYTHON_BIN" - "$segment_path" "$seals_path" "$seal_ts" >>"$MAINT_LOG" 2>&1 <<'PY'
+import hashlib
+import json
+import os
+import sys
+from pathlib import Path
+
+segment_path = Path(sys.argv[1])
+seals_path = Path(sys.argv[2])
+sealed_at_utc = sys.argv[3]
+
+segment_name = segment_path.name
+first_hash = None
+last_hash = None
+line_count = 0
+
+with segment_path.open("r", encoding="utf-8", errors="replace") as f:
+    for line_no, raw in enumerate(f, start=1):
+        s = raw.strip()
+        if not s:
+            continue
+        line_count += 1
+        try:
+            row = json.loads(s)
+        except Exception:
+            raise SystemExit(2)
+        if not isinstance(row, dict):
+            raise SystemExit(2)
+        h = row.get("hash")
+        if not isinstance(h, str) or not h:
+            raise SystemExit(3)
+        if first_hash is None:
+            first_hash = h
+        last_hash = h
+
+if not first_hash or not last_hash or line_count <= 0:
+    raise SystemExit(3)
+
+seal_input = f"{segment_name}{first_hash}{last_hash}{line_count}".encode("utf-8")
+seal_hash = hashlib.sha256(seal_input).hexdigest()
+record = {
+    "action": "rotation_seal",
+    "segment_name": segment_name,
+    "first_hash": first_hash,
+    "last_hash": last_hash,
+    "line_count": line_count,
+    "sealed_at_utc": sealed_at_utc,
+    "seal_hash": seal_hash,
+}
+seals_path.parent.mkdir(parents=True, exist_ok=True)
+with seals_path.open("a", encoding="utf-8") as out:
+    out.write(json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
+    out.flush()
+    os.fsync(out.fileno())
+PY
+    then
+        return 1
+    fi
+    return 0
 }
 
 # 1. Acquire Lock (bounded retry via atomic mkdir lockdir)
@@ -107,10 +176,17 @@ if [[ -f "$FEED_FILE" ]]; then
         mv "$FEED_FILE" "$ROTATED_FILE"
         touch "$FEED_FILE"
         ACTIONS+=("rotated")
+        if emit_rotation_seal "$ROTATED_FILE" "$SEALS_FILE"; then
+            ACTIONS+=("sealed")
+        else
+            ACTIONS+=("seal_failed")
+            SEAL_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            echo "{\"ts\":\"$SEAL_TS\",\"level\":\"ERROR\",\"source\":\"activity_feed_maintenance\",\"event\":\"rotation_seal_failed\",\"segment\":\"$(basename "$ROTATED_FILE")\"}" >> "$MAINT_LOG"
+        fi
         # Emit feed_rotated event (Pack 10: Index Sovereignty Contract)
         ROTATED_BASE=$(basename "$ROTATED_FILE")
         ROTATE_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-        ROTATE_PAYLOAD="{\"ts_utc\":\"$ROTATE_TS\",\"action\":\"feed_rotated\",\"emit_mode\":\"runtime_auto\",\"old_path\":\"observability/logs/archive/$ROTATED_BASE\",\"new_path\":\"observability/logs/activity_feed.jsonl\",\"cutoff_offset\":$SIZE}"
+        ROTATE_PAYLOAD="{\"ts_utc\":\"$ROTATE_TS\",\"action\":\"feed_rotated\",\"emit_mode\":\"runtime_auto\",\"old_path\":\"runtime/logs/archive/$ROTATED_BASE\",\"new_path\":\"runtime/logs/activity_feed.jsonl\",\"cutoff_offset\":$SIZE}"
         emit_feed_event "$ROTATE_PAYLOAD"
     fi
 fi
@@ -149,7 +225,11 @@ if [[ ${#ACTIONS[@]} -gt 0 || ! -f "$INDEX_FILE" ]]; then
     # 4b. Deep Trace Index (Python)
     EMIT_FLAG=""
     if [[ " ${ACTIONS[*]} " == *" rotated "* ]]; then EMIT_FLAG="--emit-event"; fi
-    python3 "$REPO_ROOT/tools/ops/activity_feed_indexer.py" $EMIT_FLAG >> "$MAINT_LOG" 2>&1
+    if ! "$PYTHON_BIN" "$REPO_ROOT/tools/ops/activity_feed_indexer.py" $EMIT_FLAG >> "$MAINT_LOG" 2>&1; then
+        IDX_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        echo "{\"ts\":\"$IDX_TS\",\"level\":\"ERROR\",\"source\":\"activity_feed_maintenance\",\"event\":\"index_rebuild_failed\"}" >> "$MAINT_LOG"
+        ACTIONS+=("index_failed")
+    fi
     
     ACTIONS+=("indexed")
 fi
