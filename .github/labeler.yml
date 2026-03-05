@@ -1,0 +1,9 @@
+governance-change:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "core/**"
+          - "runtime/**"
+          - "tools/ops/**"
+          - "core/governance/**"
+          - "tools/ram_monitor.zsh"
+          - "tools/ops/activity_feed_maintenance.zsh"
