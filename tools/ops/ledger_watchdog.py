@@ -337,16 +337,9 @@ def _check_epoch_head_match(runtime_root: Path, last_record: dict[str, Any] | No
             # Cannot do a strict check for legacy because feed might have grown
             continue
 
-        actual_count = _count_nonempty_lines(abs_path)
-        if actual_count < expected_count:
-            errors.append(
-                {
-                    "error": "epoch_head_regression",
-                    "log": log_name,
-                    "expected_line_count": expected_count,
-                    "actual_line_count": actual_count,
-                }
-            )
+        expected_segment = head_data.get("segment")
+        if expected_segment and expected_segment != rel_path:
+            errors.append({"error": "segment_mismatch", "log": log_name, "expected": expected_segment, "actual": rel_path})
             continue
 
         # Extract exact line at expected_count to verify historical integrity
@@ -359,6 +352,17 @@ def _check_epoch_head_match(runtime_root: Path, last_record: dict[str, Any] | No
                     if current_count == expected_count:
                         line_at_expected = raw.strip()
                         break
+
+        if current_count < expected_count:
+            errors.append(
+                {
+                    "error": "ledger_truncated",
+                    "path": rel_path,
+                    "expected_line": expected_count,
+                    "actual_line": current_count,
+                }
+            )
+            continue
 
         hash_at_expected = _sha256_text(line_at_expected)
         

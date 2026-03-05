@@ -104,6 +104,7 @@ def main() -> int:
             last_line = _read_last_nonempty_line(abs_path)
             log_heads[key] = {
                 "path": rel_path,
+                "segment": rel_path,
                 "last_event_hash": _sha256_text(last_line),
                 "line_count": _count_nonempty_lines(abs_path),
                 "byte_offset": abs_path.stat().st_size,
