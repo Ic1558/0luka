@@ -12,14 +12,13 @@ intent:
   - Preserve feed invariants
 
 canonical_sot:
-  path: /Users/icmini/0luka/observability/logs/activity_feed.jsonl
+  path: observability/logs/activity_feed.jsonl
   mode: append-only
   mutable: false
 
 canonical_linter:
   command: >
-    cd /Users/icmini/0luka &&
-    python3 /Users/icmini/0luka/tools/ops/activity_feed_linter.py --json
+    python3 tools/ops/activity_feed_linter.py --json
   invariant:
     ok: true
     violations: 0
