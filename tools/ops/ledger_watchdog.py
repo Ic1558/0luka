@@ -22,6 +22,7 @@ if str(ROOT) not in sys.path:
 
 from tools.ops.audit_feed_chain import _audit
 from tools.ops.audit_epoch_manifest import _audit_epoch_manifest
+from tools.ops.audit_feed_segments import audit_segments
 
 LEDGER_WATCHDOG_EPOCH_FAIL_PREFIX = "ledger_watchdog_epoch_fail_"
 LEDGER_WATCHDOG_FAIL_PREFIX_LEGACY = "ledger_watchdog_fail_"  # backward-compat read-only
@@ -122,12 +123,15 @@ def _emit_integrity_failed(path: Path, report: dict[str, Any], report_path: Path
     feed_report = report.get("active_feed")
     epoch_report = report.get("epoch_manifest")
     rotated_report = report.get("rotated_feeds")
+    segment_report = report.get("segment_integrity")
     if isinstance(feed_report, dict) and not bool(feed_report.get("ok")):
         failed_checks.append("active_feed")
     if isinstance(epoch_report, dict) and not bool(epoch_report.get("ok")):
         failed_checks.append("epoch_manifest")
     if isinstance(rotated_report, dict) and not bool(rotated_report.get("ok")):
         failed_checks.append("rotated_feeds")
+    if isinstance(segment_report, dict) and not bool(segment_report.get("ok")):
+        failed_checks.append("segment_integrity")
     from core.activity_feed_guard import guarded_append_activity_feed
 
     payload = {
@@ -147,6 +151,7 @@ def _emit_integrity_failed(path: Path, report: dict[str, Any], report_path: Path
                 "feed_errors": _summary_errors(feed_report if isinstance(feed_report, dict) else {}, limit=3),
                 "epoch_errors": _summary_errors(epoch_report if isinstance(epoch_report, dict) else {}, limit=3),
                 "rotated_errors": _summary_errors(rotated_report if isinstance(rotated_report, dict) else {}, limit=3),
+                "segment_errors": _summary_errors(segment_report if isinstance(segment_report, dict) else {}, limit=3),
             },
         },
     }
@@ -203,6 +208,26 @@ def _run_rotated_feeds_audit(runtime_root: Path) -> dict[str, Any]:
     }
 
 
+def _segment_audit_mode() -> str:
+    mode = os.environ.get("LUKA_WATCHDOG_SEGMENT_MODE", "fast").strip().lower()
+    if mode not in {"fast", "deep"}:
+        return "fast"
+    return mode
+
+
+def _run_segment_integrity_audit(runtime_root: Path) -> dict[str, Any]:
+    mode = _segment_audit_mode()
+    logs_dir = runtime_root / "logs"
+    report = audit_segments(
+        logs_dir,
+        deep=(mode == "deep"),
+        enforce_seals=False,
+        strict_discovery=False,
+    )
+    report["policy_mode"] = mode
+    return report
+
+
 def _auto_heal_env(runtime_root: Path) -> list[str]:
     actions: list[str] = []
     log_dir = runtime_root / "logs"
@@ -223,6 +248,8 @@ def _remediation_hint(primary_failure: str | None) -> str:
         return "investigate epoch_manifest.jsonl continuity/hash mismatch"
     if primary_failure == "rotated_feeds":
         return "investigate archive feed chain/anchors in rotated files"
+    if primary_failure == "segment_integrity":
+        return "investigate segment continuity/seals and archive ordering"
     return "investigate watchdog integrity incident"
 
 
@@ -273,6 +300,7 @@ def _primary_error(
     feed_report: dict[str, Any],
     epoch_report: dict[str, Any] | None,
     rotated_report: dict[str, Any] | None,
+    segment_report: dict[str, Any] | None,
 ) -> str:
     if primary_failure == "active_feed":
         return _first_error_code(feed_report)
@@ -288,6 +316,8 @@ def _primary_error(
                 if code:
                     return code
         return _first_error_code(rotated_report)
+    if primary_failure == "segment_integrity":
+        return _first_error_code(segment_report)
     return ""
 
 
@@ -380,6 +410,7 @@ def main() -> int:
                 "active_feed": {"ok": False, "path": None, "errors": [{"error": "runtime_root_missing"}]},
                 "epoch_manifest": {"ok": False, "path": None, "errors": [{"error": "runtime_root_missing"}]},
                 "rotated_feeds": {"ok": False, "files_total": 0, "files": []},
+                "segment_integrity": {"ok": False, "segments_total": 0, "errors": [{"error": "runtime_root_missing"}]},
             },
             "primary_failure": "active_feed",
             "healing_attempted": False,
@@ -414,15 +445,19 @@ def main() -> int:
     feed_report = _run_audit_with_shared_lock(target)
     epoch_report: dict[str, Any] | None = None
     rotated_report: dict[str, Any] | None = None
+    segment_report: dict[str, Any] | None = None
     if args.check_epoch:
         epoch_report = _run_epoch_audit_with_shared_lock(epoch_target)
         rotated_report = _run_rotated_feeds_audit(runtime_root)
+        segment_report = _run_segment_integrity_audit(runtime_root)
 
     ok = bool(feed_report.get("ok"))
     if epoch_report is not None:
         ok = ok and bool(epoch_report.get("ok"))
     if rotated_report is not None:
         ok = ok and bool(rotated_report.get("ok"))
+    if segment_report is not None:
+        ok = ok and bool(segment_report.get("ok"))
     primary_failure: str | None = None
     if not bool(feed_report.get("ok")):
         primary_failure = "active_feed"
@@ -430,12 +465,15 @@ def main() -> int:
         primary_failure = "epoch_manifest"
     elif rotated_report is not None and not bool(rotated_report.get("ok")):
         primary_failure = "rotated_feeds"
+    elif segment_report is not None and not bool(segment_report.get("ok")):
+        primary_failure = "segment_integrity"
 
     combined_report = {
         "ok": ok,
         "active_feed": feed_report,
         "epoch_manifest": epoch_report,
         "rotated_feeds": rotated_report,
+        "segment_integrity": segment_report,
         "primary_failure": primary_failure,
     }
 
@@ -454,7 +492,7 @@ def main() -> int:
             emitted = _emit_integrity_failed(target, combined_report, report_path)
 
         if args.emit_remediation:
-            primary_error = _primary_error(primary_failure, feed_report, epoch_report, rotated_report)
+            primary_error = _primary_error(primary_failure, feed_report, epoch_report, rotated_report, segment_report)
             rotated_glob = str(runtime_root / "logs" / "archive" / "activity_feed.*.jsonl")
             incident_id = _incident_id(
                 primary_failure,
@@ -504,6 +542,10 @@ def main() -> int:
                         "rotated_feeds": {
                             "ok": bool(rotated_report.get("ok")) if isinstance(rotated_report, dict) else False,
                             "files_total": int(rotated_report.get("files_total", 0) or 0) if isinstance(rotated_report, dict) else 0,
+                        },
+                        "segment_integrity": {
+                            "ok": bool(segment_report.get("ok")) if isinstance(segment_report, dict) else False,
+                            "segments_total": int(segment_report.get("segments_total", 0) or 0) if isinstance(segment_report, dict) else 0,
                         },
                     },
                     "hint": _remediation_hint(primary_failure),
@@ -556,6 +598,7 @@ def main() -> int:
                 "active_feed": feed_report,
                 "epoch_manifest": epoch_report,
                 "rotated_feeds": rotated_report,
+                "segment_integrity": segment_report,
             },
             "primary_failure": primary_failure,
         }
