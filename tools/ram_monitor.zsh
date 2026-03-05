@@ -39,15 +39,18 @@ emit_global_feed_event() {
   local free_mb="$2"
   local comp_gb="$3"
   local critical_for_sec="${4:-}"
+  local helper="$ROOT/tools/ops/activity_feed_append.py"
+  local feed="$RUNTIME_ROOT/logs/activity_feed.jsonl"
+  local py_bin="${PYTHON_BIN:-python3}"
+  [[ -f "$helper" ]] || return 0
 
-  LUKA_RUNTIME_ROOT="$RUNTIME_ROOT" python3 - "$action" "$free_mb" "$comp_gb" "$critical_for_sec" <<'PY'
+  local payload
+  payload="$("$py_bin" - "$action" "$free_mb" "$comp_gb" "$critical_for_sec" <<'PY'
 from __future__ import annotations
 
+import json
 import sys
 import time
-from pathlib import Path
-
-from core.activity_feed_guard import guarded_append_activity_feed
 
 action, free_mb, comp_gb, critical_for = sys.argv[1:5]
 payload = {
@@ -62,10 +65,11 @@ payload = {
 }
 if critical_for:
     payload["critical_for_sec"] = int(critical_for)
-
-ok = guarded_append_activity_feed(Path("runtime/logs/activity_feed.jsonl"), payload)
-raise SystemExit(0 if ok else 2)
+print(json.dumps(payload, separators=(",", ":")))
 PY
+)" || return 0
+
+  "$py_bin" "$helper" --feed "$feed" --json "$payload" >/dev/null 2>/dev/null || true
 }
 
 parse_int_env() {
