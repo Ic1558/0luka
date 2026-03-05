@@ -35,7 +35,10 @@ jobs:
 
       - name: Frozen Paths Gate
         if: github.event_name == 'pull_request'
+        env:
+          PR_LABELS_JSON: ${{ toJson(github.event.pull_request.labels.*.name) }}
         run: |
           python3 tools/ops/governance_file_lock.py --check-mutation \
             --base origin/${{ github.event.pull_request.base.ref }} \
-            --head ${{ github.event.pull_request.head.sha }}
+            --head ${{ github.event.pull_request.head.sha }} \
+            --labels-json "$PR_LABELS_JSON"
