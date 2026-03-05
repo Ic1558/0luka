@@ -319,6 +319,7 @@ def _check_epoch_head_match(runtime_root: Path, last_record: dict[str, Any] | No
             or head_data.get("tail_sha256")
         )
         expected_count = head_data.get("line_count")
+        expected_offset = head_data.get("byte_offset")
 
         if not rel_path or not expected_hash:
             continue
@@ -328,37 +329,67 @@ def _check_epoch_head_match(runtime_root: Path, last_record: dict[str, Any] | No
             errors.append({"error": "missing_registered_head", "log": log_name, "path": str(abs_path)})
             continue
 
-        last_line = _read_last_nonempty_line(abs_path)
-        actual_hash = _sha256_text(last_line)
-
         # Legacy epoch entries may not include line_count. Without count, hash mismatch
         # cannot distinguish normal forward progress from rewrite/truncation.
         if not isinstance(expected_count, int):
+            last_line = _read_last_nonempty_line(abs_path)
+            actual_hash = _sha256_text(last_line)
+            # Cannot do a strict check for legacy because feed might have grown
             continue
 
-        actual_count = _count_nonempty_lines(abs_path)
-        if actual_count < expected_count:
+        expected_segment = head_data.get("segment")
+        if expected_segment and expected_segment != rel_path:
+            errors.append({"error": "segment_mismatch", "log": log_name, "expected": expected_segment, "actual": rel_path})
+            continue
+
+        # Extract exact line at expected_count to verify historical integrity
+        line_at_expected = ""
+        current_count = 0
+        with abs_path.open("r", encoding="utf-8", errors="replace") as handle:
+            for raw in handle:
+                if raw.strip():
+                    current_count += 1
+                    if current_count == expected_count:
+                        line_at_expected = raw.strip()
+                        break
+
+        if current_count < expected_count:
             errors.append(
                 {
-                    "error": "epoch_head_regression",
-                    "log": log_name,
-                    "expected_line_count": expected_count,
-                    "actual_line_count": actual_count,
+                    "error": "ledger_truncated",
+                    "path": rel_path,
+                    "expected_line": expected_count,
+                    "actual_line": current_count,
                 }
             )
             continue
 
-        # Same count but different hash indicates rewrite/tamper at a fixed position.
-        if actual_count == expected_count and actual_hash != expected_hash:
+        hash_at_expected = _sha256_text(line_at_expected)
+        
+        if hash_at_expected != expected_hash:
             errors.append(
                 {
                     "error": "epoch_head_mismatch",
                     "log": log_name,
                     "expected": expected_hash,
-                    "actual": actual_hash,
-                    "line_count": actual_count,
+                    "actual": hash_at_expected,
+                    "line_count": expected_count,
                 }
             )
+            continue
+            
+        # Additionally check byte_offset if available
+        if isinstance(expected_offset, int):
+            actual_size = abs_path.stat().st_size
+            if actual_size < expected_offset:
+                errors.append(
+                    {
+                        "error": "epoch_head_offset_regression",
+                        "log": log_name,
+                        "expected_byte_offset": expected_offset,
+                        "actual_byte_offset": actual_size,
+                    }
+                )
 
     return errors
 

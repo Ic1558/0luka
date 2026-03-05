@@ -225,17 +225,26 @@ def test_kill_pattern_dry_run():
 def test_kill_pattern_returns_candidates():
     """kill_process_group identifies candidates from ps output."""
     from core.remediation_engine import _action_kill_process_group
+    import subprocess
+    import time
 
-    # Use a pattern that matches a known always-running process
-    params = {
-        "patterns": ["python3"],
-        "signal": "SIGTERM",
-        "max_targets": 1,
-    }
-    result = _action_kill_process_group(params, dry_run=True)
-    # Should find at least one candidate (this test itself is python3)
-    assert result.get("candidates_found", 0) >= 1, f"Expected >=1 candidates: {result}"
-    assert result.get("status") == "dry_run", f"Expected dry_run status: {result}"
+    # Spawn a dummy process to reliably match against
+    pat = "sleep 62"
+    proc = subprocess.Popen(["sleep", "62"])
+    try:
+        time.sleep(0.5) # Wait for it to appear in ps
+        params = {
+            "patterns": [pat],
+            "signal": "SIGTERM",
+            "max_targets": 1,
+        }
+        result = _action_kill_process_group(params, dry_run=True)
+        # Should find at least one candidate
+        assert result.get("candidates_found", 0) >= 1, f"Expected >=1 candidates: {result}"
+        assert result.get("status") == "dry_run", f"Expected dry_run status: {result}"
+    finally:
+        proc.kill()
+        proc.wait()
     print("  PASS: kill_pattern_returns_candidates")
 
 
