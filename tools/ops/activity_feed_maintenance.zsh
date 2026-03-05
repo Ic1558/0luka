@@ -9,6 +9,8 @@ FEED_FILE="$RUNTIME_ROOT/logs/activity_feed.jsonl"
 ARCHIVE_DIR="$RUNTIME_ROOT/logs/archive"
 INDEX_FILE="$ARCHIVE_DIR/activity_feed.index.jsonl"
 SEALS_FILE="$RUNTIME_ROOT/logs/rotation_seals.jsonl"
+REGISTRY_APPEND_HELPER="$REPO_ROOT/tools/ops/rotation_registry_append.py"
+EPOCH_EMITTER_HELPER="$REPO_ROOT/tools/ops/epoch_emitter.py"
 LOCK_DIR="$ARCHIVE_DIR/.rotation.lock.d"
 MAINT_LOG="$RUNTIME_ROOT/logs/maintenance_err.log"
 APPEND_HELPER="$REPO_ROOT/tools/ops/activity_feed_append.py"
@@ -51,7 +53,7 @@ function emit_rotation_seal() {
     local seals_path="$2"
     local seal_ts
     seal_ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    if ! "$PYTHON_BIN" - "$segment_path" "$seals_path" "$seal_ts" >>"$MAINT_LOG" 2>&1 <<'PY'
+    if ! "$PYTHON_BIN" - "$segment_path" "$seals_path" "$seal_ts" 2>>"$MAINT_LOG" <<'PY'
 import hashlib
 import json
 import os
@@ -105,8 +107,65 @@ with seals_path.open("a", encoding="utf-8") as out:
     out.write(json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
     out.flush()
     os.fsync(out.fileno())
+
+print(
+    "|".join(
+        [
+            segment_name,
+            seal_hash,
+            first_hash,
+            last_hash,
+            str(line_count),
+            sealed_at_utc,
+        ]
+    )
+)
 PY
     then
+        return 1
+    fi
+    return 0
+}
+
+function emit_rotation_registry() {
+    local segment_name="$1"
+    local seal_hash="$2"
+    local first_hash="$3"
+    local last_hash="$4"
+    local line_count="$5"
+    local sealed_at_utc="$6"
+    local ts
+    ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    if [[ ! -f "$REGISTRY_APPEND_HELPER" ]]; then
+        echo "{\"ts\":\"$ts\",\"level\":\"ERROR\",\"source\":\"activity_feed_maintenance\",\"event\":\"rotation_registry_helper_missing\",\"path\":\"$REGISTRY_APPEND_HELPER\"}" >> "$MAINT_LOG"
+        return 1
+    fi
+
+    if ! "$PYTHON_BIN" "$REGISTRY_APPEND_HELPER" \
+        "$segment_name" \
+        "$seal_hash" \
+        "$first_hash" \
+        "$last_hash" \
+        "$line_count" \
+        "$sealed_at_utc" \
+        --json >>"$MAINT_LOG" 2>&1; then
+        echo "{\"ts\":\"$ts\",\"level\":\"ERROR\",\"source\":\"activity_feed_maintenance\",\"event\":\"rotation_registry_append_failed\",\"segment\":\"$segment_name\"}" >> "$MAINT_LOG"
+        return 1
+    fi
+
+    return 0
+}
+
+function emit_epoch() {
+    local ts
+    ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    if [[ ! -f "$EPOCH_EMITTER_HELPER" ]]; then
+        echo "{\"ts\":\"$ts\",\"level\":\"ERROR\",\"source\":\"activity_feed_maintenance\",\"event\":\"epoch_emitter_helper_missing\",\"path\":\"$EPOCH_EMITTER_HELPER\"}" >> "$MAINT_LOG"
+        return 1
+    fi
+    if ! "$PYTHON_BIN" "$EPOCH_EMITTER_HELPER" --runtime-root "$RUNTIME_ROOT" --json >>"$MAINT_LOG" 2>&1; then
+        echo "{\"ts\":\"$ts\",\"level\":\"ERROR\",\"source\":\"activity_feed_maintenance\",\"event\":\"epoch_emit_failed\"}" >> "$MAINT_LOG"
         return 1
     fi
     return 0
@@ -176,8 +235,20 @@ if [[ -f "$FEED_FILE" ]]; then
         mv "$FEED_FILE" "$ROTATED_FILE"
         touch "$FEED_FILE"
         ACTIONS+=("rotated")
-        if emit_rotation_seal "$ROTATED_FILE" "$SEALS_FILE"; then
+        if SEAL_META="$(emit_rotation_seal "$ROTATED_FILE" "$SEALS_FILE")"; then
             ACTIONS+=("sealed")
+            IFS='|' read -r REG_SEGMENT REG_SEAL_HASH REG_FIRST_HASH REG_LAST_HASH REG_LINE_COUNT REG_SEALED_AT_UTC <<< "$SEAL_META"
+            if emit_rotation_registry \
+                "$REG_SEGMENT" \
+                "$REG_SEAL_HASH" \
+                "$REG_FIRST_HASH" \
+                "$REG_LAST_HASH" \
+                "$REG_LINE_COUNT" \
+                "$REG_SEALED_AT_UTC"; then
+                ACTIONS+=("registered")
+            else
+                ACTIONS+=("registry_failed")
+            fi
         else
             ACTIONS+=("seal_failed")
             SEAL_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -188,6 +259,13 @@ if [[ -f "$FEED_FILE" ]]; then
         ROTATE_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
         ROTATE_PAYLOAD="{\"ts_utc\":\"$ROTATE_TS\",\"action\":\"feed_rotated\",\"emit_mode\":\"runtime_auto\",\"old_path\":\"runtime/logs/archive/$ROTATED_BASE\",\"new_path\":\"runtime/logs/activity_feed.jsonl\",\"cutoff_offset\":$SIZE}"
         emit_feed_event "$ROTATE_PAYLOAD"
+        if [[ " ${ACTIONS[*]} " == *" sealed "* ]]; then
+            if emit_epoch; then
+                ACTIONS+=("epoch_emitted")
+            else
+                ACTIONS+=("epoch_failed")
+            fi
+        fi
     fi
 fi
 

@@ -21,11 +21,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.ops.audit_feed_chain import _audit
-from tools.ops.audit_epoch_manifest import _audit_epoch_manifest
 from tools.ops.audit_feed_segments import audit_segments
 
 LEDGER_WATCHDOG_EPOCH_FAIL_PREFIX = "ledger_watchdog_epoch_fail_"
 LEDGER_WATCHDOG_FAIL_PREFIX_LEGACY = "ledger_watchdog_fail_"  # backward-compat read-only
+GENESIS_PREV_EPOCH_HASH = "0" * 64
+LEGACY_GENESIS_PREV_EPOCH_HASH = "0" * 16
 
 
 def _utc_now() -> str:
@@ -61,6 +62,29 @@ def _emit_state_path(runtime_root: Path) -> Path:
 
 def _legacy_repo_reports_dir() -> Path:
     return ROOT / "g" / "reports"
+
+
+def _read_last_nonempty_line(path: Path) -> str:
+    if not path.exists() or path.stat().st_size == 0:
+        return ""
+    with path.open("rb") as handle:
+        pos = handle.seek(0, os.SEEK_END)
+        buf = b""
+        while pos > 0:
+            step = 4096 if pos >= 4096 else pos
+            pos -= step
+            handle.seek(pos, os.SEEK_SET)
+            buf = handle.read(step) + buf
+            for raw in reversed(buf.splitlines()):
+                if raw.strip():
+                    return raw.decode("utf-8", errors="replace")
+    return ""
+
+
+def _sha256_text(text: str) -> str:
+    if not text:
+        return ""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def _summary_errors(report: dict[str, Any], limit: int = 3) -> list[dict[str, Any]]:
@@ -171,17 +195,192 @@ def _run_audit_with_shared_lock(path: Path) -> dict[str, Any]:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
-def _run_epoch_audit_with_shared_lock(path: Path) -> dict[str, Any]:
-    if fcntl is None:
-        return _audit_epoch_manifest(path)
+def _compute_epoch_hash(epoch_id: int, prev_epoch_hash: str, log_heads: dict[str, Any]) -> str:
+    material = str(epoch_id) + prev_epoch_hash + json.dumps(log_heads, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def _compute_epoch_hash_legacy(epoch_id: int, prev_epoch_hash: str, log_heads: dict[str, Any]) -> str:
+    material = str(epoch_id) + prev_epoch_hash + json.dumps(log_heads, sort_keys=True)
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def _check_epoch_chain(path: Path) -> dict[str, Any]:
     if not path.exists():
-        return _audit_epoch_manifest(path)
-    with path.open("rb") as handle:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
-        try:
-            return _audit_epoch_manifest(path)
-        finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        # Fail-open per requirements: skip stage if manifest missing
+        return {
+            "ok": True,
+            "path": str(path),
+            "lines_total": 0,
+            "epoch_lines": 0,
+            "warnings": [f"epoch_manifest_missing:{path}"],
+            "errors": [],
+        }
+
+    errors: list[dict[str, Any]] = []
+    lines_total = 0
+    epoch_lines = 0
+    first_epoch_line: int | None = None
+    prev_epoch_hash_expected = GENESIS_PREV_EPOCH_HASH
+    last_epoch_hash: str | None = None
+    last_record: dict[str, Any] | None = None
+
+    with path.open("r", encoding="utf-8") as handle:
+        for line_no, raw in enumerate(handle, start=1):
+            lines_total += 1
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError as exc:
+                errors.append({"line": line_no, "error": "invalid_json", "detail": str(exc)})
+                continue
+            if not isinstance(entry, dict):
+                errors.append({"line": line_no, "error": "non_object_json"})
+                continue
+
+            epoch_id = entry.get("epoch_id")
+            prev_epoch_hash = entry.get("prev_epoch_hash")
+            log_heads = entry.get("log_heads")
+            epoch_hash = entry.get("epoch_hash")
+
+            if not isinstance(epoch_id, int):
+                errors.append({"line": line_no, "error": "invalid_epoch_id"})
+                continue
+            if not isinstance(prev_epoch_hash, str):
+                errors.append({"line": line_no, "error": "invalid_prev_epoch_hash"})
+                continue
+            if not isinstance(log_heads, dict):
+                errors.append({"line": line_no, "error": "invalid_log_heads"})
+                continue
+            if not isinstance(epoch_hash, str):
+                errors.append({"line": line_no, "error": "invalid_epoch_hash"})
+                continue
+
+            if first_epoch_line is None:
+                first_epoch_line = line_no
+                if prev_epoch_hash != GENESIS_PREV_EPOCH_HASH:
+                    # Allow legacy genesis too if needed, but requirements say "0"*64
+                    if prev_epoch_hash != LEGACY_GENESIS_PREV_EPOCH_HASH:
+                        errors.append({"line": line_no, "error": "genesis_chain_break", "observed": prev_epoch_hash})
+            elif prev_epoch_hash != prev_epoch_hash_expected:
+                errors.append({"line": line_no, "error": "epoch_chain_broken", "expected": prev_epoch_hash_expected, "observed": prev_epoch_hash})
+
+            computed = _compute_epoch_hash(epoch_id, prev_epoch_hash, log_heads)
+            legacy_computed = _compute_epoch_hash_legacy(epoch_id, prev_epoch_hash, log_heads)
+            if epoch_hash not in {computed, legacy_computed}:
+                errors.append(
+                    {
+                        "line": line_no,
+                        "error": "epoch_hash_mismatch",
+                        "expected": computed,
+                        "expected_legacy": legacy_computed,
+                        "observed": epoch_hash,
+                    }
+                )
+
+            epoch_lines += 1
+            prev_epoch_hash_expected = epoch_hash
+            last_epoch_hash = epoch_hash
+            last_record = entry
+
+    return {
+        "ok": len(errors) == 0,
+        "path": str(path),
+        "lines_total": lines_total,
+        "epoch_lines": epoch_lines,
+        "last_epoch_hash": last_epoch_hash,
+        "last_record": last_record,
+        "errors": errors,
+    }
+
+
+def _check_epoch_head_match(runtime_root: Path, last_record: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not last_record:
+        return []
+
+    def _count_nonempty_lines(path: Path) -> int:
+        count = 0
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            for raw in handle:
+                if raw.strip():
+                    count += 1
+        return count
+
+    errors: list[dict[str, Any]] = []
+    log_heads = last_record.get("log_heads", {})
+
+    for log_name, head_data in log_heads.items():
+        rel_path = head_data.get("path")
+        expected_hash = (
+            head_data.get("last_event_hash")
+            or head_data.get("last_line_hash")
+            or head_data.get("tail_sha256")
+        )
+        expected_count = head_data.get("line_count")
+
+        if not rel_path or not expected_hash:
+            continue
+
+        abs_path = runtime_root / rel_path
+        if not abs_path.exists():
+            errors.append({"error": "missing_registered_head", "log": log_name, "path": str(abs_path)})
+            continue
+
+        last_line = _read_last_nonempty_line(abs_path)
+        actual_hash = _sha256_text(last_line)
+
+        # Legacy epoch entries may not include line_count. Without count, hash mismatch
+        # cannot distinguish normal forward progress from rewrite/truncation.
+        if not isinstance(expected_count, int):
+            continue
+
+        actual_count = _count_nonempty_lines(abs_path)
+        if actual_count < expected_count:
+            errors.append(
+                {
+                    "error": "epoch_head_regression",
+                    "log": log_name,
+                    "expected_line_count": expected_count,
+                    "actual_line_count": actual_count,
+                }
+            )
+            continue
+
+        # Same count but different hash indicates rewrite/tamper at a fixed position.
+        if actual_count == expected_count and actual_hash != expected_hash:
+            errors.append(
+                {
+                    "error": "epoch_head_mismatch",
+                    "log": log_name,
+                    "expected": expected_hash,
+                    "actual": actual_hash,
+                    "line_count": actual_count,
+                }
+            )
+
+    return errors
+
+
+def _run_epoch_audit_with_shared_lock(runtime_root: Path, path: Path) -> dict[str, Any]:
+    if fcntl is None or not path.exists():
+        report = _check_epoch_chain(path)
+    else:
+        with path.open("rb") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
+            try:
+                report = _check_epoch_chain(path)
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    
+    if report["ok"] and report.get("last_record"):
+        head_errors = _check_epoch_head_match(runtime_root, report["last_record"])
+        if head_errors:
+            report["ok"] = False
+            report["errors"].extend(head_errors)
+            
+    return report
 
 
 def _list_rotated_feed_files(runtime_root: Path) -> list[Path]:
@@ -447,7 +646,7 @@ def main() -> int:
     rotated_report: dict[str, Any] | None = None
     segment_report: dict[str, Any] | None = None
     if args.check_epoch:
-        epoch_report = _run_epoch_audit_with_shared_lock(epoch_target)
+        epoch_report = _run_epoch_audit_with_shared_lock(runtime_root, epoch_target)
         rotated_report = _run_rotated_feeds_audit(runtime_root)
         segment_report = _run_segment_integrity_audit(runtime_root)
 
