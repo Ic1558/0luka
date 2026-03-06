@@ -23,6 +23,7 @@ if str(ROOT) not in sys.path:
 from tools.ops.audit_feed_chain import _audit
 from tools.ops.audit_feed_segments import audit_segments
 from tools.ops.audit_segment_chain import audit_segment_chain
+from tools.ops.ledger_verify import verify_ledger_root
 
 LEDGER_WATCHDOG_EPOCH_FAIL_PREFIX = "ledger_watchdog_epoch_fail_"
 LEDGER_WATCHDOG_FAIL_PREFIX_LEGACY = "ledger_watchdog_fail_"  # backward-compat read-only
@@ -150,6 +151,7 @@ def _emit_integrity_failed(path: Path, report: dict[str, Any], report_path: Path
     rotated_report = report.get("rotated_feeds")
     segment_report = report.get("segment_integrity")
     segment_chain_report = report.get("segment_chain")
+    ledger_root_report = report.get("ledger_root")
     if isinstance(feed_report, dict) and not bool(feed_report.get("ok")):
         failed_checks.append("active_feed")
     if isinstance(epoch_report, dict) and not bool(epoch_report.get("ok")):
@@ -160,6 +162,8 @@ def _emit_integrity_failed(path: Path, report: dict[str, Any], report_path: Path
         failed_checks.append("segment_integrity")
     if isinstance(segment_chain_report, dict) and not bool(segment_chain_report.get("ok")):
         failed_checks.append("segment_chain")
+    if isinstance(ledger_root_report, dict) and not bool(ledger_root_report.get("ok")):
+        failed_checks.append("ledger_root")
     from core.activity_feed_guard import guarded_append_activity_feed
 
     payload = {
@@ -181,6 +185,7 @@ def _emit_integrity_failed(path: Path, report: dict[str, Any], report_path: Path
                 "rotated_errors": _summary_errors(rotated_report if isinstance(rotated_report, dict) else {}, limit=3),
                 "segment_errors": _summary_errors(segment_report if isinstance(segment_report, dict) else {}, limit=3),
                 "segment_chain_errors": _summary_errors(segment_chain_report if isinstance(segment_chain_report, dict) else {}, limit=3),
+                "ledger_root_errors": _summary_errors(ledger_root_report if isinstance(ledger_root_report, dict) else {}, limit=3),
             },
         },
     }
@@ -468,6 +473,10 @@ def _run_segment_chain_audit(runtime_root: Path) -> dict[str, Any]:
     return audit_segment_chain(logs_dir)
 
 
+def _run_ledger_root_audit(runtime_root: Path) -> dict[str, Any]:
+    return verify_ledger_root(runtime_root)
+
+
 def _auto_heal_env(runtime_root: Path) -> list[str]:
     actions: list[str] = []
     log_dir = runtime_root / "logs"
@@ -492,6 +501,8 @@ def _remediation_hint(primary_failure: str | None) -> str:
         return "investigate segment continuity/seals and archive ordering"
     if primary_failure == "segment_chain":
         return "investigate segment_chain continuity/forks and registry bindings"
+    if primary_failure == "ledger_root":
+        return "investigate ledger_root proof drift, stale head, or Merkle mismatch"
     return "investigate watchdog integrity incident"
 
 
@@ -544,6 +555,7 @@ def _primary_error(
     rotated_report: dict[str, Any] | None,
     segment_report: dict[str, Any] | None,
     segment_chain_report: dict[str, Any] | None,
+    ledger_root_report: dict[str, Any] | None,
 ) -> str:
     if primary_failure == "active_feed":
         return _first_error_code(feed_report)
@@ -563,6 +575,8 @@ def _primary_error(
         return _first_error_code(segment_report)
     if primary_failure == "segment_chain":
         return _first_error_code(segment_chain_report)
+    if primary_failure == "ledger_root":
+        return _first_error_code(ledger_root_report)
     return ""
 
 
@@ -657,6 +671,7 @@ def main() -> int:
                 "rotated_feeds": {"ok": False, "files_total": 0, "files": []},
                 "segment_integrity": {"ok": False, "segments_total": 0, "errors": [{"error": "runtime_root_missing"}]},
                 "segment_chain": {"ok": False, "entries_total": 0, "errors": [{"error": "runtime_root_missing"}]},
+                "ledger_root": {"ok": False, "errors": [{"error": "runtime_root_missing"}]},
             },
             "primary_failure": "active_feed",
             "healing_attempted": False,
@@ -693,11 +708,13 @@ def main() -> int:
     rotated_report: dict[str, Any] | None = None
     segment_report: dict[str, Any] | None = None
     segment_chain_report: dict[str, Any] | None = None
+    ledger_root_report: dict[str, Any] | None = None
     if args.check_epoch:
         epoch_report = _run_epoch_audit_with_shared_lock(runtime_root, epoch_target)
         rotated_report = _run_rotated_feeds_audit(runtime_root)
         segment_report = _run_segment_integrity_audit(runtime_root)
         segment_chain_report = _run_segment_chain_audit(runtime_root)
+        ledger_root_report = _run_ledger_root_audit(runtime_root)
 
     ok = bool(feed_report.get("ok"))
     if epoch_report is not None:
@@ -708,6 +725,8 @@ def main() -> int:
         ok = ok and bool(segment_report.get("ok"))
     if segment_chain_report is not None:
         ok = ok and bool(segment_chain_report.get("ok"))
+    if ledger_root_report is not None:
+        ok = ok and bool(ledger_root_report.get("ok"))
     primary_failure: str | None = None
     if not bool(feed_report.get("ok")):
         primary_failure = "active_feed"
@@ -719,6 +738,8 @@ def main() -> int:
         primary_failure = "segment_integrity"
     elif segment_chain_report is not None and not bool(segment_chain_report.get("ok")):
         primary_failure = "segment_chain"
+    elif ledger_root_report is not None and not bool(ledger_root_report.get("ok")):
+        primary_failure = "ledger_root"
 
     combined_report = {
         "ok": ok,
@@ -727,6 +748,7 @@ def main() -> int:
         "rotated_feeds": rotated_report,
         "segment_integrity": segment_report,
         "segment_chain": segment_chain_report,
+        "ledger_root": ledger_root_report,
         "primary_failure": primary_failure,
     }
 
@@ -752,6 +774,7 @@ def main() -> int:
                 rotated_report,
                 segment_report,
                 segment_chain_report,
+                ledger_root_report,
             )
             rotated_glob = str(runtime_root / "logs" / "archive" / "activity_feed.*.jsonl")
             incident_id = _incident_id(
@@ -811,6 +834,10 @@ def main() -> int:
                             "ok": bool(segment_chain_report.get("ok")) if isinstance(segment_chain_report, dict) else False,
                             "entries_total": int(segment_chain_report.get("entries_total", 0) or 0) if isinstance(segment_chain_report, dict) else 0,
                         },
+                        "ledger_root": {
+                            "ok": bool(ledger_root_report.get("ok")) if isinstance(ledger_root_report, dict) else False,
+                            "leaf_count": int(ledger_root_report.get("stored_leaf_count", 0) or 0) if isinstance(ledger_root_report, dict) else 0,
+                        },
                     },
                     "hint": _remediation_hint(primary_failure),
                     "incident_id": incident_id,
@@ -864,6 +891,7 @@ def main() -> int:
                 "rotated_feeds": rotated_report,
                 "segment_integrity": segment_report,
                 "segment_chain": segment_chain_report,
+                "ledger_root": ledger_root_report,
             },
             "primary_failure": primary_failure,
         }

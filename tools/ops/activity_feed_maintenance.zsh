@@ -12,6 +12,7 @@ SEALS_FILE="$RUNTIME_ROOT/logs/rotation_seals.jsonl"
 REGISTRY_APPEND_HELPER="$REPO_ROOT/tools/ops/rotation_registry_append.py"
 EPOCH_EMITTER_HELPER="$REPO_ROOT/tools/ops/epoch_emitter.py"
 CHAIN_APPEND_HELPER="$REPO_ROOT/tools/ops/segment_chain_append.py"
+BUILD_MERKLE_ROOT_HELPER="$REPO_ROOT/tools/ops/build_merkle_root.py"
 LOCK_DIR="$ARCHIVE_DIR/.rotation.lock.d"
 MAINT_LOG="$RUNTIME_ROOT/logs/maintenance_err.log"
 APPEND_HELPER="$REPO_ROOT/tools/ops/activity_feed_append.py"
@@ -235,6 +236,20 @@ PY
     return 0
 }
 
+function emit_ledger_root() {
+    local ts
+    ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    if [[ ! -f "$BUILD_MERKLE_ROOT_HELPER" ]]; then
+        echo "{\"ts\":\"$ts\",\"level\":\"ERROR\",\"source\":\"activity_feed_maintenance\",\"event\":\"build_merkle_root_helper_missing\",\"path\":\"$BUILD_MERKLE_ROOT_HELPER\"}" >> "$MAINT_LOG"
+        return 1
+    fi
+    if ! "$PYTHON_BIN" "$BUILD_MERKLE_ROOT_HELPER" --runtime-root "$RUNTIME_ROOT" --json >>"$MAINT_LOG" 2>&1; then
+        echo "{\"ts\":\"$ts\",\"level\":\"ERROR\",\"source\":\"activity_feed_maintenance\",\"event\":\"build_merkle_root_failed\"}" >> "$MAINT_LOG"
+        return 1
+    fi
+    return 0
+}
+
 # 1. Acquire Lock (bounded retry via atomic mkdir lockdir)
 LOCK_ATTEMPTS=0
 LOCK_WAIT_MS=0
@@ -345,6 +360,13 @@ if [[ -f "$FEED_FILE" ]]; then
                 ACTIONS+=("epoch_emitted")
             else
                 ACTIONS+=("epoch_failed")
+            fi
+        fi
+        if [[ " ${ACTIONS[*]} " == *" chained "* ]]; then
+            if emit_ledger_root; then
+                ACTIONS+=("rooted")
+            else
+                ACTIONS+=("root_failed")
             fi
         fi
     fi
