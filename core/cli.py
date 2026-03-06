@@ -14,16 +14,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RUNTIME_ROOT = Path("/Users/icmini/0luka_runtime")
 
 
-def _default_runtime_root() -> str:
-    raw_root = os.environ.get("ROOT")
-    if raw_root and raw_root.strip():
-        return str(Path(raw_root).expanduser().resolve() / "runtime")
-    return str(DEFAULT_RUNTIME_ROOT)
-
-
 def _ensure_cli_runtime_root() -> None:
     if not os.environ.get("LUKA_RUNTIME_ROOT", "").strip():
-        os.environ["LUKA_RUNTIME_ROOT"] = _default_runtime_root()
+        os.environ["LUKA_RUNTIME_ROOT"] = str(DEFAULT_RUNTIME_ROOT)
 
 
 _ensure_cli_runtime_root()
@@ -43,7 +36,10 @@ def _cli_runtime_root() -> Path:
     raw = os.environ.get("LUKA_RUNTIME_ROOT", "").strip()
     if not raw:
         raise RuntimeError("runtime_root_missing")
-    return Path(raw).expanduser().resolve()
+    path = Path(raw).expanduser().resolve()
+    if not path.exists() or not path.is_dir():
+        raise RuntimeError("runtime_root_missing")
+    return path
 
 
 def _run_tool(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -59,7 +55,12 @@ def _run_tool(args: list[str]) -> subprocess.CompletedProcess[str]:
 
 
 def _cmd_ledger_verify(_: argparse.Namespace) -> int:
-    proc = _run_tool(["tools/ops/ledger_verify.py", "--json"])
+    try:
+        proc = _run_tool(["tools/ops/ledger_verify.py", "--json"])
+    except RuntimeError:
+        print("ERROR: runtime_root_missing")
+        print("Set LUKA_RUNTIME_ROOT environment variable")
+        return 1
     if proc.stdout:
         sys.stdout.write(proc.stdout)
     if proc.returncode != 0 and proc.stderr:

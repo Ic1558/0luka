@@ -28,7 +28,7 @@ def _set_env(root: Path) -> dict[str, str | None]:
     }
     os.environ["ROOT"] = str(root)
     os.environ["0LUKA_ROOT"] = str(root)
-    os.environ.pop("LUKA_RUNTIME_ROOT", None)
+    os.environ["LUKA_RUNTIME_ROOT"] = str(root / "runtime")
     return old
 
 
@@ -152,11 +152,14 @@ def _seed_runtime(root: Path) -> Path:
     return runtime_root
 
 
-def _run_cli(args: list[str], *, root: Path) -> subprocess.CompletedProcess[str]:
+def _run_cli(args: list[str], *, root: Path, runtime_root: Path | None) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["ROOT"] = str(root)
     env["0LUKA_ROOT"] = str(root)
-    env.pop("LUKA_RUNTIME_ROOT", None)
+    if runtime_root is None:
+        env.pop("LUKA_RUNTIME_ROOT", None)
+    else:
+        env["LUKA_RUNTIME_ROOT"] = str(runtime_root)
     return subprocess.run(
         [sys.executable, "-m", "core", *args],
         cwd=str(REPO_ROOT),
@@ -171,8 +174,8 @@ def test_cli_ledger_verify_returns_ok_json() -> None:
         root = Path(td).resolve()
         old = _set_env(root)
         try:
-            _seed_runtime(root)
-            cp = _run_cli(["ledger", "verify"], root=root)
+            runtime_root = _seed_runtime(root)
+            cp = _run_cli(["ledger", "verify"], root=root, runtime_root=runtime_root)
             assert cp.returncode == 0, cp.stderr or cp.stdout
             obj = json.loads(cp.stdout)
             assert obj["ok"] is True
@@ -189,10 +192,56 @@ def test_cli_ledger_root_prints_current_root() -> None:
         try:
             runtime_root = _seed_runtime(root)
             payload = json.loads((runtime_root / "logs" / "ledger_root.json").read_text(encoding="utf-8"))
-            cp = _run_cli(["ledger", "root"], root=root)
+            cp = _run_cli(["ledger", "root"], root=root, runtime_root=runtime_root)
             assert cp.returncode == 0, cp.stderr or cp.stdout
             assert "Ledger Root" in cp.stdout
             assert payload["merkle_root"] in cp.stdout
+        finally:
+            restore_test_root_modules()
+            _restore_env(old)
+
+
+def test_cli_ledger_root_json_returns_raw_payload() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td).resolve()
+        old = _set_env(root)
+        try:
+            runtime_root = _seed_runtime(root)
+            payload = json.loads((runtime_root / "logs" / "ledger_root.json").read_text(encoding="utf-8"))
+            cp = _run_cli(["ledger", "root", "--json"], root=root, runtime_root=runtime_root)
+            assert cp.returncode == 0, cp.stderr or cp.stdout
+            assert json.loads(cp.stdout) == payload
+        finally:
+            restore_test_root_modules()
+            _restore_env(old)
+
+
+def test_cli_ledger_root_fails_when_runtime_root_missing() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td).resolve()
+        old = _set_env(root)
+        try:
+            ensure_test_root(root)
+            missing_runtime = root / "missing-runtime"
+            cp = _run_cli(["ledger", "root"], root=root, runtime_root=missing_runtime)
+            assert cp.returncode == 1, cp.stderr or cp.stdout
+            assert "ERROR: runtime_root_missing" in cp.stdout
+        finally:
+            restore_test_root_modules()
+            _restore_env(old)
+
+
+def test_cli_ledger_root_fails_when_artifact_missing() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td).resolve()
+        old = _set_env(root)
+        try:
+            ensure_test_root(root)
+            runtime_root = root / "runtime"
+            (runtime_root / "logs").mkdir(parents=True, exist_ok=True)
+            cp = _run_cli(["ledger", "root"], root=root, runtime_root=runtime_root)
+            assert cp.returncode == 1, cp.stderr or cp.stdout
+            assert "ERROR: ledger_root_missing" in cp.stdout
         finally:
             restore_test_root_modules()
             _restore_env(old)
