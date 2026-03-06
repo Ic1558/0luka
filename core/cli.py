@@ -4,8 +4,29 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_RUNTIME_ROOT = Path("/Users/icmini/0luka_runtime")
+
+
+def _default_runtime_root() -> str:
+    raw_root = os.environ.get("ROOT")
+    if raw_root and raw_root.strip():
+        return str(Path(raw_root).expanduser().resolve() / "runtime")
+    return str(DEFAULT_RUNTIME_ROOT)
+
+
+def _ensure_cli_runtime_root() -> None:
+    if not os.environ.get("LUKA_RUNTIME_ROOT", "").strip():
+        os.environ["LUKA_RUNTIME_ROOT"] = _default_runtime_root()
+
+
+_ensure_cli_runtime_root()
 
 from core import health as health_mod
 from core import ledger as ledger_mod
@@ -16,6 +37,67 @@ from core import task_dispatcher as dispatcher_mod
 
 def _print_json(data: Any) -> None:
     print(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def _cli_runtime_root() -> Path:
+    raw = os.environ.get("LUKA_RUNTIME_ROOT", "").strip()
+    if not raw:
+        raise RuntimeError("runtime_root_missing")
+    return Path(raw).expanduser().resolve()
+
+
+def _run_tool(args: list[str]) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["LUKA_RUNTIME_ROOT"] = str(_cli_runtime_root())
+    return subprocess.run(
+        [sys.executable, *args],
+        cwd=str(REPO_ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _cmd_ledger_verify(_: argparse.Namespace) -> int:
+    proc = _run_tool(["tools/ops/ledger_verify.py", "--json"])
+    if proc.stdout:
+        sys.stdout.write(proc.stdout)
+    if proc.returncode != 0 and proc.stderr:
+        print(proc.stderr.strip(), file=sys.stderr)
+    return int(proc.returncode)
+
+
+def _cmd_ledger_root(args: argparse.Namespace) -> int:
+    try:
+        runtime_root = _cli_runtime_root()
+    except RuntimeError:
+        print("ERROR: runtime_root_missing")
+        print("Set LUKA_RUNTIME_ROOT environment variable")
+        return 1
+
+    path = runtime_root / "logs" / "ledger_root.json"
+    if not path.exists():
+        print("ERROR: ledger_root_missing")
+        print(path)
+        return 1
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False))
+        return 0
+
+    epoch_anchor = payload.get("epoch_anchor", {})
+    if not isinstance(epoch_anchor, dict):
+        epoch_anchor = {}
+
+    print("Ledger Root")
+    print("-----------")
+    print(f"epoch_id: {epoch_anchor.get('epoch_id')}")
+    print(f"leaf_count: {payload.get('leaf_count')}")
+    print(f"segment_range: {payload.get('segment_seq_min')}-{payload.get('segment_seq_max')}")
+    print(f"merkle_root: {payload.get('merkle_root')}")
+    print(f"timestamp: {payload.get('ts_utc')}")
+    return 0
 
 
 def _cmd_status(args: argparse.Namespace) -> int:
@@ -136,7 +218,7 @@ def _cmd_retention(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python3 -m core", description="0luka unified core CLI")
+    parser = argparse.ArgumentParser(prog="luka", description="0luka unified core CLI")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_status = sub.add_parser("status", help="Composite health + queues + recent dispatches")
@@ -163,13 +245,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_health.add_argument("--json", action="store_true")
     p_health.set_defaults(func=_cmd_health)
 
-    p_ledger = sub.add_parser("ledger", help="Query dispatch ledger")
+    p_ledger = sub.add_parser("ledger", help="Query dispatch ledger and ledger proof")
     p_ledger.add_argument("--since", type=str, default=None)
     p_ledger.add_argument("--status", type=str, default=None)
     p_ledger.add_argument("--tail", type=int, default=20)
     p_ledger.add_argument("--rebuild", action="store_true")
     p_ledger.add_argument("--json", action="store_true")
     p_ledger.set_defaults(func=_cmd_ledger)
+    p_ledger_sub = p_ledger.add_subparsers(dest="ledger_command")
+
+    p_ledger_verify = p_ledger_sub.add_parser("verify", help="Run ledger proof verification")
+    p_ledger_verify.set_defaults(func=_cmd_ledger_verify)
+
+    p_ledger_root = p_ledger_sub.add_parser("root", help="Show current ledger Merkle root")
+    p_ledger_root.add_argument("--json", action="store_true")
+    p_ledger_root.set_defaults(func=_cmd_ledger_root)
 
     p_retention = sub.add_parser("retention", help="Run retention")
     p_retention.add_argument(
@@ -191,4 +281,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
