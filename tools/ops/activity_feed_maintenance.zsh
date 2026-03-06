@@ -11,6 +11,7 @@ INDEX_FILE="$ARCHIVE_DIR/activity_feed.index.jsonl"
 SEALS_FILE="$RUNTIME_ROOT/logs/rotation_seals.jsonl"
 REGISTRY_APPEND_HELPER="$REPO_ROOT/tools/ops/rotation_registry_append.py"
 EPOCH_EMITTER_HELPER="$REPO_ROOT/tools/ops/epoch_emitter.py"
+CHAIN_APPEND_HELPER="$REPO_ROOT/tools/ops/segment_chain_append.py"
 LOCK_DIR="$ARCHIVE_DIR/.rotation.lock.d"
 MAINT_LOG="$RUNTIME_ROOT/logs/maintenance_err.log"
 APPEND_HELPER="$REPO_ROOT/tools/ops/activity_feed_append.py"
@@ -149,6 +150,7 @@ function emit_rotation_registry() {
         "$last_hash" \
         "$line_count" \
         "$sealed_at_utc" \
+        --runtime-root "$RUNTIME_ROOT" \
         --json >>"$MAINT_LOG" 2>&1; then
         echo "{\"ts\":\"$ts\",\"level\":\"ERROR\",\"source\":\"activity_feed_maintenance\",\"event\":\"rotation_registry_append_failed\",\"segment\":\"$segment_name\"}" >> "$MAINT_LOG"
         return 1
@@ -168,6 +170,68 @@ function emit_epoch() {
         echo "{\"ts\":\"$ts\",\"level\":\"ERROR\",\"source\":\"activity_feed_maintenance\",\"event\":\"epoch_emit_failed\"}" >> "$MAINT_LOG"
         return 1
     fi
+    return 0
+}
+
+function emit_segment_chain() {
+    local segment_name="$1"
+    local seal_hash="$2"
+    local line_count="$3"
+    local last_hash="$4"
+    local segment_seq="${5:-}"
+    local ts
+    ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    if [[ ! -f "$CHAIN_APPEND_HELPER" ]]; then
+        echo "{\"ts\":\"$ts\",\"level\":\"ERROR\",\"source\":\"activity_feed_maintenance\",\"event\":\"segment_chain_helper_missing\",\"path\":\"$CHAIN_APPEND_HELPER\"}" >> "$MAINT_LOG"
+        return 1
+    fi
+
+    local chain_json
+    if [[ -n "$segment_seq" ]]; then
+        if ! chain_json=$("$PYTHON_BIN" "$CHAIN_APPEND_HELPER" \
+            --runtime-root "$RUNTIME_ROOT" \
+            --segment-name "$segment_name" \
+            --seal-hash "$seal_hash" \
+            --line-count "$line_count" \
+            --last-hash "$last_hash" \
+            --segment-seq "$segment_seq" \
+            --json 2>>"$MAINT_LOG"); then
+            echo "{\"ts\":\"$ts\",\"level\":\"ERROR\",\"source\":\"activity_feed_maintenance\",\"event\":\"segment_chain_append_failed\",\"segment\":\"$segment_name\"}" >> "$MAINT_LOG"
+            return 1
+        fi
+    else
+        if ! chain_json=$("$PYTHON_BIN" "$CHAIN_APPEND_HELPER" \
+            --runtime-root "$RUNTIME_ROOT" \
+            --segment-name "$segment_name" \
+            --seal-hash "$seal_hash" \
+            --line-count "$line_count" \
+            --last-hash "$last_hash" \
+            --json 2>>"$MAINT_LOG"); then
+            echo "{\"ts\":\"$ts\",\"level\":\"ERROR\",\"source\":\"activity_feed_maintenance\",\"event\":\"segment_chain_append_failed\",\"segment\":\"$segment_name\"}" >> "$MAINT_LOG"
+            return 1
+        fi
+    fi
+
+    local chain_meta
+    if ! chain_meta=$("$PYTHON_BIN" - "$chain_json" <<'PY'
+import json
+import sys
+
+obj = json.loads(sys.argv[1])
+rec = obj.get("record", {})
+seq = rec.get("segment_seq")
+prev = rec.get("prev_chain_hash")
+ch = rec.get("chain_hash")
+if seq is None or not isinstance(prev, str) or not isinstance(ch, str):
+    raise SystemExit(2)
+print(f"{seq}|{prev}|{ch}")
+PY
+); then
+        echo "{\"ts\":\"$ts\",\"level\":\"ERROR\",\"source\":\"activity_feed_maintenance\",\"event\":\"segment_chain_meta_parse_failed\",\"segment\":\"$segment_name\"}" >> "$MAINT_LOG"
+        return 1
+    fi
+    echo "$chain_meta"
     return 0
 }
 
@@ -221,6 +285,11 @@ trap 'rm -rf "$LOCK_DIR"' EXIT
 echo "lock_acquired=true"
 
 ACTIONS=()
+CHAIN_SEQ=""
+CHAIN_PREV_HASH=""
+CHAIN_HASH=""
+CHAIN_SEGMENT_NAME=""
+CHAIN_SEAL_HASH=""
 
 # 2. Rotate (Threshold: 100KB)
 MAX_BYTES=$((100 * 1024))
@@ -246,6 +315,14 @@ if [[ -f "$FEED_FILE" ]]; then
                 "$REG_LINE_COUNT" \
                 "$REG_SEALED_AT_UTC"; then
                 ACTIONS+=("registered")
+                if CHAIN_META="$(emit_segment_chain "$REG_SEGMENT" "$REG_SEAL_HASH" "$REG_LINE_COUNT" "$REG_LAST_HASH")"; then
+                    ACTIONS+=("chained")
+                    IFS='|' read -r CHAIN_SEQ CHAIN_PREV_HASH CHAIN_HASH <<< "$CHAIN_META"
+                    CHAIN_SEGMENT_NAME="$REG_SEGMENT"
+                    CHAIN_SEAL_HASH="$REG_SEAL_HASH"
+                else
+                    ACTIONS+=("chain_failed")
+                fi
             else
                 ACTIONS+=("registry_failed")
             fi
@@ -259,6 +336,10 @@ if [[ -f "$FEED_FILE" ]]; then
         ROTATE_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
         ROTATE_PAYLOAD="{\"ts_utc\":\"$ROTATE_TS\",\"action\":\"feed_rotated\",\"emit_mode\":\"runtime_auto\",\"old_path\":\"runtime/logs/archive/$ROTATED_BASE\",\"new_path\":\"runtime/logs/activity_feed.jsonl\",\"cutoff_offset\":$SIZE}"
         emit_feed_event "$ROTATE_PAYLOAD"
+        if [[ " ${ACTIONS[*]} " == *" chained "* ]]; then
+            CONTINUE_PAYLOAD="{\"ts_utc\":\"$ROTATE_TS\",\"action\":\"rotation_continuation\",\"emit_mode\":\"runtime_auto\",\"segment_seq\":$CHAIN_SEQ,\"prev_chain_hash\":\"$CHAIN_PREV_HASH\",\"chain_hash\":\"$CHAIN_HASH\",\"segment_name\":\"$CHAIN_SEGMENT_NAME\",\"seal_hash\":\"$CHAIN_SEAL_HASH\"}"
+            emit_feed_event "$CONTINUE_PAYLOAD"
+        fi
         if [[ " ${ACTIONS[*]} " == *" sealed "* ]]; then
             if emit_epoch; then
                 ACTIONS+=("epoch_emitted")
