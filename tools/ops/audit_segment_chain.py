@@ -70,8 +70,10 @@ def _load_registry(logs_dir: Path) -> tuple[dict[str, str], list[dict[str, Any]]
         seal = row.get("seal_hash")
         if isinstance(name, str) and isinstance(seal, str):
             mapping[name] = seal
-        else:
+        elif isinstance(name, str):
+            # Has segment_name but seal_hash missing/malformed
             errors.append({"line": idx, "error": "invalid_registry_entry"})
+        # else: legacy row without segment_name (pre-Phase-3.3) — skip silently
     return mapping, errors
 
 
