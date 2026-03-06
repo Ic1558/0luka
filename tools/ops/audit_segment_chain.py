@@ -2,13 +2,17 @@
 from __future__ import annotations
 
 import argparse
+import calendar
 import hashlib
 import json
 import os
+import re
+import time
 from pathlib import Path
 from typing import Any
 
 GENESIS_PREV_CHAIN_HASH = "0" * 64
+ROTATED_SEGMENT_NAME_RE = re.compile(r"^activity_feed[._](\d{8}T\d{6}Z)\.jsonl$")
 
 
 def _default_logs_dir() -> Path:
@@ -77,6 +81,33 @@ def _load_registry(logs_dir: Path) -> tuple[dict[str, str], list[dict[str, Any]]
     return mapping, errors
 
 
+def _present_segment_names(logs_dir: Path) -> set[str]:
+    names: set[str] = set()
+    archive_dir = logs_dir / "archive"
+    if archive_dir.exists() and archive_dir.is_dir():
+        for path in archive_dir.glob("activity_feed*.jsonl"):
+            if not path.is_file():
+                continue
+            if ROTATED_SEGMENT_NAME_RE.match(path.name):
+                names.add(path.name)
+    active = logs_dir / "activity_feed.jsonl"
+    if active.exists() and active.is_file():
+        names.add(active.name)
+    return names
+
+
+def _segment_timestamp_epoch(name: str) -> int | None:
+    match = ROTATED_SEGMENT_NAME_RE.match(name)
+    if not match:
+        return None
+    token = match.group(1)
+    try:
+        parsed = time.strptime(token, "%Y%m%dT%H%M%SZ")
+        return int(calendar.timegm(parsed))
+    except ValueError:
+        return None
+
+
 def audit_segment_chain(logs_dir: Path) -> dict[str, Any]:
     chain_path = logs_dir / "segment_chain.jsonl"
     entries, errors = _load_jsonl(chain_path)
@@ -92,11 +123,19 @@ def audit_segment_chain(logs_dir: Path) -> dict[str, Any]:
 
     registry_map, registry_errors = _load_registry(logs_dir)
     errors.extend(registry_errors)
+    present_names = _present_segment_names(logs_dir)
+    present_timestamps = [
+        ts for ts in (_segment_timestamp_epoch(name) for name in present_names) if ts is not None
+    ]
+    oldest_retained_ts = min(present_timestamps) if present_timestamps else None
 
     seen_segment_names: set[str] = set()
     seen_seal_hashes: set[str] = set()
     expected_seq = 1
     expected_prev = GENESIS_PREV_CHAIN_HASH
+    max_seq = max((entry.get("segment_seq") for entry in entries if isinstance(entry.get("segment_seq"), int)), default=0)
+    existence_checks = 0
+    existence_skipped = 0
 
     for line_no, entry in enumerate(entries, start=1):
         segment_seq = entry.get("segment_seq")
@@ -180,20 +219,42 @@ def audit_segment_chain(logs_dir: Path) -> dict[str, Any]:
             )
             continue
 
-        archive_path = logs_dir / "archive" / segment_name
-        active_path = logs_dir / segment_name
-        if not archive_path.exists() and not active_path.exists():
-            errors.append({"line": line_no, "error": "missing_segment_file", "segment_name": segment_name})
-            continue
-
-        expected_seq += 1
+        # Advance continuity expectation once the chain row itself is valid.
+        # File existence is checked separately with retention-aware policy.
+        expected_seq = segment_seq + 1
         expected_prev = chain_hash
+
+        # Retention-aware file check:
+        # - Always check when segment name is currently present on disk.
+        # - Otherwise, check only if entry timestamp is inside retained timestamp window.
+        #   Older entries outside current on-disk retention are accepted as historical chain.
+        segment_ts = _segment_timestamp_epoch(segment_name)
+        should_check_existence = segment_name in present_names
+        if not should_check_existence and oldest_retained_ts is not None and segment_ts is not None:
+            if segment_ts >= oldest_retained_ts:
+                should_check_existence = True
+        if not should_check_existence and oldest_retained_ts is None and segment_seq == max_seq:
+            # Safety fallback: if no retained files are visible, still check newest chain entry.
+            should_check_existence = True
+
+        if should_check_existence:
+            existence_checks += 1
+            archive_path = logs_dir / "archive" / segment_name
+            active_path = logs_dir / segment_name
+            if segment_name not in present_names and not archive_path.exists() and not active_path.exists():
+                errors.append({"line": line_no, "error": "missing_segment_file", "segment_name": segment_name})
+        else:
+            existence_skipped += 1
 
     first_failure = errors[0]["error"] if errors else None
     return {
         "ok": len(errors) == 0,
         "path": str(chain_path),
         "entries_total": len(entries),
+        "retained_segment_files": len(present_names),
+        "retention_anchor_epoch": oldest_retained_ts,
+        "existence_checks": existence_checks,
+        "existence_skipped": existence_skipped,
         "first_failure": first_failure,
         "errors": errors[:50],
     }
