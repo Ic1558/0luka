@@ -122,6 +122,49 @@ def load_alerts(limit: int = 100) -> list[dict[str, Any]]:
     return rows[-limit:]
 
 
+def _build_remediation_timeline(report: dict[str, Any], *, last: int | None = None) -> list[dict[str, Any]]:
+    timeline: list[dict[str, Any]] = []
+    for lane_name in ("memory", "worker"):
+        lane_payload = report.get(lane_name)
+        if not isinstance(lane_payload, dict):
+            continue
+        for decision in lane_payload.get("lifecycle", []):
+            timeline.append(
+                {
+                    "timestamp": None,
+                    "decision": str(decision),
+                    "lane": lane_name,
+                }
+            )
+    if last is not None and last >= 0:
+        timeline = timeline[-last:]
+    return timeline
+
+
+def load_remediation_history(lane: str | None = None, last: int | None = None) -> dict[str, Any]:
+    args = [sys.executable, "tools/ops/remediation_history_report.py", "--json"]
+    if lane:
+        args.extend(["--lane", lane])
+    if last is not None:
+        args.extend(["--last", str(last)])
+    payload = _run_json_command(args)
+    payload["timeline"] = _build_remediation_timeline(payload, last=last)
+    payload.setdefault("last_event", {"decision": None, "lane": None, "timestamp": None})
+    payload.setdefault("total_entries", 0)
+    for lane_name in ("memory", "worker"):
+        if lane and lane_name != lane:
+            continue
+        if lane_name not in payload:
+            payload[lane_name] = {
+                "attempts": 0,
+                "cooldowns": 0,
+                "escalations": 0,
+                "recovered": 0,
+                "lifecycle": [],
+            }
+    return payload
+
+
 def _epoch_id(runtime_status: dict[str, Any]) -> str:
     proof = runtime_status.get("proof_pack")
     if isinstance(proof, dict):
@@ -168,11 +211,64 @@ def _alerts_html(entries: list[dict[str, Any]]) -> str:
     return "\n".join(items)
 
 
+def _remediation_summary_html(report: dict[str, Any]) -> str:
+    blocks: list[str] = []
+    for lane_name in ("memory", "worker"):
+        lane_payload = report.get(lane_name)
+        if not isinstance(lane_payload, dict):
+            continue
+        blocks.append(
+            "<div class=\"lane-block\">"
+            f"<h3>{escape(lane_name.title())}</h3>"
+            "<dl>"
+            f"<dt>Attempts</dt><dd>{escape(str(lane_payload.get('attempts', 0)))}</dd>"
+            f"<dt>Cooldowns</dt><dd>{escape(str(lane_payload.get('cooldowns', 0)))}</dd>"
+            f"<dt>Escalations</dt><dd>{escape(str(lane_payload.get('escalations', 0)))}</dd>"
+            f"<dt>Recovered</dt><dd>{escape(str(lane_payload.get('recovered', 0)))}</dd>"
+            "</dl>"
+            "</div>"
+        )
+    if not blocks:
+        return "<p class=\"muted\">No remediation history available</p>"
+    return "\n".join(blocks)
+
+
+def _remediation_last_event_html(report: dict[str, Any]) -> str:
+    event = report.get("last_event")
+    if not isinstance(event, dict):
+        event = {}
+    return (
+        "<dl>"
+        f"<dt>Decision</dt><dd>{escape(str(event.get('decision') or 'n/a'))}</dd>"
+        f"<dt>Lane</dt><dd>{escape(str(event.get('lane') or 'n/a'))}</dd>"
+        f"<dt>Timestamp</dt><dd>{escape(str(event.get('timestamp') or 'n/a'))}</dd>"
+        "</dl>"
+    )
+
+
+def _remediation_timeline_html(report: dict[str, Any]) -> str:
+    entries = report.get("timeline")
+    if not isinstance(entries, list) or not entries:
+        return "<li>No remediation events available</li>"
+    items: list[str] = []
+    for row in reversed(entries[-10:]):
+        if not isinstance(row, dict):
+            continue
+        ts = escape(str(row.get("timestamp") or "n/a"))
+        decision = escape(str(row.get("decision") or "unknown"))
+        lane = escape(str(row.get("lane") or "unknown"))
+        items.append(
+            f"<li><span class=\"ts\">{ts}</span> <span class=\"action\">{decision}</span> <span class=\"lane\">({lane})</span></li>"
+        )
+    return "\n".join(items) if items else "<li>No remediation events available</li>"
+
+
 def render_mission_control(
     operator_status: dict[str, Any],
     runtime_status: dict[str, Any],
     activity_entries: list[dict[str, Any]],
     alerts: list[dict[str, Any]],
+    remediation_history: dict[str, Any],
 ) -> str:
     template = Template(TEMPLATE_PATH.read_text(encoding="utf-8"))
     details = operator_status.get("details") if isinstance(operator_status.get("details"), dict) else {}
@@ -190,6 +286,9 @@ def render_mission_control(
         bridge_outbox=escape(str(bridge.get("outbox", "unavailable"))),
         activity_items=_activity_html(activity_entries),
         alert_items=_alerts_html(alerts),
+        remediation_summary=_remediation_summary_html(remediation_history),
+        remediation_last_event=_remediation_last_event_html(remediation_history),
+        remediation_timeline=_remediation_timeline_html(remediation_history),
     )
 
 
@@ -218,12 +317,27 @@ async def alerts_endpoint(request) -> JSONResponse:
     return JSONResponse({"alerts": load_alerts(limit=limit)})
 
 
+async def remediation_history_endpoint(request) -> JSONResponse:
+    lane = request.query_params.get("lane")
+    if lane not in {None, "", "memory", "worker"}:
+        lane = None
+    last_raw = request.query_params.get("last")
+    last: int | None = None
+    if last_raw:
+        try:
+            last = max(0, min(int(last_raw), 500))
+        except ValueError:
+            last = None
+    return JSONResponse(load_remediation_history(lane=lane or None, last=last))
+
+
 async def root_endpoint(request) -> HTMLResponse:
     operator_status = load_operator_status()
     runtime_status = load_runtime_status()
     activity_entries = load_activity_entries()
     alerts = load_alerts()
-    return HTMLResponse(render_mission_control(operator_status, runtime_status, activity_entries, alerts))
+    remediation_history = load_remediation_history(last=20)
+    return HTMLResponse(render_mission_control(operator_status, runtime_status, activity_entries, alerts, remediation_history))
 
 
 def create_app():
@@ -234,6 +348,7 @@ def create_app():
         app.add_api_route("/api/runtime_status", runtime_status_endpoint, methods=["GET"])
         app.add_api_route("/api/activity", activity_endpoint, methods=["GET"])
         app.add_api_route("/api/alerts", alerts_endpoint, methods=["GET"])
+        app.add_api_route("/api/remediation_history", remediation_history_endpoint, methods=["GET"])
         app.add_api_route("/", root_endpoint, methods=["GET"], response_class=HTMLResponse)
         return app
 
@@ -244,6 +359,7 @@ def create_app():
             Route("/api/runtime_status", runtime_status_endpoint),
             Route("/api/activity", activity_endpoint),
             Route("/api/alerts", alerts_endpoint),
+            Route("/api/remediation_history", remediation_history_endpoint),
             Route("/", root_endpoint),
         ]
     )
