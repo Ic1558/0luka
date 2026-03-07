@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.ops import memory_recovery
+from tools.ops import memory_recovery, worker_recovery
 
 CANONICAL_RUNTIME_ROOT = Path("/Users/icmini/0luka_runtime")
 API_RESTART_PATH = ROOT / "core_brain" / "ops" / "governance" / "handlers" / "service_restart.zsh"
@@ -169,6 +169,10 @@ def evaluate_remediation(
 
     if memory_status == "CRITICAL":
         decisions.extend(memory_recovery.evaluate_memory_recovery(runtime_status, operator_status, timestamp=ts))
+
+    bridge_needs_recovery, _ = worker_recovery.bridge_recovery_required(operator_status)
+    if bridge_needs_recovery:
+        decisions.extend(worker_recovery.evaluate_worker_recovery(runtime_status, operator_status, timestamp=ts))
 
     if decisions:
         return decisions
