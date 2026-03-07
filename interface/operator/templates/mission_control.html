@@ -80,6 +80,54 @@
       font-weight: 700;
       color: var(--accent);
     }
+    .stack {
+      display: grid;
+      gap: 10px;
+    }
+    .alerts {
+      list-style: none;
+      padding-left: 0;
+      display: grid;
+      gap: 10px;
+    }
+    .alert-item {
+      display: grid;
+      gap: 4px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.7);
+    }
+    .alert-item .severity,
+    .alert-item .component {
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .alert-item .message {
+      color: var(--ink);
+    }
+    .alert-item.critical {
+      border-color: #a12828;
+      background: #fff0ee;
+    }
+    .alert-item.critical .severity {
+      color: #a12828;
+    }
+    .alert-item.warning {
+      border-color: #b96d15;
+      background: #fff6ea;
+    }
+    .alert-item.warning .severity {
+      color: #b96d15;
+    }
+    .alert-item.info {
+      border-color: #8f8b83;
+      background: #f2f0eb;
+    }
+    .alert-item.info .severity {
+      color: #6f6b63;
+    }
   </style>
 </head>
 <body>
@@ -117,7 +165,50 @@
           ${activity_items}
         </ul>
       </section>
+      <section class="card">
+        <h2>Alerts</h2>
+        <ul id="alerts-panel" class="alerts">
+          ${alert_items}
+        </ul>
+      </section>
     </div>
   </main>
+  <script>
+    function renderAlerts(alerts) {
+      const panel = document.getElementById("alerts-panel");
+      if (!panel) return;
+      const rows = Array.isArray(alerts) ? alerts.slice(-10).reverse() : [];
+      if (rows.length === 0) {
+        panel.innerHTML = '<li class="alert-item info"><span class="severity">INFO</span><span class="component">alerts</span><span class="message">No alerts available</span></li>';
+        return;
+      }
+      panel.innerHTML = rows.map((alert) => {
+        const severity = String(alert.severity || "INFO");
+        const klass = severity.toLowerCase();
+        const timestamp = String(alert.timestamp || "n/a");
+        const component = String(alert.component || "unknown");
+        const message = String(alert.message || "");
+        return '<li class="alert-item ' + klass + '">' +
+          '<span class="ts">' + timestamp + '</span>' +
+          '<span class="severity">' + severity + '</span>' +
+          '<span class="component">' + component + '</span>' +
+          '<span class="message">' + message + '</span>' +
+          '</li>';
+      }).join("");
+    }
+
+    async function refreshAlerts() {
+      try {
+        const response = await fetch('/api/alerts');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderAlerts(payload.alerts);
+      } catch (error) {
+        // Leave the last rendered alert state intact on refresh failures.
+      }
+    }
+
+    setInterval(refreshAlerts, 5000);
+  </script>
 </body>
 </html>

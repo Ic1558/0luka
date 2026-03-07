@@ -25,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+CANONICAL_RUNTIME_ROOT = Path("/Users/icmini/0luka_runtime")
 CANONICAL_OBSERVABILITY_ROOT = Path("/Users/icmini/0luka/observability")
 SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 7010
@@ -38,8 +39,19 @@ def _observability_root() -> Path:
     return CANONICAL_OBSERVABILITY_ROOT
 
 
+def _runtime_root() -> Path:
+    raw = os.environ.get("LUKA_RUNTIME_ROOT", "").strip()
+    if raw:
+        return Path(raw).expanduser().resolve()
+    return CANONICAL_RUNTIME_ROOT
+
+
 def _activity_feed_path() -> Path:
     return _observability_root() / "logs" / "activity_feed.jsonl"
+
+
+def _alerts_path() -> Path:
+    return _runtime_root() / "state" / "alerts.jsonl"
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -92,6 +104,24 @@ def load_activity_entries(limit: int = 50) -> list[dict[str, Any]]:
     return rows[-limit:]
 
 
+def load_alerts(limit: int = 100) -> list[dict[str, Any]]:
+    path = _alerts_path()
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows[-limit:]
+
+
 def _epoch_id(runtime_status: dict[str, Any]) -> str:
     proof = runtime_status.get("proof_pack")
     if isinstance(proof, dict):
@@ -112,13 +142,39 @@ def _activity_html(entries: list[dict[str, Any]]) -> str:
     return "\n".join(items)
 
 
+def _alerts_html(entries: list[dict[str, Any]]) -> str:
+    if not entries:
+        return "<li class=\"alert-item info\"><span class=\"severity\">INFO</span><span class=\"component\">alerts</span><span class=\"message\">No alerts available</span></li>"
+    items: list[str] = []
+    for row in reversed(entries[-10:]):
+        severity = escape(str(row.get("severity") or "INFO")).lower()
+        ts = escape(str(row.get("timestamp") or "n/a"))
+        component = escape(str(row.get("component") or "unknown"))
+        message = escape(str(row.get("message") or ""))
+        items.append(
+            "<li class=\"alert-item {severity}\">"
+            "<span class=\"ts\">{ts}</span>"
+            "<span class=\"severity\">{sev}</span>"
+            "<span class=\"component\">{component}</span>"
+            "<span class=\"message\">{message}</span>"
+            "</li>".format(
+                severity=severity,
+                ts=ts,
+                sev=escape(str(row.get("severity") or "INFO")),
+                component=component,
+                message=message,
+            )
+        )
+    return "\n".join(items)
+
+
 def render_mission_control(
     operator_status: dict[str, Any],
     runtime_status: dict[str, Any],
     activity_entries: list[dict[str, Any]],
+    alerts: list[dict[str, Any]],
 ) -> str:
     template = Template(TEMPLATE_PATH.read_text(encoding="utf-8"))
-    proof = runtime_status.get("proof_pack") if isinstance(runtime_status.get("proof_pack"), dict) else {}
     details = operator_status.get("details") if isinstance(operator_status.get("details"), dict) else {}
     bridge = details.get("bridge_checks") if isinstance(details.get("bridge_checks"), dict) else {}
     return template.safe_substitute(
@@ -133,6 +189,7 @@ def render_mission_control(
         bridge_inflight=escape(str(bridge.get("inflight", "unavailable"))),
         bridge_outbox=escape(str(bridge.get("outbox", "unavailable"))),
         activity_items=_activity_html(activity_entries),
+        alert_items=_alerts_html(alerts),
     )
 
 
@@ -152,11 +209,21 @@ async def activity_endpoint(request) -> JSONResponse:
     return JSONResponse(load_activity_entries())
 
 
+async def alerts_endpoint(request) -> JSONResponse:
+    limit_raw = request.query_params.get("limit", "100")
+    try:
+        limit = max(1, min(int(limit_raw), 500))
+    except ValueError:
+        limit = 100
+    return JSONResponse({"alerts": load_alerts(limit=limit)})
+
+
 async def root_endpoint(request) -> HTMLResponse:
     operator_status = load_operator_status()
     runtime_status = load_runtime_status()
     activity_entries = load_activity_entries()
-    return HTMLResponse(render_mission_control(operator_status, runtime_status, activity_entries))
+    alerts = load_alerts()
+    return HTMLResponse(render_mission_control(operator_status, runtime_status, activity_entries, alerts))
 
 
 def create_app():
@@ -166,6 +233,7 @@ def create_app():
         app.add_api_route("/api/operator_status", operator_status_endpoint, methods=["GET"])
         app.add_api_route("/api/runtime_status", runtime_status_endpoint, methods=["GET"])
         app.add_api_route("/api/activity", activity_endpoint, methods=["GET"])
+        app.add_api_route("/api/alerts", alerts_endpoint, methods=["GET"])
         app.add_api_route("/", root_endpoint, methods=["GET"], response_class=HTMLResponse)
         return app
 
@@ -175,6 +243,7 @@ def create_app():
             Route("/api/operator_status", operator_status_endpoint),
             Route("/api/runtime_status", runtime_status_endpoint),
             Route("/api/activity", activity_endpoint),
+            Route("/api/alerts", alerts_endpoint),
             Route("/", root_endpoint),
         ]
     )
