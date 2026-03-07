@@ -146,3 +146,34 @@ def test_degraded_memory_condition_detected(monkeypatch, tmp_path: Path) -> None
 
     assert report["memory_status"] == "CRITICAL"
     assert report["overall_status"] == "DEGRADED"
+
+
+def test_missing_ports_force_critical(monkeypatch, tmp_path: Path) -> None:
+    telemetry_root = tmp_path / "observability"
+    monkeypatch.setenv("LUKA_OBSERVABILITY_ROOT", str(telemetry_root))
+    _write_json(
+        telemetry_root / "telemetry" / "ram_monitor.latest.json",
+        {"pressure_level": "NORMAL", "decision": {"high_swap_activity": False, "latch_active": False}},
+    )
+    _write_json(telemetry_root / "telemetry" / "bridge_consumer.latest.json", {"status": "idle"})
+    _write_json(
+        telemetry_root / "telemetry" / "bridge_watchdog.latest.json",
+        {"overall_status": "ok", "checks": {"inflight": {"status": "ok"}, "outbox": {"status": "ok"}}},
+    )
+
+    def fake_run(args, cwd, capture_output, text, env, check):
+        cmd = args[1:]
+        if cmd == ["tools/ops/runtime_status_report.py", "--json"]:
+            return _cp(args, 0, {"system_health": {"status": "HEALTHY"}, "ledger_watchdog": {"ok": True}, "proof_pack": {"available": True, "ok": True}})
+        if cmd == ["core/health.py", "--full", "--json"]:
+            return _cp(args, 0, {"status": "healthy", "tests": {"passed": 21, "suites": 21}})
+        raise AssertionError(args)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr("tools.ops.operator_status_report._port_running", lambda port: False)
+
+    report = build_operator_status_report()
+
+    assert report["api_server"] == "MISSING"
+    assert report["redis"] == "MISSING"
+    assert report["overall_status"] == "CRITICAL"

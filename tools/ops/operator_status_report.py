@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 CANONICAL_RUNTIME_ROOT = Path("/Users/icmini/0luka_runtime")
+CANONICAL_OBSERVABILITY_ROOT = Path("/Users/icmini/0luka/observability")
 API_PORT = 7001
 REDIS_PORT = 6379
 
@@ -35,7 +36,7 @@ def _telemetry_dir() -> Path:
     raw = os.environ.get("LUKA_OBSERVABILITY_ROOT", "").strip()
     if raw:
         return Path(raw).expanduser().resolve() / "telemetry"
-    return ROOT / "observability" / "telemetry"
+    return CANONICAL_OBSERVABILITY_ROOT / "telemetry"
 
 
 def _read_json(path: Path) -> dict[str, Any]:
