@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>0luka Mission Control</title>
+  <style>
+    :root {
+      --bg: #f5f1e8;
+      --panel: #fffaf0;
+      --ink: #1b1b1b;
+      --muted: #5f5a4f;
+      --line: #d8ccba;
+      --accent: #8a4b08;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", serif;
+      background:
+        radial-gradient(circle at top left, #fff4cf 0%, transparent 35%),
+        linear-gradient(180deg, #efe7d8 0%, var(--bg) 100%);
+      color: var(--ink);
+    }
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+    h1 {
+      margin: 0 0 24px;
+      font-size: clamp(2rem, 5vw, 4rem);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: color-mix(in srgb, var(--panel) 88%, white);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 12px 30px rgba(27, 27, 27, 0.08);
+    }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 1rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    dl {
+      margin: 0;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px 12px;
+    }
+    dt {
+      color: var(--muted);
+    }
+    dd {
+      margin: 0;
+      text-align: right;
+      font-weight: 700;
+    }
+    ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+    li {
+      margin: 0 0 8px;
+    }
+    .ts {
+      color: var(--muted);
+    }
+    .action {
+      font-weight: 700;
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Mission Control</h1>
+    <div class="grid">
+      <section class="card">
+        <h2>System</h2>
+        <dl>
+          <dt>Health</dt><dd>${system_health}</dd>
+          <dt>Ledger</dt><dd>${ledger_status}</dd>
+          <dt>Epoch</dt><dd>${epoch_id}</dd>
+        </dl>
+      </section>
+      <section class="card">
+        <h2>Operator</h2>
+        <dl>
+          <dt>Overall</dt><dd>${operator_overall}</dd>
+          <dt>Memory</dt><dd>${memory_status}</dd>
+          <dt>API</dt><dd>${api_server}</dd>
+          <dt>Redis</dt><dd>${redis}</dd>
+        </dl>
+      </section>
+      <section class="card">
+        <h2>Bridge</h2>
+        <dl>
+          <dt>Consumer</dt><dd>${bridge_consumer}</dd>
+          <dt>Inflight</dt><dd>${bridge_inflight}</dd>
+          <dt>Outbox</dt><dd>${bridge_outbox}</dd>
+        </dl>
+      </section>
+      <section class="card">
+        <h2>Activity</h2>
+        <ul>
+          ${activity_items}
+        </ul>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
