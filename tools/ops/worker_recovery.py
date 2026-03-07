@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -15,8 +16,15 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 CANONICAL_RUNTIME_ROOT = Path("/Users/icmini/0luka_runtime")
-SAFE_WORKER_RECOVERY_PATH = ROOT / "tools" / "ops" / "worker_recovery_safe.zsh"
 _OK_CONSUMER_STATES = {"idle", "ok", "running"}
+ALLOWED_WORKER_LABELS = (
+    "com.0luka.bridge_watchdog",
+    "com.0luka.bridge_consumer.lisa",
+    "com.0luka.bridge_consumer.codex",
+    "com.0luka.bridge_consumer.liam",
+)
+LAUNCHCTL_BIN = shutil.which("launchctl")
+LAUNCHCTL_TIMEOUT_SECONDS = 5
 
 
 def _utc_now() -> str:
@@ -80,22 +88,59 @@ def _approval_present() -> bool:
     return os.environ.get("LUKA_ALLOW_WORKER_RECOVERY", "").strip() == "1"
 
 
-def _recovery_action_available() -> bool:
-    return SAFE_WORKER_RECOVERY_PATH.exists()
+def _launchctl_target(label: str) -> str:
+    return f"gui/{os.getuid()}/{label}"
 
 
-def _run_recovery_action() -> tuple[bool, str]:
+def _recovery_action_available() -> tuple[bool, str]:
+    if not LAUNCHCTL_BIN:
+        return False, "launchctl_missing"
+    if not ALLOWED_WORKER_LABELS:
+        return False, "no_allowed_worker_labels"
+    return True, f"allowed_labels={','.join(ALLOWED_WORKER_LABELS)}"
+
+
+def _launchctl_print_loaded(label: str) -> bool:
     proc = subprocess.run(
-        ["/bin/zsh", str(SAFE_WORKER_RECOVERY_PATH)],
+        [LAUNCHCTL_BIN, "print", _launchctl_target(label)],
         cwd=str(ROOT),
         capture_output=True,
         text=True,
         check=False,
+        timeout=LAUNCHCTL_TIMEOUT_SECONDS,
     )
-    if proc.returncode == 0:
-        return True, "worker_recovery_completed"
-    detail = proc.stderr.strip() or proc.stdout.strip() or f"returncode={proc.returncode}"
-    return False, f"worker_recovery_failed:{detail}"
+    return proc.returncode == 0
+
+
+def _run_recovery_action() -> tuple[bool, str]:
+    loaded_labels = [label for label in ALLOWED_WORKER_LABELS if _launchctl_print_loaded(label)]
+    if not loaded_labels:
+        return False, "worker_recovery_failed:no_loaded_worker_labels"
+
+    failures: list[str] = []
+    restarted: list[str] = []
+    for label in loaded_labels:
+        try:
+            proc = subprocess.run(
+                [LAUNCHCTL_BIN, "kickstart", "-k", _launchctl_target(label)],
+                cwd=str(ROOT),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=LAUNCHCTL_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            failures.append(f"{label}:timeout")
+            continue
+        if proc.returncode == 0:
+            restarted.append(label)
+            continue
+        detail = proc.stderr.strip() or proc.stdout.strip() or f"returncode={proc.returncode}"
+        failures.append(f"{label}:{detail}")
+
+    if failures:
+        return False, f"worker_recovery_failed:{'|'.join(failures)}"
+    return True, f"worker_recovery_completed:{','.join(restarted)}"
 
 
 def _dedupe(items: list[str]) -> list[str]:
@@ -183,13 +228,14 @@ def evaluate_worker_recovery(
             )
         ]
 
-    if not _recovery_action_available():
+    action_available, action_detail = _recovery_action_available()
+    if not action_available:
         return [
             _decision(
                 timestamp=ts,
                 decision="action_unavailable",
                 target="bridge",
-                reason=f"{reason}; recovery_path_missing:{SAFE_WORKER_RECOVERY_PATH}",
+                reason=f"{reason}; {action_detail}",
                 action_taken=False,
             )
         ]
@@ -198,7 +244,7 @@ def evaluate_worker_recovery(
         timestamp=ts,
         decision="worker_recovery_started",
         target="worker",
-        reason=f"{reason}; recovery_path={SAFE_WORKER_RECOVERY_PATH}",
+        reason=f"{reason}; {action_detail}",
         action_taken=True,
     )
     ok, detail = _run_recovery_action()

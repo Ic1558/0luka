@@ -15,7 +15,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 CANONICAL_RUNTIME_ROOT = Path("/Users/icmini/0luka_runtime")
-SAFE_MEMORY_RECOVERY_PATH = ROOT / "tools" / "ops" / "memory_recovery_safe.zsh"
+POLICY_MEMORY_NAME = "policy_memory.json"
+MEMORY_INDEX_METADATA_NAME = "memory_index_metadata.json"
 
 
 def _utc_now() -> str:
@@ -31,6 +32,18 @@ def _runtime_root() -> Path:
 
 def _remediation_log_path(runtime_root: Path) -> Path:
     return runtime_root / "state" / "remediation_actions.jsonl"
+
+
+def _state_dir(runtime_root: Path) -> Path:
+    return runtime_root / "state"
+
+
+def _policy_memory_path(runtime_root: Path) -> Path:
+    return _state_dir(runtime_root) / POLICY_MEMORY_NAME
+
+
+def _memory_index_metadata_path(runtime_root: Path) -> Path:
+    return _state_dir(runtime_root) / MEMORY_INDEX_METADATA_NAME
 
 
 def _run_json_command(args: list[str], *, env: dict[str, str] | None = None) -> dict[str, Any]:
@@ -79,22 +92,61 @@ def _approval_present() -> bool:
     return os.environ.get("LUKA_ALLOW_MEMORY_RECOVERY", "").strip() == "1"
 
 
-def _recovery_action_available() -> bool:
-    return SAFE_MEMORY_RECOVERY_PATH.exists()
+def _load_policy_memory(runtime_root: Path) -> dict[str, Any]:
+    payload = json.loads(_policy_memory_path(runtime_root).read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise RuntimeError("policy_memory_not_object")
+    return payload
 
 
-def _run_recovery_action() -> tuple[bool, str]:
-    proc = subprocess.run(
-        ["/bin/zsh", str(SAFE_MEMORY_RECOVERY_PATH)],
-        cwd=str(ROOT),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if proc.returncode == 0:
-        return True, "memory_recovery_completed"
-    detail = proc.stderr.strip() or proc.stdout.strip() or f"returncode={proc.returncode}"
-    return False, f"memory_recovery_failed:{detail}"
+def _recovery_action_available(runtime_root: Path) -> tuple[bool, str]:
+    state_dir = _state_dir(runtime_root)
+    if not state_dir.is_dir():
+        return False, f"state_dir_missing:{state_dir}"
+    policy_path = _policy_memory_path(runtime_root)
+    if not policy_path.is_file():
+        return False, f"policy_memory_missing:{policy_path}"
+    output_path = _memory_index_metadata_path(runtime_root)
+    if output_path.parent != state_dir or output_path.name != MEMORY_INDEX_METADATA_NAME:
+        return False, f"unsafe_output_path:{output_path}"
+    return True, f"memory_index_metadata:{output_path}"
+
+
+def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    with tmp_path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(tmp_path, path)
+
+
+def _run_recovery_action(runtime_root: Path, runtime_status: dict[str, Any], operator_status: dict[str, Any], *, timestamp: str) -> tuple[bool, str]:
+    try:
+        policy_memory = _load_policy_memory(runtime_root)
+    except Exception as exc:
+        return False, f"memory_recovery_failed:{exc}"
+
+    protected_domains = policy_memory.get("protected_domains")
+    outcomes = policy_memory.get("outcomes")
+    metadata = {
+        "schema_version": 1,
+        "rebuilt_at": timestamp,
+        "runtime_status": str(runtime_status.get("overall_status", "FAILED")).upper(),
+        "operator_status": str(operator_status.get("overall_status", "CRITICAL")).upper(),
+        "memory_status": str(operator_status.get("memory_status", "UNAVAILABLE")).upper(),
+        "policy_memory_updated_at": policy_memory.get("updated_at"),
+        "protected_domain_count": len(protected_domains) if isinstance(protected_domains, list) else 0,
+        "outcome_count": len(outcomes) if isinstance(outcomes, list) else 0,
+        "source": "memory_recovery",
+    }
+    try:
+        _write_json_atomic(_memory_index_metadata_path(runtime_root), metadata)
+    except Exception as exc:
+        return False, f"memory_recovery_failed:{exc}"
+    return True, f"memory_index_metadata_rebuilt:{_memory_index_metadata_path(runtime_root)}"
 
 
 def evaluate_memory_recovery(
@@ -102,8 +154,10 @@ def evaluate_memory_recovery(
     operator_status: dict[str, Any],
     *,
     timestamp: str | None = None,
+    runtime_root: Path | None = None,
 ) -> list[dict[str, Any]]:
     ts = timestamp or _utc_now()
+    resolved_runtime_root = runtime_root or _runtime_root()
     runtime_overall = str(runtime_status.get("overall_status", "FAILED")).upper()
     operator_overall = str(operator_status.get("overall_status", "CRITICAL")).upper()
     memory_status = str(operator_status.get("memory_status", "UNAVAILABLE")).upper()
@@ -130,13 +184,14 @@ def evaluate_memory_recovery(
             )
         ]
 
-    if not _recovery_action_available():
+    action_available, action_detail = _recovery_action_available(resolved_runtime_root)
+    if not action_available:
         return [
             _decision(
                 timestamp=ts,
                 decision="action_unavailable",
                 target="memory",
-                reason=f"memory_status=CRITICAL; recovery_path_missing:{SAFE_MEMORY_RECOVERY_PATH}",
+                reason=f"memory_status=CRITICAL; {action_detail}",
                 action_taken=False,
             )
         ]
@@ -145,10 +200,10 @@ def evaluate_memory_recovery(
         timestamp=ts,
         decision="memory_recovery_started",
         target="memory",
-        reason=f"memory_status=CRITICAL; recovery_path={SAFE_MEMORY_RECOVERY_PATH}",
+        reason=f"memory_status=CRITICAL; {action_detail}",
         action_taken=True,
     )
-    ok, detail = _run_recovery_action()
+    ok, detail = _run_recovery_action(resolved_runtime_root, runtime_status, operator_status, timestamp=ts)
     finished = _decision(
         timestamp=ts,
         decision="memory_recovery_finished",
@@ -172,7 +227,7 @@ def run_once(*, runtime_root: Path | None = None) -> list[dict[str, Any]]:
     resolved_runtime_root = runtime_root or _runtime_root()
     runtime_status = load_runtime_status(runtime_root=resolved_runtime_root)
     operator_status = load_operator_status(runtime_root=resolved_runtime_root)
-    decisions = evaluate_memory_recovery(runtime_status, operator_status)
+    decisions = evaluate_memory_recovery(runtime_status, operator_status, runtime_root=resolved_runtime_root)
     append_decisions(_remediation_log_path(resolved_runtime_root), decisions)
     return decisions
 

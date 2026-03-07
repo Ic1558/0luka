@@ -39,12 +39,12 @@ def test_memory_critical_no_approval() -> None:
 
 def test_memory_critical_no_safe_recovery_path(monkeypatch) -> None:
     monkeypatch.setenv("LUKA_ALLOW_MEMORY_RECOVERY", "1")
-    monkeypatch.setattr(memory_recovery, "SAFE_MEMORY_RECOVERY_PATH", Path("/nonexistent/memory_recovery_safe.zsh"))
 
     decisions = memory_recovery.evaluate_memory_recovery(
         {"overall_status": "HEALTHY"},
         {"overall_status": "DEGRADED", "memory_status": "CRITICAL"},
         timestamp="2026-03-08T00:00:00Z",
+        runtime_root=Path("/nonexistent/runtime"),
     )
 
     assert decisions[0]["decision"] == "action_unavailable"
@@ -53,23 +53,42 @@ def test_memory_critical_no_safe_recovery_path(monkeypatch) -> None:
 
 def test_approved_memory_recovery_path_action_taken(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("LUKA_ALLOW_MEMORY_RECOVERY", "1")
-    safe_path = tmp_path / "memory_recovery_safe.zsh"
-    safe_path.write_text("#!/bin/zsh\n", encoding="utf-8")
-    monkeypatch.setattr(memory_recovery, "SAFE_MEMORY_RECOVERY_PATH", safe_path)
-    monkeypatch.setattr(memory_recovery, "_run_recovery_action", lambda: (True, "memory_recovery_completed"))
+    runtime_root = tmp_path / "runtime"
+    state_dir = runtime_root / "state"
+    state_dir.mkdir(parents=True)
+    (state_dir / "policy_memory.json").write_text(
+        json.dumps(
+            {
+                "updated_at": "2026-03-07T00:00:00Z",
+                "protected_domains": [{"domain": "x.example"}],
+                "outcomes": [{"status": 200}],
+            }
+        ),
+        encoding="utf-8",
+    )
 
     decisions = memory_recovery.evaluate_memory_recovery(
         {"overall_status": "HEALTHY"},
         {"overall_status": "DEGRADED", "memory_status": "CRITICAL"},
         timestamp="2026-03-08T00:00:00Z",
+        runtime_root=runtime_root,
     )
 
     assert [item["decision"] for item in decisions] == ["memory_recovery_started", "memory_recovery_finished"]
     assert all(item["action_taken"] is True for item in decisions)
+    metadata = json.loads((state_dir / "memory_index_metadata.json").read_text(encoding="utf-8"))
+    assert metadata["protected_domain_count"] == 1
+    assert metadata["outcome_count"] == 1
 
 
 def test_remediation_log_schema_valid_and_scoped(tmp_path: Path, monkeypatch) -> None:
     runtime_root = tmp_path / "runtime"
+    state_dir = runtime_root / "state"
+    state_dir.mkdir(parents=True)
+    (state_dir / "policy_memory.json").write_text(
+        json.dumps({"updated_at": "2026-03-07T00:00:00Z", "protected_domains": [], "outcomes": []}),
+        encoding="utf-8",
+    )
     monkeypatch.setenv("LUKA_RUNTIME_ROOT", str(runtime_root))
     monkeypatch.setattr(memory_recovery, "_utc_now", lambda: "2026-03-08T00:00:00Z")
 
@@ -91,6 +110,7 @@ def test_remediation_log_schema_valid_and_scoped(tmp_path: Path, monkeypatch) ->
     assert list(stored.keys()) == ["timestamp", "decision", "target", "reason", "action_taken", "source"]
     assert stored["source"] == "remediation_engine"
     assert sorted(str(path.relative_to(runtime_root)) for path in runtime_root.rglob("*") if path.is_file()) == [
+        "state/policy_memory.json",
         "state/remediation_actions.jsonl"
     ]
 
