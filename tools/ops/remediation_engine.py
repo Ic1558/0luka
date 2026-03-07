@@ -155,6 +155,28 @@ def _lane_last_attempt_key(lane: str) -> str:
     return f"{lane}_last_attempt"
 
 
+def _lane_failure_active(lane: str, operator_status: dict[str, Any]) -> bool:
+    if lane == "memory":
+        return str(operator_status.get("memory_status", "UNAVAILABLE")).upper() == "CRITICAL"
+    if lane == "worker":
+        bridge_needs_recovery, _ = worker_recovery.bridge_recovery_required(operator_status)
+        return bridge_needs_recovery
+    raise RuntimeError(f"unsupported_policy_lane:{lane}")
+
+
+def _lane_state_present(state: dict[str, Any], lane: str) -> bool:
+    return bool(state.get(_lane_attempt_key(lane), 0) or state.get(_lane_last_attempt_key(lane)))
+
+
+def _clear_lane_state(state: dict[str, Any], lane: str) -> dict[str, Any]:
+    updated = dict(state)
+    updated[_lane_attempt_key(lane)] = 0
+    updated[_lane_last_attempt_key(lane)] = None
+    if not any(_lane_state_present(updated, item) for item in REMEDIATION_POLICY):
+        updated["last_attempt"] = None
+    return updated
+
+
 def _cooldown_active(state: dict[str, Any], lane: str, *, timestamp: str) -> bool:
     last_attempt = state.get(_lane_last_attempt_key(lane))
     if not last_attempt:
@@ -169,6 +191,14 @@ def _count_attempt(decisions: list[dict[str, Any]]) -> bool:
         if name.endswith("_started") or name == "action_unavailable":
             return True
     return False
+
+
+def _recovery_succeeded(decisions: list[dict[str, Any]], lane: str) -> bool:
+    expected = f"{lane}_recovery_finished"
+    return any(
+        str(decision.get("decision", "")) == expected and bool(decision.get("action_taken"))
+        for decision in decisions
+    )
 
 
 def _service_lane_decisions(timestamp: str, operator_status: dict[str, Any]) -> list[dict[str, Any]]:
@@ -249,23 +279,18 @@ def _policy_lane_decisions(
     cooldown_active = _cooldown_active(state, lane, timestamp=timestamp)
 
     if attempts >= int(REMEDIATION_POLICY[lane]["max_attempts"]):
-        if not cooldown_active:
-            state[attempts_key] = 0
-            state[last_key] = None
-            attempts = 0
-        else:
-            return (
-                [
-                    _decision(
-                        timestamp=timestamp,
-                        decision="remediation_escalated",
-                        target=lane,
-                        reason=f"max_attempts_exceeded:{lane}:{attempts}",
-                        action_taken=False,
-                    )
-                ],
-                state,
-            )
+        return (
+            [
+                _decision(
+                    timestamp=timestamp,
+                    decision="remediation_escalated",
+                    target=lane,
+                    reason=f"max_attempts_exceeded:{lane}:{attempts}",
+                    action_taken=False,
+                )
+            ],
+            state,
+        )
 
     if attempts > 0 and cooldown_active:
         return (
@@ -301,6 +326,18 @@ def _policy_lane_decisions(
         state[attempts_key] = attempts + 1
         state[last_key] = timestamp
         state["last_attempt"] = timestamp
+
+    if _recovery_succeeded(decisions, lane):
+        state = _clear_lane_state(state, lane)
+        decisions.append(
+            _decision(
+                timestamp=timestamp,
+                decision="remediation_recovered",
+                target=lane,
+                reason=f"successful_recovery_reset:{lane}",
+                action_taken=True,
+            )
+        )
 
     return decisions, state
 
@@ -364,10 +401,23 @@ def evaluate_remediation_with_policy(
     runtime_overall = str(runtime_status.get("overall_status", "FAILED")).upper()
     operator_overall = str(operator_status.get("overall_status", "CRITICAL")).upper()
     state = _load_policy_state(runtime_root)
+    reconcile_decisions: list[dict[str, Any]] = []
+    for lane_name in REMEDIATION_POLICY:
+        if _lane_state_present(state, lane_name) and not _lane_failure_active(lane_name, operator_status):
+            state = _clear_lane_state(state, lane_name)
+            reconcile_decisions.append(
+                _decision(
+                    timestamp=ts,
+                    decision="remediation_state_cleared",
+                    target=lane_name,
+                    reason=f"lane_healthy_state_cleared:{lane_name}",
+                    action_taken=False,
+                )
+            )
     lane = _select_lane(operator_status)
 
     if lane == "memory":
-        return _policy_lane_decisions(
+        decisions, next_state = _policy_lane_decisions(
             "memory",
             runtime_status,
             operator_status,
@@ -375,8 +425,9 @@ def evaluate_remediation_with_policy(
             timestamp=ts,
             runtime_root=runtime_root,
         )
+        return reconcile_decisions + decisions, next_state
     if lane == "worker":
-        return _policy_lane_decisions(
+        decisions, next_state = _policy_lane_decisions(
             "worker",
             runtime_status,
             operator_status,
@@ -384,10 +435,12 @@ def evaluate_remediation_with_policy(
             timestamp=ts,
             runtime_root=runtime_root,
         )
+        return reconcile_decisions + decisions, next_state
     if lane == "alerts":
-        return _service_lane_decisions(ts, operator_status), state
+        return reconcile_decisions + _service_lane_decisions(ts, operator_status), state
     return (
-        [
+        reconcile_decisions
+        + [
             _decision(
                 timestamp=ts,
                 decision="noop",
