@@ -57,7 +57,7 @@ def test_bridge_failure_no_approval() -> None:
 
 def test_bridge_failure_no_safe_recovery_path(monkeypatch) -> None:
     monkeypatch.setenv("LUKA_ALLOW_WORKER_RECOVERY", "1")
-    monkeypatch.setattr(worker_recovery, "SAFE_WORKER_RECOVERY_PATH", Path("/nonexistent/worker_recovery_safe.zsh"))
+    monkeypatch.setattr(worker_recovery, "LAUNCHCTL_BIN", None)
 
     decisions = worker_recovery.evaluate_worker_recovery(
         {"overall_status": "HEALTHY"},
@@ -83,10 +83,16 @@ def test_bridge_failure_no_safe_recovery_path(monkeypatch) -> None:
 
 def test_approved_worker_recovery_path_action_taken(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("LUKA_ALLOW_WORKER_RECOVERY", "1")
-    safe_path = tmp_path / "worker_recovery_safe.zsh"
-    safe_path.write_text("#!/bin/zsh\n", encoding="utf-8")
-    monkeypatch.setattr(worker_recovery, "SAFE_WORKER_RECOVERY_PATH", safe_path)
-    monkeypatch.setattr(worker_recovery, "_run_recovery_action", lambda: (True, "worker_recovery_completed"))
+    monkeypatch.setattr(worker_recovery, "ALLOWED_WORKER_LABELS", ("com.0luka.bridge_watchdog",))
+
+    def fake_run(args, cwd, capture_output, text, check, timeout):
+        if args[:2] == [worker_recovery.LAUNCHCTL_BIN, "print"]:
+            return subprocess.CompletedProcess(args=args, returncode=0, stdout="loaded", stderr="")
+        if args[:3] == [worker_recovery.LAUNCHCTL_BIN, "kickstart", "-k"]:
+            return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     decisions = worker_recovery.evaluate_worker_recovery(
         {"overall_status": "HEALTHY"},
@@ -105,6 +111,7 @@ def test_approved_worker_recovery_path_action_taken(monkeypatch, tmp_path: Path)
 
     assert [item["decision"] for item in decisions] == ["worker_recovery_started", "worker_recovery_finished"]
     assert all(item["action_taken"] is True for item in decisions)
+    assert decisions[1]["reason"].startswith("worker_recovery_completed:")
 
 
 def test_remediation_log_schema_valid_and_scoped(tmp_path: Path, monkeypatch) -> None:
