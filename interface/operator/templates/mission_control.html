@@ -108,6 +108,39 @@
       display: grid;
       gap: 10px;
     }
+    .policy-list {
+      list-style: none;
+      padding-left: 0;
+      display: grid;
+      gap: 10px;
+    }
+    .policy-item {
+      display: grid;
+      gap: 4px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.7);
+    }
+    .policy-item .lane-name,
+    .policy-item .policy-status {
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .policy-item.status-allowed {
+      border-color: #2c7b4a;
+      background: #eef9f1;
+    }
+    .policy-item.status-approval_required {
+      border-color: #b96d15;
+      background: #fff6ea;
+    }
+    .policy-item.status-denied,
+    .policy-item.status-unavailable {
+      border-color: #a12828;
+      background: #fff0ee;
+    }
     .alert-item {
       display: grid;
       gap: 4px;
@@ -201,6 +234,12 @@
           ${remediation_timeline}
         </ul>
       </section>
+      <section class="card">
+        <h2>Autonomy / Approval</h2>
+        <ul id="autonomy-policy-panel" class="policy-list">
+          ${autonomy_policy_items}
+        </ul>
+      </section>
     </div>
   </main>
   <script>
@@ -292,8 +331,46 @@
       }
     }
 
+    function renderAutonomyPolicy(payload) {
+      const panel = document.getElementById("autonomy-policy-panel");
+      if (!panel) return;
+      const lanes = payload && payload.lanes ? payload.lanes : {};
+      const order = ["memory_recovery", "worker_recovery", "api_recovery", "redis_recovery"];
+      const rows = order.filter((lane) => lanes[lane]);
+      if (rows.length === 0) {
+        panel.innerHTML = '<li>No autonomy policy available</li>';
+        return;
+      }
+      panel.innerHTML = rows.map((lane) => {
+        const row = lanes[lane] || {};
+        const status = String(row.status || 'denied');
+        const klass = status.toLowerCase();
+        const reason = String(row.reason || 'unknown');
+        const approval = String(row.approval_state || 'invalid');
+        const expires = String(row.expires_at || 'n/a');
+        return '<li class="policy-item status-' + klass + '">' +
+          '<span class="lane-name">' + lane + '</span>' +
+          '<span class="policy-status">' + status + '</span>' +
+          '<span class="policy-reason">' + reason + '</span>' +
+          '<span class="policy-meta">approval=' + approval + '; expires=' + expires + '</span>' +
+          '</li>';
+      }).join("");
+    }
+
+    async function refreshAutonomyPolicy() {
+      try {
+        const response = await fetch('/api/autonomy_policy');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderAutonomyPolicy(payload);
+      } catch (error) {
+        // Leave the last rendered autonomy policy intact on refresh failures.
+      }
+    }
+
     setInterval(refreshAlerts, 5000);
     setInterval(refreshRemediation, 5000);
+    setInterval(refreshAutonomyPolicy, 5000);
   </script>
 </body>
 </html>
