@@ -84,6 +84,24 @@
       display: grid;
       gap: 10px;
     }
+    .muted {
+      color: var(--muted);
+    }
+    .lane-block {
+      display: grid;
+      gap: 8px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.6);
+    }
+    .lane-block h3 {
+      margin: 0;
+      font-size: 0.95rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
     .alerts {
       list-style: none;
       padding-left: 0;
@@ -171,6 +189,18 @@
           ${alert_items}
         </ul>
       </section>
+      <section class="card">
+        <h2>Remediation History</h2>
+        <div id="remediation-summary" class="stack">
+          ${remediation_summary}
+        </div>
+        <div id="remediation-last-event" class="stack">
+          ${remediation_last_event}
+        </div>
+        <ul id="remediation-timeline">
+          ${remediation_timeline}
+        </ul>
+      </section>
     </div>
   </main>
   <script>
@@ -208,7 +238,62 @@
       }
     }
 
+    function renderRemediation(payload) {
+      const summary = document.getElementById("remediation-summary");
+      const lastEvent = document.getElementById("remediation-last-event");
+      const timeline = document.getElementById("remediation-timeline");
+      if (!summary || !lastEvent || !timeline) return;
+
+      const lanes = ["memory", "worker"].filter((lane) => payload && payload[lane]);
+      if (lanes.length === 0) {
+        summary.innerHTML = '<p class="muted">No remediation history available</p>';
+      } else {
+        summary.innerHTML = lanes.map((lane) => {
+          const row = payload[lane] || {};
+          return '<div class="lane-block">' +
+            '<h3>' + lane + '</h3>' +
+            '<dl>' +
+            '<dt>Attempts</dt><dd>' + String(row.attempts || 0) + '</dd>' +
+            '<dt>Cooldowns</dt><dd>' + String(row.cooldowns || 0) + '</dd>' +
+            '<dt>Escalations</dt><dd>' + String(row.escalations || 0) + '</dd>' +
+            '<dt>Recovered</dt><dd>' + String(row.recovered || 0) + '</dd>' +
+            '</dl>' +
+            '</div>';
+        }).join("");
+      }
+
+      const event = payload && payload.last_event ? payload.last_event : {};
+      lastEvent.innerHTML = '<dl>' +
+        '<dt>Decision</dt><dd>' + String(event.decision || 'n/a') + '</dd>' +
+        '<dt>Lane</dt><dd>' + String(event.lane || 'n/a') + '</dd>' +
+        '<dt>Timestamp</dt><dd>' + String(event.timestamp || 'n/a') + '</dd>' +
+        '</dl>';
+
+      const rows = Array.isArray(payload && payload.timeline) ? payload.timeline.slice(-10).reverse() : [];
+      if (rows.length === 0) {
+        timeline.innerHTML = '<li>No remediation events available</li>';
+      } else {
+        timeline.innerHTML = rows.map((entry) => {
+          return '<li><span class="ts">' + String(entry.timestamp || 'n/a') + '</span> ' +
+            '<span class="action">' + String(entry.decision || 'unknown') + '</span> ' +
+            '<span class="lane">(' + String(entry.lane || 'unknown') + ')</span></li>';
+        }).join("");
+      }
+    }
+
+    async function refreshRemediation() {
+      try {
+        const response = await fetch('/api/remediation_history?last=20');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderRemediation(payload);
+      } catch (error) {
+        // Leave the last rendered remediation state intact on refresh failures.
+      }
+    }
+
     setInterval(refreshAlerts, 5000);
+    setInterval(refreshRemediation, 5000);
   </script>
 </body>
 </html>
