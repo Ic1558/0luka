@@ -14,10 +14,8 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.ops import memory_recovery
-
 CANONICAL_RUNTIME_ROOT = Path("/Users/icmini/0luka_runtime")
-API_RESTART_PATH = ROOT / "core_brain" / "ops" / "governance" / "handlers" / "service_restart.zsh"
+SAFE_MEMORY_RECOVERY_PATH = ROOT / "tools" / "ops" / "memory_recovery_safe.zsh"
 
 
 def _utc_now() -> str:
@@ -77,111 +75,88 @@ def _decision(*, timestamp: str, decision: str, target: str, reason: str, action
     }
 
 
-def _approval_present(flag_name: str) -> bool:
-    return os.environ.get(flag_name, "").strip() == "1"
+def _approval_present() -> bool:
+    return os.environ.get("LUKA_ALLOW_MEMORY_RECOVERY", "").strip() == "1"
 
 
-def _run_api_restart() -> tuple[bool, str]:
-    if not API_RESTART_PATH.exists():
-        return False, f"restart_path_missing:{API_RESTART_PATH}"
+def _recovery_action_available() -> bool:
+    return SAFE_MEMORY_RECOVERY_PATH.exists()
+
+
+def _run_recovery_action() -> tuple[bool, str]:
     proc = subprocess.run(
-        ["/bin/zsh", str(API_RESTART_PATH)],
+        ["/bin/zsh", str(SAFE_MEMORY_RECOVERY_PATH)],
         cwd=str(ROOT),
         capture_output=True,
         text=True,
         check=False,
     )
     if proc.returncode == 0:
-        return True, "api_restart_executed"
+        return True, "memory_recovery_completed"
     detail = proc.stderr.strip() or proc.stdout.strip() or f"returncode={proc.returncode}"
-    return False, f"api_restart_failed:{detail}"
+    return False, f"memory_recovery_failed:{detail}"
 
 
-def evaluate_remediation(
+def evaluate_memory_recovery(
     runtime_status: dict[str, Any],
     operator_status: dict[str, Any],
     *,
     timestamp: str | None = None,
 ) -> list[dict[str, Any]]:
     ts = timestamp or _utc_now()
-    decisions: list[dict[str, Any]] = []
-
     runtime_overall = str(runtime_status.get("overall_status", "FAILED")).upper()
     operator_overall = str(operator_status.get("overall_status", "CRITICAL")).upper()
-    api_status = str(operator_status.get("api_server", "MISSING")).upper()
-    redis_status = str(operator_status.get("redis", "MISSING")).upper()
     memory_status = str(operator_status.get("memory_status", "UNAVAILABLE")).upper()
 
-    if api_status == "MISSING":
-        if not _approval_present("LUKA_ALLOW_API_RESTART"):
-            decisions.append(
-                _decision(
-                    timestamp=ts,
-                    decision="approval_missing",
-                    target="api",
-                    reason="api_server=MISSING; approval_missing:LUKA_ALLOW_API_RESTART",
-                    action_taken=False,
-                )
+    if memory_status != "CRITICAL":
+        return [
+            _decision(
+                timestamp=ts,
+                decision="noop",
+                target="none",
+                reason=f"runtime={runtime_overall}; operator={operator_overall}; memory_status={memory_status}",
+                action_taken=False,
             )
-        elif not API_RESTART_PATH.exists():
-            decisions.append(
-                _decision(
-                    timestamp=ts,
-                    decision="action_unavailable",
-                    target="api",
-                    reason=f"api_server=MISSING; restart_path_missing:{API_RESTART_PATH}",
-                    action_taken=False,
-                )
-            )
-        else:
-            ok, reason = _run_api_restart()
-            decisions.append(
-                _decision(
-                    timestamp=ts,
-                    decision="restart_api",
-                    target="api",
-                    reason=f"api_server=MISSING; {reason}",
-                    action_taken=ok,
-                )
-            )
+        ]
 
-    if redis_status == "MISSING":
-        if not _approval_present("LUKA_ALLOW_REDIS_RESTART"):
-            decisions.append(
-                _decision(
-                    timestamp=ts,
-                    decision="approval_missing",
-                    target="redis",
-                    reason="redis=MISSING; approval_missing:LUKA_ALLOW_REDIS_RESTART",
-                    action_taken=False,
-                )
+    if not _approval_present():
+        return [
+            _decision(
+                timestamp=ts,
+                decision="approval_missing",
+                target="memory",
+                reason="memory_status=CRITICAL; approval_missing:LUKA_ALLOW_MEMORY_RECOVERY",
+                action_taken=False,
             )
-        else:
-            decisions.append(
-                _decision(
-                    timestamp=ts,
-                    decision="action_unavailable",
-                    target="redis",
-                    reason="redis=MISSING; no_safe_restart_path_configured",
-                    action_taken=False,
-                )
+        ]
+
+    if not _recovery_action_available():
+        return [
+            _decision(
+                timestamp=ts,
+                decision="action_unavailable",
+                target="memory",
+                reason=f"memory_status=CRITICAL; recovery_path_missing:{SAFE_MEMORY_RECOVERY_PATH}",
+                action_taken=False,
             )
+        ]
 
-    if memory_status == "CRITICAL":
-        decisions.extend(memory_recovery.evaluate_memory_recovery(runtime_status, operator_status, timestamp=ts))
-
-    if decisions:
-        return decisions
-
-    return [
-        _decision(
-            timestamp=ts,
-            decision="noop",
-            target="none",
-            reason=f"runtime={runtime_overall}; operator={operator_overall}; no_remediation_required",
-            action_taken=False,
-        )
-    ]
+    started = _decision(
+        timestamp=ts,
+        decision="memory_recovery_started",
+        target="memory",
+        reason=f"memory_status=CRITICAL; recovery_path={SAFE_MEMORY_RECOVERY_PATH}",
+        action_taken=True,
+    )
+    ok, detail = _run_recovery_action()
+    finished = _decision(
+        timestamp=ts,
+        decision="memory_recovery_finished",
+        target="memory",
+        reason=detail,
+        action_taken=ok,
+    )
+    return [started, finished]
 
 
 def append_decisions(log_path: Path, decisions: list[dict[str, Any]]) -> None:
@@ -197,24 +172,24 @@ def run_once(*, runtime_root: Path | None = None) -> list[dict[str, Any]]:
     resolved_runtime_root = runtime_root or _runtime_root()
     runtime_status = load_runtime_status(runtime_root=resolved_runtime_root)
     operator_status = load_operator_status(runtime_root=resolved_runtime_root)
-    decisions = evaluate_remediation(runtime_status, operator_status)
+    decisions = evaluate_memory_recovery(runtime_status, operator_status)
     append_decisions(_remediation_log_path(resolved_runtime_root), decisions)
     return decisions
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run one remediation decision cycle.")
-    parser.add_argument("--once", action="store_true", help="Run one remediation cycle")
+    parser = argparse.ArgumentParser(description="Run the bounded memory recovery decision path once.")
+    parser.add_argument("--once", action="store_true", help="Run one memory recovery decision cycle")
     parser.add_argument("--json", action="store_true", help="Emit JSON output")
     args = parser.parse_args()
 
     if not args.once:
-        parser.error("--once is required in Phase 5.1")
+        parser.error("--once is required in Phase 5.3")
 
     try:
         decisions = run_once()
     except Exception as exc:
-        payload = {"ok": False, "errors": [f"remediation_engine_failed:{exc}"]}
+        payload = {"ok": False, "errors": [f"memory_recovery_failed:{exc}"]}
         if args.json:
             print(json.dumps(payload, ensure_ascii=False))
         else:
