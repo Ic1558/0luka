@@ -165,6 +165,13 @@ def load_remediation_history(lane: str | None = None, last: int | None = None) -
     return payload
 
 
+def load_autonomy_policy(lane: str | None = None) -> dict[str, Any]:
+    args = [sys.executable, "tools/ops/autonomy_policy.py", "--json"]
+    if lane:
+        args.extend(["--lane", lane])
+    return _run_json_command(args)
+
+
 def _epoch_id(runtime_status: dict[str, Any]) -> str:
     proof = runtime_status.get("proof_pack")
     if isinstance(proof, dict):
@@ -263,12 +270,40 @@ def _remediation_timeline_html(report: dict[str, Any]) -> str:
     return "\n".join(items) if items else "<li>No remediation events available</li>"
 
 
+def _autonomy_policy_html(payload: dict[str, Any]) -> str:
+    lanes = payload.get("lanes")
+    if not isinstance(lanes, dict) or not lanes:
+        return "<li>No autonomy policy available</li>"
+    items: list[str] = []
+    for lane_name in ("memory_recovery", "worker_recovery", "api_recovery", "redis_recovery"):
+        row = lanes.get(lane_name)
+        if not isinstance(row, dict):
+            continue
+        items.append(
+            "<li class=\"policy-item status-{status}\">"
+            "<span class=\"lane-name\">{lane}</span>"
+            "<span class=\"policy-status\">{state}</span>"
+            "<span class=\"policy-reason\">{reason}</span>"
+            "<span class=\"policy-meta\">approval={approval}; expires={expires}</span>"
+            "</li>".format(
+                lane=escape(lane_name),
+                status=escape(str(row.get("status", "denied")).lower()),
+                state=escape(str(row.get("status", "denied"))),
+                reason=escape(str(row.get("reason", "unknown"))),
+                approval=escape(str(row.get("approval_state", "invalid"))),
+                expires=escape(str(row.get("expires_at") or "n/a")),
+            )
+        )
+    return "\n".join(items) if items else "<li>No autonomy policy available</li>"
+
+
 def render_mission_control(
     operator_status: dict[str, Any],
     runtime_status: dict[str, Any],
     activity_entries: list[dict[str, Any]],
     alerts: list[dict[str, Any]],
     remediation_history: dict[str, Any],
+    autonomy_policy: dict[str, Any],
 ) -> str:
     template = Template(TEMPLATE_PATH.read_text(encoding="utf-8"))
     details = operator_status.get("details") if isinstance(operator_status.get("details"), dict) else {}
@@ -289,6 +324,7 @@ def render_mission_control(
         remediation_summary=_remediation_summary_html(remediation_history),
         remediation_last_event=_remediation_last_event_html(remediation_history),
         remediation_timeline=_remediation_timeline_html(remediation_history),
+        autonomy_policy_items=_autonomy_policy_html(autonomy_policy),
     )
 
 
@@ -331,13 +367,21 @@ async def remediation_history_endpoint(request) -> JSONResponse:
     return JSONResponse(load_remediation_history(lane=lane or None, last=last))
 
 
+async def autonomy_policy_endpoint(request) -> JSONResponse:
+    lane = request.query_params.get("lane")
+    if lane not in {None, "", "memory_recovery", "worker_recovery", "api_recovery", "redis_recovery"}:
+        lane = None
+    return JSONResponse(load_autonomy_policy(lane=lane or None))
+
+
 async def root_endpoint(request) -> HTMLResponse:
     operator_status = load_operator_status()
     runtime_status = load_runtime_status()
     activity_entries = load_activity_entries()
     alerts = load_alerts()
     remediation_history = load_remediation_history(last=20)
-    return HTMLResponse(render_mission_control(operator_status, runtime_status, activity_entries, alerts, remediation_history))
+    autonomy_policy = load_autonomy_policy()
+    return HTMLResponse(render_mission_control(operator_status, runtime_status, activity_entries, alerts, remediation_history, autonomy_policy))
 
 
 def create_app():
@@ -349,6 +393,7 @@ def create_app():
         app.add_api_route("/api/activity", activity_endpoint, methods=["GET"])
         app.add_api_route("/api/alerts", alerts_endpoint, methods=["GET"])
         app.add_api_route("/api/remediation_history", remediation_history_endpoint, methods=["GET"])
+        app.add_api_route("/api/autonomy_policy", autonomy_policy_endpoint, methods=["GET"])
         app.add_api_route("/", root_endpoint, methods=["GET"], response_class=HTMLResponse)
         return app
 
@@ -360,6 +405,7 @@ def create_app():
             Route("/api/activity", activity_endpoint),
             Route("/api/alerts", alerts_endpoint),
             Route("/api/remediation_history", remediation_history_endpoint),
+            Route("/api/autonomy_policy", autonomy_policy_endpoint),
             Route("/", root_endpoint),
         ]
     )
