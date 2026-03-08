@@ -5,7 +5,6 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -31,17 +30,6 @@ def _runtime_root() -> Path:
         return Path(raw).expanduser().resolve()
     return CANONICAL_RUNTIME_ROOT
 
-
-def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _parse_ts(raw: str | None) -> datetime | None:
-    if not raw:
-        return None
-    return datetime.strptime(raw, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-
-
 def _lane_availability(runtime_root: Path) -> dict[str, tuple[bool, str]]:
     memory_ok, memory_reason = memory_recovery._recovery_action_available(runtime_root)
     worker_ok, worker_reason = worker_recovery._recovery_action_available()
@@ -55,15 +43,6 @@ def _lane_availability(runtime_root: Path) -> dict[str, tuple[bool, str]]:
     }
 
 
-def _approval_status(entry: dict[str, Any]) -> tuple[bool, str]:
-    expires_at = _parse_ts(entry.get("expires_at"))
-    if expires_at is not None and expires_at <= _utc_now():
-        return False, "expired"
-    if bool(entry.get("approved")):
-        return True, "present"
-    return False, "missing"
-
-
 def _lane_payload(
     lane: str,
     entry: dict[str, Any],
@@ -73,16 +52,22 @@ def _lane_payload(
     availability_reason: str,
 ) -> dict[str, Any]:
     env_present = os.environ.get(env_gate, "").strip() == "1"
-    approved, approval_state_name = _approval_status(entry)
+    approved = bool(entry.get("approved_effective"))
+    approval_state_name = "invalid" if not bool(entry.get("valid", True)) else ("expired" if bool(entry.get("expired")) else ("present" if bool(entry.get("approval_present")) else "missing"))
     expires_at = entry.get("expires_at")
     approved_by = entry.get("approved_by")
+    expired = bool(entry.get("expired"))
+    expiring_soon = bool(entry.get("expiring_soon"))
 
     if not available:
         status = "unavailable"
         reason = availability_reason
+    elif not bool(entry.get("valid", True)):
+        status = "denied"
+        reason = "approval_state_invalid"
     elif not approved:
         status = "approval_required"
-        reason = "approval_expired" if approval_state_name == "expired" else "approval_missing"
+        reason = "approval_expired" if expired else "approval_missing"
     elif not env_present:
         status = "approval_required"
         reason = f"env_gate_missing:{env_gate}"
@@ -97,11 +82,21 @@ def _lane_payload(
         "approval_state": approval_state_name,
         "approved_by": approved_by,
         "expires_at": expires_at,
+        "expired": expired,
+        "expiring_soon": expiring_soon,
+        "approval": {
+            "present": bool(entry.get("approval_present")),
+            "effective": approved,
+            "expired": expired,
+            "expiring_soon": expiring_soon,
+            "expires_at": expires_at,
+        },
         "env_gate": env_gate,
         "env_gate_present": env_present,
         "available": available,
         "availability_reason": availability_reason,
         "lane": lane,
+        "validation_error": entry.get("validation_error"),
     }
 
 
@@ -159,7 +154,7 @@ def evaluate_policy(*, runtime_root: Path | None = None, lane: str | None = None
         "approval_state": {
             "path": approval_payload["path"],
             "exists": approval_payload["exists"],
-            "valid": True,
+            "valid": all(bool(entry.get("valid", True)) for entry in approval_payload["lanes"].values()),
         },
         "lanes": lanes,
         "errors": [],

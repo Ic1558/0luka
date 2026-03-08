@@ -156,9 +156,17 @@
       border-color: #2c7b4a;
       background: #eef9f1;
     }
+    .policy-item.status-allowed .policy-status::after {
+      content: " OK";
+      color: #2c7b4a;
+    }
     .policy-item.status-approval_required {
       border-color: #b96d15;
       background: #fff6ea;
+    }
+    .policy-item.status-approval_required .policy-status::after {
+      content: " REVIEW";
+      color: #b96d15;
     }
     .policy-item.status-denied,
     .policy-item.status-unavailable {
@@ -373,11 +381,13 @@
         const reason = String(row.reason || 'unknown');
         const approval = String(row.approval_state || 'invalid');
         const expires = String(row.expires_at || 'n/a');
+        const expired = String(Boolean(row.expired));
+        const expiringSoon = String(Boolean(row.expiring_soon));
         return '<li class="policy-item status-' + klass + '">' +
           '<span class="lane-name">' + lane + '</span>' +
           '<span class="policy-status">' + status + '</span>' +
           '<span class="policy-reason">' + reason + '</span>' +
-          '<span class="policy-meta">approval=' + approval + '; expires=' + expires + '</span>' +
+          '<span class="policy-meta">approval=' + approval + '; expires=' + expires + '; expired=' + expired + '; expiring_soon=' + expiringSoon + '</span>' +
           '</li>';
       }).join("");
     }
