@@ -305,7 +305,7 @@ def _autonomy_policy_html(payload: dict[str, Any]) -> str:
             "<span class=\"lane-name\">{lane}</span>"
             "<span class=\"policy-status\">{state}</span>"
             "<span class=\"policy-reason\">{reason}</span>"
-            "<span class=\"policy-meta\">approval={approval}; expires={expires}</span>"
+            "<span class=\"policy-meta\">approval={approval}; expires={expires}; expired={expired}; expiring_soon={expiring}</span>"
             "<div class=\"policy-controls\">"
             "<input class=\"policy-actor\" data-lane=\"{lane_raw}\" placeholder=\"actor\">"
             "<input class=\"policy-expiry\" data-lane=\"{lane_raw}\" placeholder=\"expires_at (UTC)\">"
@@ -322,6 +322,8 @@ def _autonomy_policy_html(payload: dict[str, Any]) -> str:
                 reason=escape(str(row.get("reason", "unknown"))),
                 approval=escape(str(row.get("approval_state", "invalid"))),
                 expires=escape(str(row.get("expires_at") or "n/a")),
+                expired=escape(str(bool(row.get("expired"))).lower()),
+                expiring=escape(str(bool(row.get("expiring_soon"))).lower()),
             )
         )
     return "\n".join(items) if items else "<li>No autonomy policy available</li>"

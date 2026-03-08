@@ -5,11 +5,12 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 CANONICAL_RUNTIME_ROOT = Path("/Users/icmini/0luka_runtime")
+EXPIRING_SOON_SECONDS = 15 * 60
 LANES = (
     "memory_recovery",
     "worker_recovery",
@@ -38,6 +39,23 @@ def _default_entry() -> dict[str, Any]:
     }
 
 
+def _decorate_entry(entry: dict[str, Any], *, valid: bool, validation_error: str | None, now: datetime) -> dict[str, Any]:
+    expires_at = entry.get("expires_at")
+    expires_dt = _parse_timestamp_dt(expires_at) if isinstance(expires_at, str) else None
+    expired = bool(expires_dt is not None and expires_dt <= now)
+    expiring_soon = bool(expires_dt is not None and not expired and expires_dt <= now + timedelta(seconds=EXPIRING_SOON_SECONDS))
+    approved = bool(entry.get("approved"))
+    return {
+        **entry,
+        "valid": valid,
+        "validation_error": validation_error,
+        "approval_present": approved,
+        "approved_effective": approved and not expired and valid,
+        "expired": expired,
+        "expiring_soon": expiring_soon,
+    }
+
+
 def default_state() -> dict[str, Any]:
     return {lane: _default_entry() for lane in LANES}
 
@@ -58,6 +76,10 @@ def parse_timestamp(raw: Any, *, field: str) -> str | None:
     except ValueError as exc:
         raise RuntimeError(f"approval_state_invalid:{field}_bad_timestamp") from exc
     return raw
+
+
+def _parse_timestamp_dt(raw: str) -> datetime:
+    return datetime.strptime(raw, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
 
 
 def _normalize_entry(raw: Any, *, lane: str) -> dict[str, Any]:
@@ -81,13 +103,14 @@ def _normalize_entry(raw: Any, *, lane: str) -> dict[str, Any]:
     }
 
 
-def load_approval_state(*, runtime_root: Path | None = None) -> dict[str, Any]:
+def load_approval_state(*, runtime_root: Path | None = None, now: datetime | None = None) -> dict[str, Any]:
     resolved_runtime_root = runtime_root or _runtime_root()
     path = approval_state_path(resolved_runtime_root)
+    now = now or datetime.now(timezone.utc)
     state = {
         "path": str(path),
         "exists": path.exists(),
-        "lanes": default_state(),
+        "lanes": {lane: _decorate_entry(_default_entry(), valid=True, validation_error=None, now=now) for lane in LANES},
     }
     if not path.exists():
         return state
@@ -96,7 +119,11 @@ def load_approval_state(*, runtime_root: Path | None = None) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise RuntimeError("approval_state_invalid:not_object")
     for lane in LANES:
-        state["lanes"][lane] = _normalize_entry(payload.get(lane), lane=lane)
+        try:
+            normalized = _normalize_entry(payload.get(lane), lane=lane)
+            state["lanes"][lane] = _decorate_entry(normalized, valid=True, validation_error=None, now=now)
+        except RuntimeError as exc:
+            state["lanes"][lane] = _decorate_entry(_default_entry(), valid=False, validation_error=str(exc), now=now)
     return state
 
 
