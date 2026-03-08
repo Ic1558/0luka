@@ -60,6 +60,17 @@ def _approval_actions_path() -> Path:
     return _runtime_root() / "state" / "approval_actions.jsonl"
 
 
+def _approval_log_path() -> Path:
+    primary = _runtime_root() / "state" / "approval_log.jsonl"
+    if primary.exists():
+        return primary
+    return _approval_actions_path()
+
+
+def _remediation_history_log_path() -> Path:
+    return _runtime_root() / "state" / "remediation_history.jsonl"
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
@@ -163,6 +174,48 @@ def load_approval_history(lane: str | None = None, last: int | None = None) -> d
         "last_event": rows[-1] if rows else None,
         "total_entries": len(rows),
     }
+
+
+def _read_jsonl_entries(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    if not path.exists():
+        return rows
+    for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            rows.append(payload)
+    return rows
+
+
+def load_remediation_audit_entries(last: int = 100) -> dict[str, Any]:
+    rows = _read_jsonl_entries(_remediation_history_log_path())
+    if last >= 0:
+        rows = rows[-last:]
+    return {"ok": True, "entries": rows}
+
+
+def load_approval_log_entries(last: int = 100) -> dict[str, Any]:
+    rows = _read_jsonl_entries(_approval_log_path())
+    if last >= 0:
+        rows = rows[-last:]
+    return {"ok": True, "entries": rows}
+
+
+def load_runtime_decisions(last: int = 100) -> dict[str, Any]:
+    rows = []
+    for entry in _read_jsonl_entries(_remediation_history_log_path()):
+        if "decision" not in entry:
+            continue
+        rows.append(entry)
+    if last >= 0:
+        rows = rows[-last:]
+    return {"ok": True, "entries": rows}
 
 
 def _build_remediation_timeline(report: dict[str, Any], *, last: int | None = None) -> list[dict[str, Any]]:
@@ -525,6 +578,34 @@ def _remediation_queue_html(payload: dict[str, Any]) -> str:
     return "\n".join(items) if items else "<li>No remediation queue items</li>"
 
 
+def _audit_entries_html(payload: dict[str, Any], *, kind: str) -> str:
+    rows = payload.get("entries")
+    if not isinstance(rows, list) or not rows:
+        return "<li>No entries available</li>"
+    items: list[str] = []
+    for row in reversed(rows[-10:]):
+        if not isinstance(row, dict):
+            continue
+        ts = escape(str(row.get("timestamp") or "n/a"))
+        lane = escape(str(row.get("lane") or "n/a"))
+        action = escape(str(row.get("action") or row.get("decision") or "unknown"))
+        actor = escape(str(row.get("actor") or "n/a"))
+        result = escape(str(row.get("result") or "n/a"))
+        if kind == "runtime_decisions":
+            items.append(
+                f"<li><span class=\"ts\">{ts}</span> <span class=\"action\">{action}</span> <span class=\"lane\">({lane})</span> <span class=\"result\">result={result}</span></li>"
+            )
+        elif kind == "approval_log":
+            items.append(
+                f"<li><span class=\"ts\">{ts}</span> <span class=\"action\">{action}</span> <span class=\"lane\">({lane})</span> <span class=\"actor\">by {actor}</span></li>"
+            )
+        else:
+            items.append(
+                f"<li><span class=\"ts\">{ts}</span> <span class=\"action\">{action}</span> <span class=\"lane\">({lane})</span> <span class=\"result\">result={result}</span></li>"
+            )
+    return "\n".join(items) if items else "<li>No entries available</li>"
+
+
 def render_mission_control(
     operator_status: dict[str, Any],
     runtime_status: dict[str, Any],
@@ -537,6 +618,9 @@ def render_mission_control(
     approval_expiry_payload: dict[str, Any],
     policy_drift_payload: dict[str, Any],
     remediation_queue_payload: dict[str, Any],
+    remediation_audit_payload: dict[str, Any],
+    approval_log_payload: dict[str, Any],
+    runtime_decisions_payload: dict[str, Any],
 ) -> str:
     template = Template(TEMPLATE_PATH.read_text(encoding="utf-8"))
     details = operator_status.get("details") if isinstance(operator_status.get("details"), dict) else {}
@@ -564,6 +648,9 @@ def render_mission_control(
         approval_expiry_items=_approval_expiry_html(approval_expiry_payload),
         policy_drift_items=_policy_drift_html(policy_drift_payload),
         remediation_queue_items=_remediation_queue_html(remediation_queue_payload),
+        remediation_audit_items=_audit_entries_html(remediation_audit_payload, kind="remediation_history"),
+        approval_log_items=_audit_entries_html(approval_log_payload, kind="approval_log"),
+        runtime_decision_items=_audit_entries_html(runtime_decisions_payload, kind="runtime_decisions"),
     )
 
 
@@ -593,17 +680,17 @@ async def alerts_endpoint(request) -> JSONResponse:
 
 
 async def remediation_history_endpoint(request) -> JSONResponse:
-    lane = request.query_params.get("lane")
-    if lane not in {None, "", "memory", "worker"}:
-        lane = None
     last_raw = request.query_params.get("last")
-    last: int | None = None
+    last = 100
     if last_raw:
         try:
             last = max(0, min(int(last_raw), 500))
         except ValueError:
-            last = None
-    return JSONResponse(load_remediation_history(lane=lane or None, last=last))
+            last = 100
+    payload = load_remediation_audit_entries(last=last)
+    # Preserve existing summary payload shape for backward compatibility.
+    payload.update(load_remediation_history(last=last))
+    return JSONResponse(payload)
 
 
 async def autonomy_policy_endpoint(request) -> JSONResponse:
@@ -625,6 +712,28 @@ async def approval_history_endpoint(request) -> JSONResponse:
         except ValueError:
             last = None
     return JSONResponse(load_approval_history(lane=lane or None, last=last))
+
+
+async def approval_log_endpoint(request) -> JSONResponse:
+    last_raw = request.query_params.get("last")
+    last = 100
+    if last_raw:
+        try:
+            last = max(0, min(int(last_raw), 500))
+        except ValueError:
+            last = 100
+    return JSONResponse(load_approval_log_entries(last=last))
+
+
+async def runtime_decisions_endpoint(request) -> JSONResponse:
+    last_raw = request.query_params.get("last")
+    last = 100
+    if last_raw:
+        try:
+            last = max(0, min(int(last_raw), 500))
+        except ValueError:
+            last = 100
+    return JSONResponse(load_runtime_decisions(last=last))
 
 async def approval_presets_endpoint(request) -> JSONResponse:
     return JSONResponse(load_approval_presets())
@@ -735,6 +844,9 @@ async def root_endpoint(request) -> HTMLResponse:
     approval_expiry_payload = load_approval_expiry()
     policy_drift_payload = load_policy_drift()
     remediation_queue_payload = load_remediation_queue()
+    remediation_audit_payload = load_remediation_audit_entries(last=20)
+    approval_log_payload = load_approval_log_entries(last=20)
+    runtime_decisions_payload = load_runtime_decisions(last=20)
     return HTMLResponse(
         render_mission_control(
             operator_status,
@@ -748,6 +860,9 @@ async def root_endpoint(request) -> HTMLResponse:
             approval_expiry_payload,
             policy_drift_payload,
             remediation_queue_payload,
+            remediation_audit_payload,
+            approval_log_payload,
+            runtime_decisions_payload,
         )
     )
 
@@ -766,6 +881,8 @@ def create_app():
         app.add_api_route("/api/approval_presets", approval_presets_endpoint, methods=["GET"])
         app.add_api_route("/api/approval_expiry", approval_expiry_status_endpoint, methods=["GET"])
         app.add_api_route("/api/policy_drift", policy_drift_endpoint, methods=["GET"])
+        app.add_api_route("/api/approval_log", approval_log_endpoint, methods=["GET"])
+        app.add_api_route("/api/runtime_decisions", runtime_decisions_endpoint, methods=["GET"])
         app.add_api_route("/api/remediation_queue", remediation_queue_endpoint, methods=["GET"])
         app.add_api_route("/api/remediation_queue/enqueue", remediation_queue_enqueue_endpoint, methods=["POST"])
         app.add_api_route("/api/approval_presets/apply", approval_presets_apply_endpoint, methods=["POST"])
@@ -789,6 +906,8 @@ def create_app():
             Route("/api/approval_presets", approval_presets_endpoint),
             Route("/api/approval_expiry", approval_expiry_status_endpoint),
             Route("/api/policy_drift", policy_drift_endpoint),
+            Route("/api/approval_log", approval_log_endpoint),
+            Route("/api/runtime_decisions", runtime_decisions_endpoint),
             Route("/api/remediation_queue", remediation_queue_endpoint),
             Route("/api/remediation_queue/enqueue", remediation_queue_enqueue_endpoint, methods=["POST"]),
             Route("/api/approval_presets/apply", approval_presets_apply_endpoint, methods=["POST"]),
