@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.ops import approval_write
+from tools.ops import approval_presets, approval_write
 
 CANONICAL_RUNTIME_ROOT = Path("/Users/icmini/0luka_runtime")
 CANONICAL_OBSERVABILITY_ROOT = Path("/Users/icmini/0luka/observability")
@@ -233,6 +233,17 @@ def apply_approval_action(
         clear_expiry=clear_expiry,
     )
 
+def load_approval_presets() -> dict[str, Any]:
+    return approval_presets.list_presets(runtime_root=_runtime_root())
+
+
+def apply_approval_preset(*, preset: str) -> dict[str, Any]:
+    return approval_presets.apply_preset(preset=preset, runtime_root=_runtime_root())
+
+
+def reset_approval_preset(*, preset: str) -> dict[str, Any]:
+    return approval_presets.reset_preset(preset=preset, runtime_root=_runtime_root())
+
 
 def _epoch_id(runtime_status: dict[str, Any]) -> str:
     proof = runtime_status.get("proof_pack")
@@ -405,6 +416,31 @@ def _autonomy_policy_html(payload: dict[str, Any]) -> str:
     return "\n".join(items) if items else "<li>No autonomy policy available</li>"
 
 
+def _approval_presets_html(payload: dict[str, Any]) -> str:
+    presets = payload.get("presets")
+    if not isinstance(presets, list) or not presets:
+        return "<li>No approval presets available</li>"
+    items: list[str] = []
+    for row in presets:
+        if not isinstance(row, dict):
+            continue
+        name = escape(str(row.get("name") or "unknown"))
+        lanes = row.get("lanes")
+        lanes_text = ", ".join(str(x) for x in lanes) if isinstance(lanes, list) and lanes else "none"
+        last_applied_at = escape(str(row.get("last_applied_at") or "n/a"))
+        items.append(
+            "<li class=\"policy-item\">"
+            f"<span class=\"lane-name\">{name}</span>"
+            f"<span class=\"policy-meta\">lanes={escape(lanes_text)}; last_applied={last_applied_at}</span>"
+            "<div class=\"policy-controls\">"
+            f"<button type=\"button\" onclick=\"submitPresetAction('apply','{name}')\">Apply</button>"
+            f"<button type=\"button\" onclick=\"submitPresetAction('reset','{name}')\">Reset</button>"
+            "</div>"
+            "</li>"
+        )
+    return "\n".join(items) if items else "<li>No approval presets available</li>"
+
+
 def render_mission_control(
     operator_status: dict[str, Any],
     runtime_status: dict[str, Any],
@@ -413,6 +449,7 @@ def render_mission_control(
     remediation_history: dict[str, Any],
     autonomy_policy: dict[str, Any],
     approval_history: dict[str, Any],
+    approval_presets_payload: dict[str, Any],
 ) -> str:
     template = Template(TEMPLATE_PATH.read_text(encoding="utf-8"))
     details = operator_status.get("details") if isinstance(operator_status.get("details"), dict) else {}
@@ -436,6 +473,7 @@ def render_mission_control(
         autonomy_policy_items=_autonomy_policy_html(autonomy_policy),
         approval_history_last_event=_approval_history_last_event_html(approval_history),
         approval_history_timeline=_approval_history_timeline_html(approval_history),
+        approval_presets_items=_approval_presets_html(approval_presets_payload),
     )
 
 
@@ -498,6 +536,9 @@ async def approval_history_endpoint(request) -> JSONResponse:
             last = None
     return JSONResponse(load_approval_history(lane=lane or None, last=last))
 
+async def approval_presets_endpoint(request) -> JSONResponse:
+    return JSONResponse(load_approval_presets())
+
 
 async def _request_json(request) -> dict[str, Any]:
     try:
@@ -549,6 +590,25 @@ async def approval_expiry_endpoint(request) -> JSONResponse:
     except Exception as exc:
         return JSONResponse({"ok": False, "errors": [str(exc)]}, status_code=400)
 
+async def approval_presets_apply_endpoint(request) -> JSONResponse:
+    try:
+        payload = await _request_json(request)
+        preset = str(payload.get("preset", "")).strip()
+        result = apply_approval_preset(preset=preset)
+        return JSONResponse(result)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "errors": [str(exc)]}, status_code=400)
+
+
+async def approval_presets_reset_endpoint(request) -> JSONResponse:
+    try:
+        payload = await _request_json(request)
+        preset = str(payload.get("preset", "")).strip()
+        result = reset_approval_preset(preset=preset)
+        return JSONResponse(result)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "errors": [str(exc)]}, status_code=400)
+
 
 async def root_endpoint(request) -> HTMLResponse:
     operator_status = load_operator_status()
@@ -558,6 +618,7 @@ async def root_endpoint(request) -> HTMLResponse:
     remediation_history = load_remediation_history(last=20)
     autonomy_policy = load_autonomy_policy()
     approval_history = load_approval_history(last=20)
+    approval_presets_payload = load_approval_presets()
     return HTMLResponse(
         render_mission_control(
             operator_status,
@@ -567,6 +628,7 @@ async def root_endpoint(request) -> HTMLResponse:
             remediation_history,
             autonomy_policy,
             approval_history,
+            approval_presets_payload,
         )
     )
 
@@ -582,6 +644,9 @@ def create_app():
         app.add_api_route("/api/remediation_history", remediation_history_endpoint, methods=["GET"])
         app.add_api_route("/api/autonomy_policy", autonomy_policy_endpoint, methods=["GET"])
         app.add_api_route("/api/approval_history", approval_history_endpoint, methods=["GET"])
+        app.add_api_route("/api/approval_presets", approval_presets_endpoint, methods=["GET"])
+        app.add_api_route("/api/approval_presets/apply", approval_presets_apply_endpoint, methods=["POST"])
+        app.add_api_route("/api/approval_presets/reset", approval_presets_reset_endpoint, methods=["POST"])
         app.add_api_route("/api/approval/approve", approval_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/approval/revoke", approval_revoke_endpoint, methods=["POST"])
         app.add_api_route("/api/approval/expiry", approval_expiry_endpoint, methods=["POST"])
@@ -598,6 +663,9 @@ def create_app():
             Route("/api/remediation_history", remediation_history_endpoint),
             Route("/api/autonomy_policy", autonomy_policy_endpoint),
             Route("/api/approval_history", approval_history_endpoint),
+            Route("/api/approval_presets", approval_presets_endpoint),
+            Route("/api/approval_presets/apply", approval_presets_apply_endpoint, methods=["POST"]),
+            Route("/api/approval_presets/reset", approval_presets_reset_endpoint, methods=["POST"]),
             Route("/api/approval/approve", approval_approve_endpoint, methods=["POST"]),
             Route("/api/approval/revoke", approval_revoke_endpoint, methods=["POST"]),
             Route("/api/approval/expiry", approval_expiry_endpoint, methods=["POST"]),
