@@ -680,6 +680,9 @@ async def alerts_endpoint(request) -> JSONResponse:
 
 
 async def remediation_history_endpoint(request) -> JSONResponse:
+    lane = request.query_params.get("lane")
+    if lane not in {None, "", "memory", "worker"}:
+        lane = None
     last_raw = request.query_params.get("last")
     last = 100
     if last_raw:
@@ -689,7 +692,7 @@ async def remediation_history_endpoint(request) -> JSONResponse:
             last = 100
     payload = load_remediation_audit_entries(last=last)
     # Preserve existing summary payload shape for backward compatibility.
-    payload.update(load_remediation_history(last=last))
+    payload.update(load_remediation_history(lane=lane or None, last=last))
     return JSONResponse(payload)
 
 
