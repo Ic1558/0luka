@@ -25,6 +25,8 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools.ops import approval_write
+
 CANONICAL_RUNTIME_ROOT = Path("/Users/icmini/0luka_runtime")
 CANONICAL_OBSERVABILITY_ROOT = Path("/Users/icmini/0luka/observability")
 SERVER_HOST = "127.0.0.1"
@@ -172,6 +174,25 @@ def load_autonomy_policy(lane: str | None = None) -> dict[str, Any]:
     return _run_json_command(args)
 
 
+def apply_approval_action(
+    *,
+    lane: str,
+    actor: str,
+    approve: bool = False,
+    revoke: bool = False,
+    expires_at: str | None = None,
+    clear_expiry: bool = False,
+) -> dict[str, Any]:
+    return approval_write.write_approval_action(
+        lane=lane,
+        actor=actor,
+        approve=approve,
+        revoke=revoke,
+        expires_at=expires_at,
+        clear_expiry=clear_expiry,
+    )
+
+
 def _epoch_id(runtime_status: dict[str, Any]) -> str:
     proof = runtime_status.get("proof_pack")
     if isinstance(proof, dict):
@@ -285,8 +306,17 @@ def _autonomy_policy_html(payload: dict[str, Any]) -> str:
             "<span class=\"policy-status\">{state}</span>"
             "<span class=\"policy-reason\">{reason}</span>"
             "<span class=\"policy-meta\">approval={approval}; expires={expires}</span>"
+            "<div class=\"policy-controls\">"
+            "<input class=\"policy-actor\" data-lane=\"{lane_raw}\" placeholder=\"actor\">"
+            "<input class=\"policy-expiry\" data-lane=\"{lane_raw}\" placeholder=\"expires_at (UTC)\">"
+            "<button type=\"button\" onclick=\"submitApprovalAction('approve','{lane_raw}')\">Approve</button>"
+            "<button type=\"button\" onclick=\"submitApprovalAction('revoke','{lane_raw}')\">Revoke</button>"
+            "<button type=\"button\" onclick=\"submitApprovalExpiry('{lane_raw}', false)\">Set Expiry</button>"
+            "<button type=\"button\" onclick=\"submitApprovalExpiry('{lane_raw}', true)\">Clear Expiry</button>"
+            "</div>"
             "</li>".format(
                 lane=escape(lane_name),
+                lane_raw=escape(lane_name),
                 status=escape(str(row.get("status", "denied")).lower()),
                 state=escape(str(row.get("status", "denied"))),
                 reason=escape(str(row.get("reason", "unknown"))),
@@ -374,6 +404,57 @@ async def autonomy_policy_endpoint(request) -> JSONResponse:
     return JSONResponse(load_autonomy_policy(lane=lane or None))
 
 
+async def _request_json(request) -> dict[str, Any]:
+    try:
+        payload = await request.json()
+    except Exception:
+        raise RuntimeError("invalid_json_body")
+    if not isinstance(payload, dict):
+        raise RuntimeError("invalid_json_body")
+    return payload
+
+
+async def approval_approve_endpoint(request) -> JSONResponse:
+    try:
+        payload = await _request_json(request)
+        result = apply_approval_action(
+            lane=str(payload.get("lane", "")),
+            actor=str(payload.get("actor", "")),
+            approve=True,
+            expires_at=payload.get("expires_at"),
+        )
+        return JSONResponse(result)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "errors": [str(exc)]}, status_code=400)
+
+
+async def approval_revoke_endpoint(request) -> JSONResponse:
+    try:
+        payload = await _request_json(request)
+        result = apply_approval_action(
+            lane=str(payload.get("lane", "")),
+            actor=str(payload.get("actor", "")),
+            revoke=True,
+        )
+        return JSONResponse(result)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "errors": [str(exc)]}, status_code=400)
+
+
+async def approval_expiry_endpoint(request) -> JSONResponse:
+    try:
+        payload = await _request_json(request)
+        result = apply_approval_action(
+            lane=str(payload.get("lane", "")),
+            actor=str(payload.get("actor", "")),
+            expires_at=payload.get("expires_at"),
+            clear_expiry=bool(payload.get("clear_expiry")),
+        )
+        return JSONResponse(result)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "errors": [str(exc)]}, status_code=400)
+
+
 async def root_endpoint(request) -> HTMLResponse:
     operator_status = load_operator_status()
     runtime_status = load_runtime_status()
@@ -394,6 +475,9 @@ def create_app():
         app.add_api_route("/api/alerts", alerts_endpoint, methods=["GET"])
         app.add_api_route("/api/remediation_history", remediation_history_endpoint, methods=["GET"])
         app.add_api_route("/api/autonomy_policy", autonomy_policy_endpoint, methods=["GET"])
+        app.add_api_route("/api/approval/approve", approval_approve_endpoint, methods=["POST"])
+        app.add_api_route("/api/approval/revoke", approval_revoke_endpoint, methods=["POST"])
+        app.add_api_route("/api/approval/expiry", approval_expiry_endpoint, methods=["POST"])
         app.add_api_route("/", root_endpoint, methods=["GET"], response_class=HTMLResponse)
         return app
 
@@ -406,6 +490,9 @@ def create_app():
             Route("/api/alerts", alerts_endpoint),
             Route("/api/remediation_history", remediation_history_endpoint),
             Route("/api/autonomy_policy", autonomy_policy_endpoint),
+            Route("/api/approval/approve", approval_approve_endpoint, methods=["POST"]),
+            Route("/api/approval/revoke", approval_revoke_endpoint, methods=["POST"]),
+            Route("/api/approval/expiry", approval_expiry_endpoint, methods=["POST"]),
             Route("/", root_endpoint),
         ]
     )

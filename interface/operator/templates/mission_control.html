@@ -128,6 +128,30 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
+    .policy-controls {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .policy-controls input,
+    .policy-controls button {
+      font: inherit;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+    }
+    .policy-controls button {
+      background: color-mix(in srgb, var(--panel) 84%, white);
+      cursor: pointer;
+    }
+    .policy-controls button:hover {
+      border-color: var(--accent);
+    }
+    .approval-status {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
     .policy-item.status-allowed {
       border-color: #2c7b4a;
       background: #eef9f1;
@@ -239,6 +263,7 @@
         <ul id="autonomy-policy-panel" class="policy-list">
           ${autonomy_policy_items}
         </ul>
+        <p id="approval-action-status" class="approval-status">No approval changes submitted</p>
       </section>
     </div>
   </main>
@@ -365,6 +390,55 @@
         renderAutonomyPolicy(payload);
       } catch (error) {
         // Leave the last rendered autonomy policy intact on refresh failures.
+      }
+    }
+
+    function approvalInputValue(selector, lane) {
+      const node = document.querySelector(selector + '[data-lane="' + lane + '"]');
+      return node ? String(node.value || '').trim() : '';
+    }
+
+    function setApprovalStatus(message) {
+      const node = document.getElementById('approval-action-status');
+      if (node) node.textContent = message;
+    }
+
+    async function submitApprovalAction(action, lane) {
+      const actor = approvalInputValue('.policy-actor', lane);
+      const expiresAt = approvalInputValue('.policy-expiry', lane);
+      const endpoint = action === 'approve' ? '/api/approval/approve' : '/api/approval/revoke';
+      const payload = { lane, actor };
+      if (action === 'approve' && expiresAt) payload.expires_at = expiresAt;
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        setApprovalStatus(result.ok ? action + ' ok: ' + lane : action + ' failed: ' + (result.errors || []).join(', '));
+        if (response.ok) refreshAutonomyPolicy();
+      } catch (error) {
+        setApprovalStatus(action + ' failed: request_error');
+      }
+    }
+
+    async function submitApprovalExpiry(lane, clearExpiry) {
+      const actor = approvalInputValue('.policy-actor', lane);
+      const expiresAt = approvalInputValue('.policy-expiry', lane);
+      const payload = { lane, actor, clear_expiry: clearExpiry };
+      if (!clearExpiry) payload.expires_at = expiresAt;
+      try {
+        const response = await fetch('/api/approval/expiry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        setApprovalStatus(result.ok ? (clearExpiry ? 'clear expiry ok: ' : 'set expiry ok: ') + lane : 'expiry failed: ' + (result.errors || []).join(', '));
+        if (response.ok) refreshAutonomyPolicy();
+      } catch (error) {
+        setApprovalStatus('expiry failed: request_error');
       }
     }
 
