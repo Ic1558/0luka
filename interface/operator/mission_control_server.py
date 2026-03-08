@@ -56,6 +56,10 @@ def _alerts_path() -> Path:
     return _runtime_root() / "state" / "alerts.jsonl"
 
 
+def _approval_actions_path() -> Path:
+    return _runtime_root() / "state" / "approval_actions.jsonl"
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
@@ -122,6 +126,43 @@ def load_alerts(limit: int = 100) -> list[dict[str, Any]]:
         if isinstance(row, dict):
             rows.append(row)
     return rows[-limit:]
+
+
+def load_approval_history(lane: str | None = None, last: int | None = None) -> dict[str, Any]:
+    path = _approval_actions_path()
+    rows: list[dict[str, Any]] = []
+    if path.exists():
+        for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(row, dict):
+                continue
+            lane_name = str(row.get("lane") or "")
+            if lane and lane_name != lane:
+                continue
+            rows.append(
+                {
+                    "timestamp": row.get("timestamp"),
+                    "lane": lane_name or None,
+                    "action": row.get("action"),
+                    "actor": row.get("actor"),
+                    "approved": bool(row.get("approved", False)),
+                    "expires_at": row.get("expires_at"),
+                    "source": row.get("source", "approval_write"),
+                }
+            )
+    if last is not None and last >= 0:
+        rows = rows[-last:]
+    return {
+        "events": rows,
+        "last_event": rows[-1] if rows else None,
+        "total_entries": len(rows),
+    }
 
 
 def _build_remediation_timeline(report: dict[str, Any], *, last: int | None = None) -> list[dict[str, Any]]:
@@ -291,6 +332,41 @@ def _remediation_timeline_html(report: dict[str, Any]) -> str:
     return "\n".join(items) if items else "<li>No remediation events available</li>"
 
 
+def _approval_history_last_event_html(payload: dict[str, Any]) -> str:
+    event = payload.get("last_event")
+    if not isinstance(event, dict):
+        event = {}
+    return (
+        "<dl>"
+        f"<dt>Action</dt><dd>{escape(str(event.get('action') or 'n/a'))}</dd>"
+        f"<dt>Lane</dt><dd>{escape(str(event.get('lane') or 'n/a'))}</dd>"
+        f"<dt>Actor</dt><dd>{escape(str(event.get('actor') or 'n/a'))}</dd>"
+        f"<dt>Timestamp</dt><dd>{escape(str(event.get('timestamp') or 'n/a'))}</dd>"
+        "</dl>"
+    )
+
+
+def _approval_history_timeline_html(payload: dict[str, Any]) -> str:
+    entries = payload.get("events")
+    if not isinstance(entries, list) or not entries:
+        return "<li>No approval history available</li>"
+    items: list[str] = []
+    for row in reversed(entries[-10:]):
+        if not isinstance(row, dict):
+            continue
+        ts = escape(str(row.get("timestamp") or "n/a"))
+        action = escape(str(row.get("action") or "unknown"))
+        lane = escape(str(row.get("lane") or "unknown"))
+        actor = escape(str(row.get("actor") or "n/a"))
+        expires = escape(str(row.get("expires_at") or "n/a"))
+        items.append(
+            f"<li><span class=\"ts\">{ts}</span> <span class=\"action\">{action}</span> "
+            f"<span class=\"lane\">({lane})</span> <span class=\"actor\">by {actor}</span> "
+            f"<span class=\"expiry\">expires={expires}</span></li>"
+        )
+    return "\n".join(items) if items else "<li>No approval history available</li>"
+
+
 def _autonomy_policy_html(payload: dict[str, Any]) -> str:
     lanes = payload.get("lanes")
     if not isinstance(lanes, dict) or not lanes:
@@ -336,6 +412,7 @@ def render_mission_control(
     alerts: list[dict[str, Any]],
     remediation_history: dict[str, Any],
     autonomy_policy: dict[str, Any],
+    approval_history: dict[str, Any],
 ) -> str:
     template = Template(TEMPLATE_PATH.read_text(encoding="utf-8"))
     details = operator_status.get("details") if isinstance(operator_status.get("details"), dict) else {}
@@ -357,6 +434,8 @@ def render_mission_control(
         remediation_last_event=_remediation_last_event_html(remediation_history),
         remediation_timeline=_remediation_timeline_html(remediation_history),
         autonomy_policy_items=_autonomy_policy_html(autonomy_policy),
+        approval_history_last_event=_approval_history_last_event_html(approval_history),
+        approval_history_timeline=_approval_history_timeline_html(approval_history),
     )
 
 
@@ -404,6 +483,20 @@ async def autonomy_policy_endpoint(request) -> JSONResponse:
     if lane not in {None, "", "memory_recovery", "worker_recovery", "api_recovery", "redis_recovery"}:
         lane = None
     return JSONResponse(load_autonomy_policy(lane=lane or None))
+
+
+async def approval_history_endpoint(request) -> JSONResponse:
+    lane = request.query_params.get("lane")
+    if lane not in {None, "", "memory_recovery", "worker_recovery", "api_recovery", "redis_recovery"}:
+        lane = None
+    last_raw = request.query_params.get("last")
+    last: int | None = None
+    if last_raw:
+        try:
+            last = max(0, min(int(last_raw), 500))
+        except ValueError:
+            last = None
+    return JSONResponse(load_approval_history(lane=lane or None, last=last))
 
 
 async def _request_json(request) -> dict[str, Any]:
@@ -464,7 +557,18 @@ async def root_endpoint(request) -> HTMLResponse:
     alerts = load_alerts()
     remediation_history = load_remediation_history(last=20)
     autonomy_policy = load_autonomy_policy()
-    return HTMLResponse(render_mission_control(operator_status, runtime_status, activity_entries, alerts, remediation_history, autonomy_policy))
+    approval_history = load_approval_history(last=20)
+    return HTMLResponse(
+        render_mission_control(
+            operator_status,
+            runtime_status,
+            activity_entries,
+            alerts,
+            remediation_history,
+            autonomy_policy,
+            approval_history,
+        )
+    )
 
 
 def create_app():
@@ -477,6 +581,7 @@ def create_app():
         app.add_api_route("/api/alerts", alerts_endpoint, methods=["GET"])
         app.add_api_route("/api/remediation_history", remediation_history_endpoint, methods=["GET"])
         app.add_api_route("/api/autonomy_policy", autonomy_policy_endpoint, methods=["GET"])
+        app.add_api_route("/api/approval_history", approval_history_endpoint, methods=["GET"])
         app.add_api_route("/api/approval/approve", approval_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/approval/revoke", approval_revoke_endpoint, methods=["POST"])
         app.add_api_route("/api/approval/expiry", approval_expiry_endpoint, methods=["POST"])
@@ -492,6 +597,7 @@ def create_app():
             Route("/api/alerts", alerts_endpoint),
             Route("/api/remediation_history", remediation_history_endpoint),
             Route("/api/autonomy_policy", autonomy_policy_endpoint),
+            Route("/api/approval_history", approval_history_endpoint),
             Route("/api/approval/approve", approval_approve_endpoint, methods=["POST"]),
             Route("/api/approval/revoke", approval_revoke_endpoint, methods=["POST"]),
             Route("/api/approval/expiry", approval_expiry_endpoint, methods=["POST"]),
