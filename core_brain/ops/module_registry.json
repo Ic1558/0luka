@@ -55,6 +55,16 @@
       "description": "Detects frozen telemetry payloads",
       "plist_path": "/Users/icmini/Library/LaunchAgents/com.0luka.telemetry_staleness_guard.plist",
       "state": "deployed"
+    },
+    {
+      "label": "com.0luka.universal-qs-api",
+      "description": "Canonical external QS module from Ic1558/qs. Local checkout: /Users/icmini/0luka/repos/qs. In-tree repos/universal_qs_engine is legacy-only.",
+      "port": 7084,
+      "health_url": "http://127.0.0.1:7084/api/health",
+      "repo_url": "https://github.com/Ic1558/qs",
+      "repo_path": "/Users/icmini/0luka/repos/qs",
+      "plist_path": "/Users/icmini/Library/LaunchAgents/com.0luka.universal-qs-api.plist",
+      "state": "deployed"
     }
   ]
 }
