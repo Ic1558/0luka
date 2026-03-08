@@ -289,6 +289,12 @@
         </ul>
       </section>
       <section class="card">
+        <h2>Policy Consistency</h2>
+        <ul id="policy-drift-panel" class="policy-list">
+          ${policy_drift_items}
+        </ul>
+      </section>
+      <section class="card">
         <h2>Autonomy / Approval</h2>
         <ul id="autonomy-policy-panel" class="policy-list">
           ${autonomy_policy_items}
@@ -491,6 +497,42 @@
       }
     }
 
+    function renderPolicyDrift(payload) {
+      const panel = document.getElementById("policy-drift-panel");
+      if (!panel) return;
+      const checks = payload && payload.checks ? payload.checks : {};
+      const order = [
+        "approval_log_consistency",
+        "expiry_consistency",
+        "env_gate_consistency",
+        "lane_registry_consistency",
+      ];
+      const rows = order.filter((key) => key in checks);
+      if (rows.length === 0) {
+        panel.innerHTML = '<li>No policy drift data available</li>';
+        return;
+      }
+      panel.innerHTML = rows.map((key) => {
+        const status = String(checks[key] || 'UNKNOWN');
+        const klass = status.toLowerCase();
+        return '<li class="policy-item status-' + klass + '">' +
+          '<span class="lane-name">' + key + '</span>' +
+          '<span class="policy-status">' + status + '</span>' +
+          '</li>';
+      }).join('');
+    }
+
+    async function refreshPolicyDrift() {
+      try {
+        const response = await fetch('/api/policy_drift');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderPolicyDrift(payload);
+      } catch (error) {
+        // Leave the last rendered drift state intact on refresh failures.
+      }
+    }
+
     function setPresetStatus(message) {
       const node = document.getElementById('approval-preset-status');
       if (node) node.textContent = message;
@@ -609,6 +651,7 @@
     setInterval(refreshApprovalHistory, 5000);
     setInterval(refreshApprovalPresets, 5000);
     setInterval(refreshApprovalExpiry, 5000);
+    setInterval(refreshPolicyDrift, 5000);
     setInterval(refreshAutonomyPolicy, 5000);
   </script>
 </body>

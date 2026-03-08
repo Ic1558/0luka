@@ -241,6 +241,10 @@ def load_approval_expiry() -> dict[str, Any]:
     return _run_json_command([sys.executable, "tools/ops/approval_expiry_monitor.py", "--json"])
 
 
+def load_policy_drift() -> dict[str, Any]:
+    return _run_json_command([sys.executable, "tools/ops/policy_drift_detector.py", "--json"])
+
+
 def apply_approval_preset(*, preset: str) -> dict[str, Any]:
     return approval_presets.apply_preset(preset=preset, runtime_root=_runtime_root())
 
@@ -467,6 +471,27 @@ def _approval_expiry_html(payload: dict[str, Any]) -> str:
     return "\n".join(rows) if rows else "<li>No approval expiry data available</li>"
 
 
+def _policy_drift_html(payload: dict[str, Any]) -> str:
+    checks = payload.get("checks")
+    if not isinstance(checks, dict):
+        return "<li>No policy drift data available</li>"
+    rows: list[str] = []
+    for key in (
+        "approval_log_consistency",
+        "expiry_consistency",
+        "env_gate_consistency",
+        "lane_registry_consistency",
+    ):
+        status = str(checks.get(key, "UNKNOWN"))
+        rows.append(
+            f"<li class=\"policy-item status-{escape(status.lower())}\">"
+            f"<span class=\"lane-name\">{escape(key)}</span>"
+            f"<span class=\"policy-status\">{escape(status)}</span>"
+            "</li>"
+        )
+    return "\n".join(rows) if rows else "<li>No policy drift data available</li>"
+
+
 def render_mission_control(
     operator_status: dict[str, Any],
     runtime_status: dict[str, Any],
@@ -477,6 +502,7 @@ def render_mission_control(
     approval_history: dict[str, Any],
     approval_presets_payload: dict[str, Any],
     approval_expiry_payload: dict[str, Any],
+    policy_drift_payload: dict[str, Any],
 ) -> str:
     template = Template(TEMPLATE_PATH.read_text(encoding="utf-8"))
     details = operator_status.get("details") if isinstance(operator_status.get("details"), dict) else {}
@@ -502,6 +528,7 @@ def render_mission_control(
         approval_history_timeline=_approval_history_timeline_html(approval_history),
         approval_presets_items=_approval_presets_html(approval_presets_payload),
         approval_expiry_items=_approval_expiry_html(approval_expiry_payload),
+        policy_drift_items=_policy_drift_html(policy_drift_payload),
     )
 
 
@@ -570,6 +597,10 @@ async def approval_presets_endpoint(request) -> JSONResponse:
 
 async def approval_expiry_status_endpoint(request) -> JSONResponse:
     return JSONResponse(load_approval_expiry())
+
+
+async def policy_drift_endpoint(request) -> JSONResponse:
+    return JSONResponse(load_policy_drift())
 
 
 async def _request_json(request) -> dict[str, Any]:
@@ -652,6 +683,7 @@ async def root_endpoint(request) -> HTMLResponse:
     approval_history = load_approval_history(last=20)
     approval_presets_payload = load_approval_presets()
     approval_expiry_payload = load_approval_expiry()
+    policy_drift_payload = load_policy_drift()
     return HTMLResponse(
         render_mission_control(
             operator_status,
@@ -663,6 +695,7 @@ async def root_endpoint(request) -> HTMLResponse:
             approval_history,
             approval_presets_payload,
             approval_expiry_payload,
+            policy_drift_payload,
         )
     )
 
@@ -680,6 +713,7 @@ def create_app():
         app.add_api_route("/api/approval_history", approval_history_endpoint, methods=["GET"])
         app.add_api_route("/api/approval_presets", approval_presets_endpoint, methods=["GET"])
         app.add_api_route("/api/approval_expiry", approval_expiry_status_endpoint, methods=["GET"])
+        app.add_api_route("/api/policy_drift", policy_drift_endpoint, methods=["GET"])
         app.add_api_route("/api/approval_presets/apply", approval_presets_apply_endpoint, methods=["POST"])
         app.add_api_route("/api/approval_presets/reset", approval_presets_reset_endpoint, methods=["POST"])
         app.add_api_route("/api/approval/approve", approval_approve_endpoint, methods=["POST"])
@@ -700,6 +734,7 @@ def create_app():
             Route("/api/approval_history", approval_history_endpoint),
             Route("/api/approval_presets", approval_presets_endpoint),
             Route("/api/approval_expiry", approval_expiry_status_endpoint),
+            Route("/api/policy_drift", policy_drift_endpoint),
             Route("/api/approval_presets/apply", approval_presets_apply_endpoint, methods=["POST"]),
             Route("/api/approval_presets/reset", approval_presets_reset_endpoint, methods=["POST"]),
             Route("/api/approval/approve", approval_approve_endpoint, methods=["POST"]),
