@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.ops import autonomy_policy, remediation_queue
+from tools.ops import autonomy_policy, recovery_guardrails, remediation_queue
 
 CANONICAL_RUNTIME_ROOT = Path("/Users/icmini/0luka_runtime")
 ACTION_LANE = {
@@ -54,6 +54,8 @@ def _append_history(
     action: str,
     result: str,
     attempt: int,
+    decision: str | None = None,
+    reason: str | None = None,
 ) -> None:
     entry = {
         "timestamp": _utc_now(),
@@ -63,6 +65,10 @@ def _append_history(
         "result": result,
         "attempt": attempt,
     }
+    if decision:
+        entry["decision"] = decision
+    if reason:
+        entry["reason"] = reason
     path = _history_path(runtime_root)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
@@ -150,6 +156,8 @@ def process_once(*, runtime_root: Path | None = None) -> dict[str, Any]:
             action=action,
             result="blocked",
             attempt=int(transition["item"].get("attempts", attempts)),
+            decision="policy_denied",
+            reason=policy_reason,
         )
         return {
             "ok": True,
@@ -159,6 +167,39 @@ def process_once(*, runtime_root: Path | None = None) -> dict[str, Any]:
             "action": action,
             "result": "blocked",
             "reason": policy_reason,
+        }
+
+    guardrail = recovery_guardrails.evaluate(
+        lane=lane,
+        action=action,
+        item_attempts=attempts,
+        runtime_root=resolved_runtime_root,
+    )
+    if not bool(guardrail.get("allowed")):
+        next_state = str(guardrail.get("queue_state") or "blocked")
+        transition = remediation_queue.transition_item(
+            item_id=queue_id,
+            state=next_state,
+            attempts=attempts,
+            runtime_root=resolved_runtime_root,
+        )
+        _append_history(
+            runtime_root=resolved_runtime_root,
+            queue_id=queue_id,
+            lane=lane,
+            action=action,
+            result=next_state,
+            attempt=int(transition["item"].get("attempts", attempts)),
+            decision=str(guardrail.get("decision") or "guardrail_denied"),
+        )
+        return {
+            "ok": True,
+            "processed": True,
+            "queue_id": queue_id,
+            "lane": lane,
+            "action": action,
+            "result": next_state,
+            "reason": str(guardrail.get("decision") or "guardrail_denied"),
         }
 
     running = remediation_queue.transition_item(
@@ -176,6 +217,12 @@ def process_once(*, runtime_root: Path | None = None) -> dict[str, Any]:
         attempts=run_attempt,
         runtime_root=resolved_runtime_root,
     )
+    guardrail_record = recovery_guardrails.register_result(
+        lane=lane,
+        action=action,
+        result=final_state,
+        runtime_root=resolved_runtime_root,
+    )
     _append_history(
         runtime_root=resolved_runtime_root,
         queue_id=queue_id,
@@ -183,6 +230,7 @@ def process_once(*, runtime_root: Path | None = None) -> dict[str, Any]:
         action=action,
         result=final_state,
         attempt=run_attempt,
+        decision=str(guardrail_record.get("decision") or "executed"),
     )
     return {
         "ok": True,
