@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 CANONICAL_RUNTIME_ROOT = Path("/Users/icmini/0luka_runtime")
-QUEUE_STATES = {"queued", "running", "success", "failed"}
+QUEUE_STATES = {"queued", "running", "success", "failed", "blocked"}
 ALLOWED_LANES = {
     "memory_recovery",
     "worker_recovery",
