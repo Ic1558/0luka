@@ -142,3 +142,5 @@ plan_epoch.txt
 
 # local secrets
 secrets/
+# Nested git repos (kept as separate repos)
+repos/qs/
