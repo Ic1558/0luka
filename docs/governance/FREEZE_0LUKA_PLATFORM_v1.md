@@ -3,7 +3,7 @@
 ## Status
 
 - freeze_id: `0luka-platform-v1`
-- state: `PARTIAL_FREEZE_ACTIVE`
+- state: `SEALED_TAG_ANCHORED_BASELINE`
 - mode: `FAIL_CLOSED`
 - date_utc: `2026-03-09`
 
@@ -11,7 +11,7 @@
 
 This freeze records the current verified 0luka platform baseline so that runtime, observability, and QS application interfaces do not drift while Tier 2 closure continues.
 
-This freeze does not claim full platform seal yet.
+This freeze records a historically anchored baseline for the current verified 0luka platform.
 
 ## What Is Frozen
 
@@ -30,6 +30,30 @@ The following interfaces are treated as frozen for v1:
 Canonical machine-readable source:
 
 - `core/governance/0luka_platform_frozen_manifest.yaml`
+
+## Baseline Anchors
+
+Outer repository baseline:
+
+- branch: `codex/phase3-8-proof-consumption-ux`
+- commit_sha: `65274714b31f16a28cdc959559f89fb72d1f89ad`
+- tag: `freeze-0luka-platform-v1-20260309`
+
+Nested QS repository baseline:
+
+- repository: `repos/qs`
+- branch: `phaseA-qs-product-layer`
+- commit_sha: `8e5459402179408dabd31ca2a10b5e7480e5950a`
+- tag: `freeze-qs-v1-product-baseline-20260309`
+
+Seal timestamp:
+
+- `2026-03-09T00:00:00Z`
+
+Nested repository note:
+
+- QS baseline is anchored independently in its own repository.
+- The outer 0luka baseline does not treat `repos/qs` as an embedded snapshot.
 
 ## What Is Not Frozen
 
@@ -81,16 +105,8 @@ Current evidence is anchored by:
 - `core/verify/test_mission_control_summary_feed.py`
 - `core/verify/test_qs_mission_control_projection.py`
 
-## Remaining Gap To Full Seal
-
-This freeze remains partial until:
-
-1. a platform baseline tag is created
-2. freeze evidence is anchored to that tag
-3. contractual freeze list is accepted as canonical governance input
-
 ## Summary
 
-0luka platform v1 is now frozen in-repo at the contract and documentation layer.
+0luka platform v1 is now frozen and historically anchored at both the outer runtime repository and the nested QS repository.
 
-The freeze is active enough to prevent drift in proven interfaces, but it is not yet a fully sealed baseline until the git/tag anchor is created.
+The freeze rules are active in repo scope and the baseline is now bound to exact commits and tags for later recovery, comparison, and compatibility enforcement.

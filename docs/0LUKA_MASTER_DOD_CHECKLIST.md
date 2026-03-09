@@ -36,7 +36,7 @@ This checklist reflects the current verified architecture baseline:
 | Artifact truth path (QS scope) | `DONE` | runtime truth-path consistency proven |
 | Approval for PO flow | `DONE` | proven scoped approval path |
 | Mission Control QS read-model | `DONE` | scoped QS endpoint visibility proven |
-| Governance Freeze | `PARTIAL` | repo-level freeze manifest and compatibility rules exist; git tag seal still pending |
+| Governance Freeze | `SEALED` | repo-level freeze manifest exists and baseline is tag-anchored in outer and nested repos |
 | Mission Control system-wide | `PARTIAL` | feed/status consumption proven in read-model scope; broader dashboard closure not fully proven |
 | Observability expansion / feed index / analytics | `PARTIAL` | feed guard/index implemented; analytics layer still open |
 | Runtime Validator | `PARTIAL` | executable validator exists; broader platform coverage still incomplete |
@@ -53,7 +53,7 @@ This checklist reflects the current verified architecture baseline:
 | Runtime Guardian | `SPEC ONLY` | `PARTIAL / IMPLEMENTED IN SAFE ACTION SCOPE` | `tools/ops/runtime_guardian.py`, `core/verify/test_runtime_guardian.py` | validator-driven logging/escalation proven; destructive/self-healing recovery not yet proven |
 | Activity Feed Guard / Index | `PARTIAL / NOT PROVEN` | `PARTIAL / IMPLEMENTED IN OBSERVABILITY SCOPE` | `core/activity_feed_guard.py`, `tools/ops/activity_feed_indexer.py`, `tools/ops/activity_feed_query.py`, feed evidence tests | append-only/index evidence proven; analytics/system-wide consumption still incomplete |
 | Mission Control Feed Consumption | `PARTIAL` | `PARTIAL / PROVEN IN READ-MODEL SCOPE` | `interface/operator/mission_control_server.py`, `tools/mission_control.py`, mission control feed tests | activity/feed summary consumption proven; full operator dashboard closure still open |
-| Governance Freeze Seal | `PARTIAL / NOT SEALED` | `PARTIAL / REPO FREEZE ACTIVE` | `core/governance/0luka_platform_frozen_manifest.yaml`, `docs/governance/FREEZE_0LUKA_PLATFORM_v1.md`, `core/verify/test_0luka_governance_freeze_seal.py` | contract freeze and compatibility rules sealed in repo; git/tag anchor still pending |
+| Governance Freeze Seal | `PARTIAL / REPO FREEZE ACTIVE` | `SEALED / TAG-ANCHORED BASELINE` | `core/governance/0luka_platform_frozen_manifest.yaml`, `docs/governance/FREEZE_0LUKA_PLATFORM_v1.md`, `core/verify/test_0luka_governance_freeze_seal.py`, baseline tags | outer and nested repo baselines anchored independently |
 
 ## Detailed DoD Gates
 
@@ -73,7 +73,7 @@ Done when:
 
 ### B. Governance Freeze
 
-Status: `PARTIAL` / `REPO FREEZE ACTIVE`
+Status: `SEALED` / `TAG-ANCHORED BASELINE`
 
 Done when:
 1. Kernel tag/freeze boundary exists.
@@ -82,15 +82,12 @@ Done when:
 4. Design/proof separation is explicit.
 5. Runtime vs app ownership has no ambiguity.
 
-Open gaps:
-- baseline git tag/freeze anchor
-- promotion from repo freeze to fully sealed baseline
-
 Current:
 - contractual freeze list exists
 - compatibility rules are declared
 - runtime/app ownership boundary is explicitly frozen in repo
-- full seal is still pending git/tag anchor
+- outer runtime baseline is tag-anchored
+- nested QS baseline is tag-anchored independently
 
 ### C. Mission Control Core
 
