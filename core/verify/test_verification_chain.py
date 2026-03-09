@@ -199,3 +199,24 @@ def test_epoch_manifest_written_on_startup_helper_invocation() -> None:
             restore_test_root_modules()
             _restore_env(old)
 
+
+def test_enforce_evidence_minimum_skips_qs_job_types() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td).resolve()
+        old = _set_env(root)
+        try:
+            _setup_dirs(root)
+            mods = _reload_modules()
+            guardian = mods["tools.ops.runtime_guardian"]
+
+            # Should allow without calling validator if starts with qs.
+            out = guardian.enforce_evidence_minimum("trace_any", task_type="qs.boq_generate")
+            assert out["guardian_action"] == "allow"
+            assert out["reason"] == "qs_scope_excluded"
+            assert out["verification"] is None
+        finally:
+            from core.verify._test_root import restore_test_root_modules
+
+            restore_test_root_modules()
+            _restore_env(old)
+

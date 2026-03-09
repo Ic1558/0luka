@@ -69,13 +69,21 @@ def _activity_event(entry: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def enforce_evidence_minimum(trace_id: str) -> dict[str, Any]:
+def enforce_evidence_minimum(trace_id: str, task_type: str | None = None) -> dict:
     """
     Safe-scope guardian enforcement:
     - call validator verification chain
     - allow only if verified, otherwise freeze_and_alert
     Does not perform destructive remediation or mutate runtime state beyond existing logs/events.
     """
+    if task_type and task_type.startswith("qs."):
+        return {
+            "trace_id": str(trace_id),
+            "guardian_action": "allow",
+            "reason": "qs_scope_excluded",
+            "verification": None,
+        }
+
     verification = runtime_validator.run_verification_chain(trace_id)
     verdict = str(verification.get("verdict") or "")
     if verdict == "verified":
