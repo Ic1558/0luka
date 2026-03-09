@@ -41,8 +41,15 @@ bridge.log
 .env.local
 
 # --- [TRACKED: Source of Truth (SOT) - Un-ignore overrides] ---
+!interface/
+interface/*
 !interface/schemas/
+!interface/state/
 !interface/state/task_counter.json.template
+!interface/operator/
+!interface/operator/templates/
+!interface/operator/tests/
+!interface/operator/tests/**/*.py
 !core_brain/governance/
 !tools/
 !system/

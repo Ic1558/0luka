@@ -168,6 +168,17 @@ Capabilities:
 Reference:
 - `docs/MISSION_CONTROL_V2_SPEC.md`
 
+### Mission Control Operator UI
+
+The Mission Control operator surface now includes:
+- dashboard aggregation through `/api/operator/dashboard`
+- QS run list with click-through detail panel
+- idle-state and API-unreachable fallback messaging
+- operator trace sidebar backed by `/health`
+- bounded polling with timeout and exponential backoff
+
+This UI layer remains read-only and does not alter kernel or runtime behavior.
+
 ## Documentation Map
 
 Platform documentation is organized as follows.
