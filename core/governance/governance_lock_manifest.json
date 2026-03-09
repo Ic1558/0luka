@@ -9,6 +9,10 @@
   ],
   "files": [
     {
+      "path": "core/governance/0luka_platform_frozen_manifest.yaml",
+      "sha256": "650fef280ca4ff92bc249793869a626be96df865cb24cec2cc9bdb036b3a7a83"
+    },
+    {
       "path": "core/governance/BOUNDARY_MANIFESTO.md",
       "sha256": "6d7376ec88fd131eb0a6e3782390c0289fffb53ab206a0e4a11ad58e48fbfd0d"
     },
@@ -185,6 +189,6 @@
       "sha256": "5d1149dcb7acfdb4485f1b69cd462a3a441020a4c31256fe2a99f338aa5d888a"
     }
   ],
-  "generated_at_utc": "2026-03-05T22:24:01Z",
+  "generated_at_utc": "2026-03-09T20:20:43Z",
   "required_label": "governance-change"
 }
