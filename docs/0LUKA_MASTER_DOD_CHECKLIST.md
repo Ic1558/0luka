@@ -37,7 +37,7 @@ This checklist reflects the current verified architecture baseline:
 | Approval for PO flow | `DONE` | proven scoped approval path |
 | Mission Control QS read-model | `DONE` | scoped QS endpoint visibility proven |
 | Governance Freeze | `SEALED` | repo-level freeze manifest exists and baseline is tag-anchored in outer and nested repos |
-| Mission Control system-wide | `PARTIAL` | feed/status consumption proven in read-model scope; broader dashboard closure not fully proven |
+| Mission Control system-wide | `PARTIAL` | feed/status/timeline/dashboard rendering proven in read-model scope; full product UI closure not claimed |
 | Observability expansion / feed index / analytics | `PARTIAL` | feed guard/index implemented; analytics layer still open |
 | Runtime Validator | `PARTIAL` | executable validator exists; broader platform coverage still incomplete |
 | Runtime Guardian | `PARTIAL` | validator-driven guardian implementation exists in safe action scope |
@@ -53,6 +53,7 @@ This checklist reflects the current verified architecture baseline:
 | Runtime Guardian | `SPEC ONLY` | `PARTIAL / IMPLEMENTED IN SAFE ACTION SCOPE` | `tools/ops/runtime_guardian.py`, `core/verify/test_runtime_guardian.py` | validator-driven logging/escalation proven; destructive/self-healing recovery not yet proven |
 | Activity Feed Guard / Index | `PARTIAL / NOT PROVEN` | `PARTIAL / IMPLEMENTED IN OBSERVABILITY SCOPE` | `core/activity_feed_guard.py`, `tools/ops/activity_feed_indexer.py`, `tools/ops/activity_feed_query.py`, feed evidence tests | append-only/index evidence proven; analytics/system-wide consumption still incomplete |
 | Mission Control Feed Consumption | `PARTIAL` | `PARTIAL / PROVEN IN READ-MODEL SCOPE` | `interface/operator/mission_control_server.py`, `tools/mission_control.py`, mission control feed tests | activity/feed summary consumption proven; full operator dashboard closure still open |
+| Mission Control Dashboard Closure | `PARTIAL` | `PARTIAL / PROVEN IN DASHBOARD SCOPE` | `core/verify/test_mission_control_dashboard_closure.py`, mission control endpoint/read-model tests | system status, activity, remediation, and approval timeline rendering proven; full product UI semantics still open |
 | Governance Freeze Seal | `PARTIAL / REPO FREEZE ACTIVE` | `SEALED / TAG-ANCHORED BASELINE` | `core/governance/0luka_platform_frozen_manifest.yaml`, `docs/governance/FREEZE_0LUKA_PLATFORM_v1.md`, `core/verify/test_0luka_governance_freeze_seal.py`, baseline tags | outer and nested repo baselines anchored independently |
 
 ## Detailed DoD Gates
@@ -104,7 +105,8 @@ Done when:
 Note:
 - QS projection endpoints are proven in scope.
 - activity/feed consumption is now proven in read-model scope.
-- full system-wide Mission Control closure is not proven yet.
+- system-wide dashboard rendering is now proven in dashboard scope.
+- full product/UI closure is not proven yet.
 
 ### D. Activity Feed / Observability
 
@@ -188,6 +190,11 @@ Done when:
 4. Worker/runtime status is visible.
 5. Feed/timeline/system status are visible.
 6. Operator actions are auditable.
+
+Current:
+- QS run/operator visibility is proven
+- feed/status/timeline/dashboard rendering is proven in read-only dashboard scope
+- broader product-grade Mission Control closure remains open
 
 ### I. Validator / Guardian / Self-Healing
 
