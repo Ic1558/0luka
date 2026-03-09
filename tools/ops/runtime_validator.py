@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -259,6 +260,152 @@ def validate_runtime(*, mode: str, run_id: str | None = None, strict_artifacts: 
     }
     report.update(summary)
     return report
+
+
+def _runtime_root_env() -> Path:
+    # core.config already enforces LUKA_RUNTIME_ROOT, but keep this helper
+    # for tests that may patch env/paths.
+    return Path(os.environ.get("LUKA_RUNTIME_ROOT", str(RUNTIME_ROOT))).expanduser().resolve()
+
+
+def _activity_feed_path() -> Path:
+    return _runtime_root_env() / "logs" / "activity_feed.jsonl"
+
+
+def _verification_artifact_path(trace_id: str) -> Path:
+    return _runtime_root_env() / "artifacts" / "tasks" / trace_id / "verification.json"
+
+
+def _write_atomic_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.tmp")
+    data = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    tmp.write_text(data + "\n", encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _iter_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+        for raw in handle:
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except Exception:
+                continue
+            if isinstance(obj, dict):
+                rows.append(obj)
+    return rows
+
+
+def _find_outbox_result_by_trace_id(trace_id: str) -> tuple[dict[str, Any] | None, str | None]:
+    outbox_dir = CONFIG_ROOT / "interface" / "outbox" / "tasks"
+    if not outbox_dir.exists():
+        return None, None
+    for path in sorted(outbox_dir.glob("*.result.json")):
+        try:
+            payload = _load_json(path)
+        except Exception:
+            continue
+        prov = payload.get("provenance") if isinstance(payload.get("provenance"), dict) else None
+        if prov and str(prov.get("trace_id") or "") == trace_id:
+            return payload, str(path)
+    return None, None
+
+
+def _find_provenance_ref(trace_id: str) -> str | None:
+    prov_path = CONFIG_ROOT / "observability" / "artifacts" / "run_provenance.jsonl"
+    for row in _iter_jsonl(prov_path):
+        if str(row.get("trace_id") or "") == trace_id:
+            # return a truthful pointer, not the row itself
+            return str(prov_path)
+    return None
+
+
+def _find_activity_feed_matches(trace_id: str) -> tuple[int, dict[str, Any] | None]:
+    # Preferred match is explicit trace_id, but allow task_id == trace_id
+    # because many feeds use task_id as the only correlation key.
+    matches = 0
+    chain_ref: dict[str, Any] | None = None
+    for row in _iter_jsonl(_activity_feed_path()):
+        if str(row.get("trace_id") or "") == trace_id or str(row.get("task_id") or "") == trace_id:
+            matches += 1
+            if chain_ref is None:
+                maybe_hash = row.get("hash")
+                maybe_prev = row.get("prev_hash")
+                if isinstance(maybe_hash, str) and maybe_hash and isinstance(maybe_prev, str) and maybe_prev:
+                    chain_ref = {"hash": maybe_hash, "prev_hash": maybe_prev}
+    return matches, chain_ref
+
+
+def run_verification_chain(trace_id: str) -> dict[str, Any]:
+    """
+    Produce a bounded verification chain for a trace_id using existing truth surfaces:
+    - outbound/result gate (if available)
+    - run_provenance.jsonl existence
+    - activity_feed.jsonl presence
+    Writes an atomic verification artifact under runtime_root/artifacts/tasks/<trace_id>/verification.json.
+    """
+    trace_id = str(trace_id or "").strip()
+    gates: dict[str, Any] = {
+        "outbound_result_gate": "unavailable",
+        "provenance_exists": False,
+        "activity_feed_present": False,
+    }
+    evidence: dict[str, Any] = {"feed_match_count": 0}
+
+    if not trace_id:
+        result = {"trace_id": "", "gates": gates, "verdict": "failed", "evidence": evidence}
+        _write_atomic_json(_verification_artifact_path("unknown_trace"), result)
+        return result
+
+    # 1) Outbound/result gate (fail-closed)
+    outbox_result, outbox_path = _find_outbox_result_by_trace_id(trace_id)
+    if outbox_result is None:
+        gates["outbound_result_gate"] = "failed"
+    else:
+        try:
+            from core.phase1d_result_gate import gate_outbound_result  # type: ignore
+
+            gate_outbound_result(outbox_result)
+            gates["outbound_result_gate"] = "passed"
+            evidence["outbox_result_ref"] = outbox_path
+        except Exception as exc:
+            # Truthful failure: gate rejected or gate unavailable at runtime.
+            gates["outbound_result_gate"] = "failed"
+            evidence["outbound_gate_error"] = str(exc)[:240]
+
+    # 2) Run provenance existence
+    prov_ref = _find_provenance_ref(trace_id)
+    if prov_ref:
+        gates["provenance_exists"] = True
+        evidence["provenance_ref"] = prov_ref
+
+    # 3) Activity feed presence
+    feed_count, chain_ref = _find_activity_feed_matches(trace_id)
+    evidence["feed_match_count"] = feed_count
+    if feed_count > 0:
+        gates["activity_feed_present"] = True
+    if chain_ref:
+        evidence["hash_chain_ref"] = chain_ref
+
+    verified = (
+        gates["outbound_result_gate"] == "passed"
+        and gates["provenance_exists"] is True
+        and gates["activity_feed_present"] is True
+    )
+    result = {
+        "trace_id": trace_id,
+        "gates": gates,
+        "verdict": "verified" if verified else "failed",
+        "evidence": evidence,
+    }
+    _write_atomic_json(_verification_artifact_path(trace_id), result)
+    return result
 
 
 def _parse_args() -> argparse.Namespace:

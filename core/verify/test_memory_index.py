@@ -31,6 +31,7 @@ class MemoryIndexTests(unittest.TestCase):
 
             import importlib
 
+            importlib.reload(importlib.import_module("core.config"))
             indexer = importlib.reload(importlib.import_module("tools.ops.activity_feed_indexer"))
 
             feed_path = runtime_root / "logs" / "activity_feed.jsonl"
@@ -62,6 +63,7 @@ class MemoryIndexTests(unittest.TestCase):
 
             import importlib
 
+            importlib.reload(importlib.import_module("core.config"))
             indexer = importlib.reload(importlib.import_module("tools.ops.activity_feed_indexer"))
             query = importlib.reload(importlib.import_module("tools.ops.activity_feed_query"))
 
@@ -88,6 +90,7 @@ class MemoryIndexTests(unittest.TestCase):
 
             import importlib
 
+            importlib.reload(importlib.import_module("core.config"))
             indexer = importlib.reload(importlib.import_module("tools.ops.activity_feed_indexer"))
             query = importlib.reload(importlib.import_module("tools.ops.activity_feed_query"))
 
@@ -117,6 +120,7 @@ class MemoryIndexTests(unittest.TestCase):
 
             import importlib
 
+            importlib.reload(importlib.import_module("core.config"))
             indexer = importlib.reload(importlib.import_module("tools.ops.activity_feed_indexer"))
             query = importlib.reload(importlib.import_module("tools.ops.activity_feed_query"))
 

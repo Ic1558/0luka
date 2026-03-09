@@ -174,6 +174,26 @@ def _append_runtime_heartbeat_event() -> None:
         pass
 
 
+def _emit_startup_epoch_marker() -> None:
+    """
+    Best-effort startup evidence emit. Must never alter dispatch semantics.
+
+    This uses the existing epoch emitter helper to append an epoch marker into
+    $LUKA_RUNTIME_ROOT/logs/epoch_manifest.jsonl.
+    """
+    try:
+        helper = Path(__file__).resolve().parents[1] / "tools" / "ops" / "epoch_emitter.py"
+        if not helper.exists():
+            return
+        runtime_root = os.environ.get("LUKA_RUNTIME_ROOT", "").strip()
+        if not runtime_root:
+            return
+        cmd = [sys.executable or "python3", str(helper), "--runtime-root", runtime_root, "--json"]
+        subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=2.0)
+    except Exception:
+        pass
+
+
 def _emit_activity_event(
     action: str,
     task_id: str,
@@ -1222,6 +1242,9 @@ def main() -> int:
     parser.add_argument("--watch", action="store_true", help="Watch inbox continuously")
     parser.add_argument("--interval", type=int, default=DEFAULT_INTERVAL, help="Watch interval in seconds")
     args = parser.parse_args()
+
+    # Best-effort evidence marker for startup epoch. Must never impact dispatch behavior.
+    _emit_startup_epoch_marker()
 
     if args.watch:
         watch(interval=args.interval)

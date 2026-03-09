@@ -157,6 +157,44 @@ function emit_rotation_registry() {
         return 1
     fi
 
+    # Phase-C minimal emit (schema-superset): ensure there is an explicit feed_rotation marker.
+    # Keep all existing registry fields to avoid breaking downstream readers.
+    "$PYTHON_BIN" - "$RUNTIME_ROOT" "$segment_name" "$seal_hash" "$first_hash" "$last_hash" "$line_count" "$sealed_at_utc" "$ts" 2>>"$MAINT_LOG" <<'PY' || true
+import json
+import os
+import sys
+from pathlib import Path
+
+runtime_root = Path(sys.argv[1]).expanduser()
+segment_name = sys.argv[2]
+seal_hash = sys.argv[3]
+first_hash = sys.argv[4]
+last_hash = sys.argv[5]
+line_count = int(sys.argv[6])
+sealed_at_utc = sys.argv[7]
+ts = sys.argv[8]
+
+path = runtime_root / "logs" / "rotation_registry.jsonl"
+path.parent.mkdir(parents=True, exist_ok=True)
+
+record = {
+    "event": "feed_rotation",
+    "target": "activity_feed.jsonl",
+    "segment_name": segment_name,
+    "seal_hash": seal_hash,
+    "first_hash": first_hash,
+    "last_hash": last_hash,
+    "line_count": line_count,
+    "sealed_at_utc": sealed_at_utc,
+    "registry_ts_utc": ts,
+}
+payload = json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+with path.open("a", encoding="utf-8") as out:
+    out.write(payload + "\n")
+    out.flush()
+    os.fsync(out.fileno())
+PY
+
     return 0
 }
 
