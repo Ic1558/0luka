@@ -19,6 +19,8 @@ This file is the single source of truth for Skill OS loading order and constrain
 | `verify-first` | Require verification-first execution discipline with explicit evidence before/after changes. | YES | Local FS MCP (read-only) | Verify commands and outputs | Pass/fail evidence summary | Baseline + post-change verification enforcement | Shipping without evidence or suppressing failures |
 | `single-flight` | Enforce no-retry/single-flight policy for guarded operations to avoid retry storms. | YES | Local FS MCP (read-only) | Guarded operation metadata | Deterministic run policy decision | max_retries=0 and no_parallel enforcement | Blind retries, parallel fan-out on guarded paths |
 | `pattern-killer` | Deterministic text pattern cleanup pipeline (detect/rewrite/score) for reusable writing hygiene. | NO | Local FS MCP (read-only) | Plain text + JSONL patterns database | JSON findings, rewritten text preview/apply result, stable score | Local deterministic regex analysis and atomic rewrite output | Network calls, non-deterministic inference, execution path mutation |
+| `cad2data-pipeline` | BIM/CAD-to-data ETL for normalized quantity extraction and estimator-ready handoff datasets. | YES | Local FS MCP (read-only) | Revit/AutoCAD/IFC/DGN model artifacts + extraction constraints | Structured quantity dataset (`.csv/.xlsx/.json`) + validation notes | Deterministic conversion guidance, field mapping, estimator handoff prep | Model mutation, runtime state writes, contract/bid commitments |
+| `construction-estimator` | Deterministic BOQ and cost-estimation workflow from normalized quantity datasets. | YES | Local FS MCP (read-only) | Structured quantity dataset + pricing assumptions + regional factor inputs | DDC-aligned priced BOQ estimate + transparent calculation notes | Deterministic quantity/price math, breakdown formatting, assumption traceability | Autonomous commitments, procurement actions, policy/runtime mutation |
 
 ## Codex Hand Wiring Map (Phase 15.2)
 
@@ -30,6 +32,8 @@ This file is the single source of truth for Skill OS loading order and constrain
 | `scope-lock` | `scope-lock` | `read_assist_only` | 0 | true | true |
 | `verify-first` | `verify-first` | `read_assist_only` | 0 | true | true |
 | `single-flight` | `single-flight` | `read_assist_only` | 0 | true | true |
+| `cad2data-pipeline` | `verify-first` | `read_assist_only` | 0 | true | true |
+| `construction-estimator` | `verify-first` | `read_assist_only` | 0 | true | true |
 
 ## Skill Aliases (Phase 15.4)
 

@@ -5,7 +5,7 @@ import sys
 import time
 
 MCP_SERVER = "core_brain/ops/mcp_server.py"
-PYTHON_EXE = ".venv/bin/python3" # Explicitly use venv python
+PYTHON_EXE = sys.executable
 
 def send_request(proc, req_data):
     """Send JSON-RPC request and wait for response."""

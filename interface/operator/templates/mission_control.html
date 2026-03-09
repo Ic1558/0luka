@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>0luka Mission Control</title>
+  <style>
+    :root {
+      --bg: #f5f1e8;
+      --panel: #fffaf0;
+      --ink: #1b1b1b;
+      --muted: #5f5a4f;
+      --line: #d8ccba;
+      --accent: #8a4b08;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", serif;
+      background:
+        radial-gradient(circle at top left, #fff4cf 0%, transparent 35%),
+        linear-gradient(180deg, #efe7d8 0%, var(--bg) 100%);
+      color: var(--ink);
+    }
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+    h1 {
+      margin: 0 0 24px;
+      font-size: clamp(2rem, 5vw, 4rem);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: color-mix(in srgb, var(--panel) 88%, white);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 12px 30px rgba(27, 27, 27, 0.08);
+    }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 1rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    dl {
+      margin: 0;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px 12px;
+    }
+    dt {
+      color: var(--muted);
+    }
+    dd {
+      margin: 0;
+      text-align: right;
+      font-weight: 700;
+    }
+    ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+    li {
+      margin: 0 0 8px;
+    }
+    .ts {
+      color: var(--muted);
+    }
+    .action {
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .stack {
+      display: grid;
+      gap: 10px;
+    }
+    .muted {
+      color: var(--muted);
+    }
+    .lane-block {
+      display: grid;
+      gap: 8px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.6);
+    }
+    .lane-block h3 {
+      margin: 0;
+      font-size: 0.95rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .alerts {
+      list-style: none;
+      padding-left: 0;
+      display: grid;
+      gap: 10px;
+    }
+    .policy-list {
+      list-style: none;
+      padding-left: 0;
+      display: grid;
+      gap: 10px;
+    }
+    .policy-item {
+      display: grid;
+      gap: 4px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.7);
+    }
+    .policy-item .lane-name,
+    .policy-item .policy-status {
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .policy-controls {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .policy-controls input,
+    .policy-controls button {
+      font: inherit;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+    }
+    .policy-controls button {
+      background: color-mix(in srgb, var(--panel) 84%, white);
+      cursor: pointer;
+    }
+    .policy-controls button:hover {
+      border-color: var(--accent);
+    }
+    .approval-status {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .policy-item.status-allowed {
+      border-color: #2c7b4a;
+      background: #eef9f1;
+    }
+    .policy-item.status-allowed .policy-status::after {
+      content: " OK";
+      color: #2c7b4a;
+    }
+    .policy-item.status-approval_required {
+      border-color: #b96d15;
+      background: #fff6ea;
+    }
+    .policy-item.status-approval_required .policy-status::after {
+      content: " REVIEW";
+      color: #b96d15;
+    }
+    .policy-item.status-denied,
+    .policy-item.status-unavailable {
+      border-color: #a12828;
+      background: #fff0ee;
+    }
+    .alert-item {
+      display: grid;
+      gap: 4px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.7);
+    }
+    .alert-item .severity,
+    .alert-item .component {
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .alert-item .message {
+      color: var(--ink);
+    }
+    .alert-item.critical {
+      border-color: #a12828;
+      background: #fff0ee;
+    }
+    .alert-item.critical .severity {
+      color: #a12828;
+    }
+    .alert-item.warning {
+      border-color: #b96d15;
+      background: #fff6ea;
+    }
+    .alert-item.warning .severity {
+      color: #b96d15;
+    }
+    .alert-item.info {
+      border-color: #8f8b83;
+      background: #f2f0eb;
+    }
+    .alert-item.info .severity {
+      color: #6f6b63;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Mission Control</h1>
+    <div class="grid">
+      <section class="card">
+        <h2>System</h2>
+        <dl>
+          <dt>Health</dt><dd>${system_health}</dd>
+          <dt>Ledger</dt><dd>${ledger_status}</dd>
+          <dt>Epoch</dt><dd>${epoch_id}</dd>
+        </dl>
+      </section>
+      <section class="card">
+        <h2>Operator</h2>
+        <dl>
+          <dt>Overall</dt><dd>${operator_overall}</dd>
+          <dt>Memory</dt><dd>${memory_status}</dd>
+          <dt>API</dt><dd>${api_server}</dd>
+          <dt>Redis</dt><dd>${redis}</dd>
+        </dl>
+      </section>
+      <section class="card">
+        <h2>Bridge</h2>
+        <dl>
+          <dt>Consumer</dt><dd>${bridge_consumer}</dd>
+          <dt>Inflight</dt><dd>${bridge_inflight}</dd>
+          <dt>Outbox</dt><dd>${bridge_outbox}</dd>
+        </dl>
+      </section>
+      <section class="card">
+        <h2>Activity</h2>
+        <ul>
+          ${activity_items}
+        </ul>
+      </section>
+      <section class="card">
+        <h2>Alerts</h2>
+        <ul id="alerts-panel" class="alerts">
+          ${alert_items}
+        </ul>
+      </section>
+      <section class="card">
+        <h2>Remediation History</h2>
+        <div id="remediation-summary" class="stack">
+          ${remediation_summary}
+        </div>
+        <div id="remediation-last-event" class="stack">
+          ${remediation_last_event}
+        </div>
+        <ul id="remediation-timeline">
+          ${remediation_timeline}
+        </ul>
+      </section>
+      <section class="card">
+        <h2>Remediation History (Audit)</h2>
+        <ul id="remediation-audit-panel">
+          ${remediation_audit_items}
+        </ul>
+      </section>
+      <section class="card">
+        <h2>Approval History</h2>
+        <div id="approval-history-last-event" class="stack">
+          ${approval_history_last_event}
+        </div>
+        <ul id="approval-history-timeline">
+          ${approval_history_timeline}
+        </ul>
+      </section>
+      <section class="card">
+        <h2>Approval Timeline</h2>
+        <ul id="approval-log-panel">
+          ${approval_log_items}
+        </ul>
+      </section>
+      <section class="card">
+        <h2>Approval Presets</h2>
+        <ul id="approval-presets-panel" class="policy-list">
+          ${approval_presets_items}
+        </ul>
+        <p id="approval-preset-status" class="approval-status">No preset actions submitted</p>
+      </section>
+      <section class="card">
+        <h2>Approval Expiry</h2>
+        <ul id="approval-expiry-panel" class="policy-list">
+          ${approval_expiry_items}
+        </ul>
+      </section>
+      <section class="card">
+        <h2>Policy Consistency</h2>
+        <ul id="policy-drift-panel" class="policy-list">
+          ${policy_drift_items}
+        </ul>
+      </section>
+      <section class="card">
+        <h2>Remediation Queue</h2>
+        <ul id="remediation-queue-panel" class="policy-list">
+          ${remediation_queue_items}
+        </ul>
+        <div class="policy-controls">
+          <input id="queue-lane" placeholder="lane (worker_recovery)">
+          <input id="queue-action" placeholder="action (restart_worker)">
+          <button type="button" onclick="enqueueRemediationItem()">Enqueue</button>
+        </div>
+        <p id="remediation-queue-status" class="approval-status">No queue actions submitted</p>
+      </section>
+      <section class="card">
+        <h2>Runtime Decisions</h2>
+        <ul id="runtime-decisions-panel">
+          ${runtime_decision_items}
+        </ul>
+      </section>
+      <section class="card">
+        <h2>Autonomy / Approval</h2>
+        <ul id="autonomy-policy-panel" class="policy-list">
+          ${autonomy_policy_items}
+        </ul>
+        <p id="approval-action-status" class="approval-status">No approval changes submitted</p>
+      </section>
+    </div>
+  </main>
+  <script>
+    function renderAlerts(alerts) {
+      const panel = document.getElementById("alerts-panel");
+      if (!panel) return;
+      const rows = Array.isArray(alerts) ? alerts.slice(-10).reverse() : [];
+      if (rows.length === 0) {
+        panel.innerHTML = '<li class="alert-item info"><span class="severity">INFO</span><span class="component">alerts</span><span class="message">No alerts available</span></li>';
+        return;
+      }
+      panel.innerHTML = rows.map((alert) => {
+        const severity = String(alert.severity || "INFO");
+        const klass = severity.toLowerCase();
+        const timestamp = String(alert.timestamp || "n/a");
+        const component = String(alert.component || "unknown");
+        const message = String(alert.message || "");
+        return '<li class="alert-item ' + klass + '">' +
+          '<span class="ts">' + timestamp + '</span>' +
+          '<span class="severity">' + severity + '</span>' +
+          '<span class="component">' + component + '</span>' +
+          '<span class="message">' + message + '</span>' +
+          '</li>';
+      }).join("");
+    }
+
+    async function refreshAlerts() {
+      try {
+        const response = await fetch('/api/alerts');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderAlerts(payload.alerts);
+      } catch (error) {
+        // Leave the last rendered alert state intact on refresh failures.
+      }
+    }
+
+    function renderRemediation(payload) {
+      const summary = document.getElementById("remediation-summary");
+      const lastEvent = document.getElementById("remediation-last-event");
+      const timeline = document.getElementById("remediation-timeline");
+      if (!summary || !lastEvent || !timeline) return;
+
+      const lanes = ["memory", "worker"].filter((lane) => payload && payload[lane]);
+      if (lanes.length === 0) {
+        summary.innerHTML = '<p class="muted">No remediation history available</p>';
+      } else {
+        summary.innerHTML = lanes.map((lane) => {
+          const row = payload[lane] || {};
+          return '<div class="lane-block">' +
+            '<h3>' + lane + '</h3>' +
+            '<dl>' +
+            '<dt>Attempts</dt><dd>' + String(row.attempts || 0) + '</dd>' +
+            '<dt>Cooldowns</dt><dd>' + String(row.cooldowns || 0) + '</dd>' +
+            '<dt>Escalations</dt><dd>' + String(row.escalations || 0) + '</dd>' +
+            '<dt>Recovered</dt><dd>' + String(row.recovered || 0) + '</dd>' +
+            '</dl>' +
+            '</div>';
+        }).join("");
+      }
+
+      const event = payload && payload.last_event ? payload.last_event : {};
+      lastEvent.innerHTML = '<dl>' +
+        '<dt>Decision</dt><dd>' + String(event.decision || 'n/a') + '</dd>' +
+        '<dt>Lane</dt><dd>' + String(event.lane || 'n/a') + '</dd>' +
+        '<dt>Timestamp</dt><dd>' + String(event.timestamp || 'n/a') + '</dd>' +
+        '</dl>';
+
+      const rows = Array.isArray(payload && payload.timeline) ? payload.timeline.slice(-10).reverse() : [];
+      if (rows.length === 0) {
+        timeline.innerHTML = '<li>No remediation events available</li>';
+      } else {
+        timeline.innerHTML = rows.map((entry) => {
+          return '<li><span class="ts">' + String(entry.timestamp || 'n/a') + '</span> ' +
+            '<span class="action">' + String(entry.decision || 'unknown') + '</span> ' +
+            '<span class="lane">(' + String(entry.lane || 'unknown') + ')</span></li>';
+        }).join("");
+      }
+    }
+
+    async function refreshRemediation() {
+      try {
+        const response = await fetch('/api/remediation_history?last=20');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderRemediation(payload);
+      } catch (error) {
+        // Leave the last rendered remediation state intact on refresh failures.
+      }
+    }
+
+    function renderAuditList(panelId, payload, mapper) {
+      const panel = document.getElementById(panelId);
+      if (!panel) return;
+      const rows = payload && Array.isArray(payload.entries) ? payload.entries.slice(-10).reverse() : [];
+      if (rows.length === 0) {
+        panel.innerHTML = '<li>No entries available</li>';
+        return;
+      }
+      panel.innerHTML = rows.map(mapper).join('');
+    }
+
+    async function refreshRemediationAudit() {
+      try {
+        const response = await fetch('/api/remediation_history?last=20');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderAuditList('remediation-audit-panel', payload, (entry) => {
+          return '<li><span class=\"ts\">' + String(entry.timestamp || 'n/a') + '</span> ' +
+            '<span class=\"action\">' + String(entry.action || entry.decision || 'unknown') + '</span> ' +
+            '<span class=\"lane\">(' + String(entry.lane || 'n/a') + ')</span> ' +
+            '<span class=\"result\">result=' + String(entry.result || 'n/a') + '</span></li>';
+        });
+      } catch (error) {
+        // Keep existing render on failures.
+      }
+    }
+
+    function renderApprovalHistory(payload) {
+      const lastEvent = document.getElementById("approval-history-last-event");
+      const timeline = document.getElementById("approval-history-timeline");
+      if (!lastEvent || !timeline) return;
+
+      const event = payload && payload.last_event ? payload.last_event : {};
+      lastEvent.innerHTML = '<dl>' +
+        '<dt>Action</dt><dd>' + String(event.action || 'n/a') + '</dd>' +
+        '<dt>Lane</dt><dd>' + String(event.lane || 'n/a') + '</dd>' +
+        '<dt>Actor</dt><dd>' + String(event.actor || 'n/a') + '</dd>' +
+        '<dt>Timestamp</dt><dd>' + String(event.timestamp || 'n/a') + '</dd>' +
+        '</dl>';
+
+      const rows = Array.isArray(payload && payload.events) ? payload.events.slice(-10).reverse() : [];
+      if (rows.length === 0) {
+        timeline.innerHTML = '<li>No approval history available</li>';
+      } else {
+        timeline.innerHTML = rows.map((entry) => {
+          return '<li><span class="ts">' + String(entry.timestamp || 'n/a') + '</span> ' +
+            '<span class="action">' + String(entry.action || 'unknown') + '</span> ' +
+            '<span class="lane">(' + String(entry.lane || 'unknown') + ')</span> ' +
+            '<span class="actor">by ' + String(entry.actor || 'n/a') + '</span> ' +
+            '<span class="expiry">expires=' + String(entry.expires_at || 'n/a') + '</span></li>';
+        }).join('');
+      }
+    }
+
+    async function refreshApprovalHistory() {
+      try {
+        const response = await fetch('/api/approval_history?last=20');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderApprovalHistory(payload);
+      } catch (error) {
+        // Leave the last rendered approval history intact on refresh failures.
+      }
+    }
+
+    async function refreshApprovalLog() {
+      try {
+        const response = await fetch('/api/approval_log?last=20');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderAuditList('approval-log-panel', payload, (entry) => {
+          return '<li><span class=\"ts\">' + String(entry.timestamp || 'n/a') + '</span> ' +
+            '<span class=\"action\">' + String(entry.action || 'unknown') + '</span> ' +
+            '<span class=\"lane\">(' + String(entry.lane || 'n/a') + ')</span> ' +
+            '<span class=\"actor\">by ' + String(entry.actor || 'n/a') + '</span></li>';
+        });
+      } catch (error) {
+        // Keep existing render on failures.
+      }
+    }
+
+    async function refreshRuntimeDecisions() {
+      try {
+        const response = await fetch('/api/runtime_decisions?last=20');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderAuditList('runtime-decisions-panel', payload, (entry) => {
+          return '<li><span class=\"ts\">' + String(entry.timestamp || 'n/a') + '</span> ' +
+            '<span class=\"action\">' + String(entry.decision || 'unknown') + '</span> ' +
+            '<span class=\"lane\">(' + String(entry.lane || 'n/a') + ')</span> ' +
+            '<span class=\"result\">result=' + String(entry.result || 'n/a') + '</span></li>';
+        });
+      } catch (error) {
+        // Keep existing render on failures.
+      }
+    }
+
+    function renderApprovalPresets(payload) {
+      const panel = document.getElementById("approval-presets-panel");
+      if (!panel) return;
+      const presets = payload && Array.isArray(payload.presets) ? payload.presets : [];
+      if (presets.length === 0) {
+        panel.innerHTML = '<li>No approval presets available</li>';
+        return;
+      }
+      panel.innerHTML = presets.map((row) => {
+        const name = String(row.name || 'unknown');
+        const lanes = Array.isArray(row.lanes) && row.lanes.length ? row.lanes.join(', ') : 'none';
+        const lastApplied = String(row.last_applied_at || 'n/a');
+        return '<li class="policy-item">' +
+          '<span class="lane-name">' + name + '</span>' +
+          '<span class="policy-meta">lanes=' + lanes + '; last_applied=' + lastApplied + '</span>' +
+          '<div class="policy-controls">' +
+          '<button type="button" onclick="submitPresetAction(\\'apply\\',\\'' + name + '\\')">Apply</button>' +
+          '<button type="button" onclick="submitPresetAction(\\'reset\\',\\'' + name + '\\')">Reset</button>' +
+          '</div>' +
+          '</li>';
+      }).join('');
+    }
+
+    async function refreshApprovalPresets() {
+      try {
+        const response = await fetch('/api/approval_presets');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderApprovalPresets(payload);
+      } catch (error) {
+        // Leave the last rendered preset state intact on refresh failures.
+      }
+    }
+
+    function renderApprovalExpiry(payload) {
+      const panel = document.getElementById("approval-expiry-panel");
+      if (!panel) return;
+      const lanes = payload && Array.isArray(payload.lanes) ? payload.lanes : [];
+      if (lanes.length === 0) {
+        panel.innerHTML = '<li>No approval expiry data available</li>';
+        return;
+      }
+      panel.innerHTML = lanes.map((row) => {
+        const lane = String(row.lane || 'unknown');
+        const status = String(row.status || 'OK');
+        const klass = status.toLowerCase();
+        const actor = String(row.actor || 'n/a');
+        const expiresAt = String(row.expires_at || 'n/a');
+        return '<li class="policy-item status-' + klass + '">' +
+          '<span class="lane-name">' + lane + '</span>' +
+          '<span class="policy-status">' + status + '</span>' +
+          '<span class="policy-meta">actor=' + actor + '; expires_at=' + expiresAt + '</span>' +
+          '</li>';
+      }).join('');
+    }
+
+    async function refreshApprovalExpiry() {
+      try {
+        const response = await fetch('/api/approval_expiry');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderApprovalExpiry(payload);
+      } catch (error) {
+        // Leave the last rendered expiry state intact on refresh failures.
+      }
+    }
+
+    function renderPolicyDrift(payload) {
+      const panel = document.getElementById("policy-drift-panel");
+      if (!panel) return;
+      const checks = payload && payload.checks ? payload.checks : {};
+      const order = [
+        "approval_log_consistency",
+        "expiry_consistency",
+        "env_gate_consistency",
+        "lane_registry_consistency",
+      ];
+      const rows = order.filter((key) => key in checks);
+      if (rows.length === 0) {
+        panel.innerHTML = '<li>No policy drift data available</li>';
+        return;
+      }
+      panel.innerHTML = rows.map((key) => {
+        const status = String(checks[key] || 'UNKNOWN');
+        const klass = status.toLowerCase();
+        return '<li class="policy-item status-' + klass + '">' +
+          '<span class="lane-name">' + key + '</span>' +
+          '<span class="policy-status">' + status + '</span>' +
+          '</li>';
+      }).join('');
+    }
+
+    async function refreshPolicyDrift() {
+      try {
+        const response = await fetch('/api/policy_drift');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderPolicyDrift(payload);
+      } catch (error) {
+        // Leave the last rendered drift state intact on refresh failures.
+      }
+    }
+
+    function renderRemediationQueue(payload) {
+      const panel = document.getElementById("remediation-queue-panel");
+      if (!panel) return;
+      const rows = payload && Array.isArray(payload.items) ? payload.items.slice(-10).reverse() : [];
+      if (rows.length === 0) {
+        panel.innerHTML = '<li>No remediation queue items</li>';
+        return;
+      }
+      panel.innerHTML = rows.map((entry) => {
+        const itemId = String(entry.id || 'n/a');
+        const lane = String(entry.lane || 'unknown');
+        const action = String(entry.action || 'unknown');
+        const state = String(entry.state || 'queued');
+        const attempts = String(entry.attempts || 0);
+        const createdAt = String(entry.created_at || 'n/a');
+        return '<li class=\"policy-item status-' + state.toLowerCase() + '\">' +
+          '<span class=\"lane-name\">' + itemId + '</span>' +
+          '<span class=\"policy-status\">' + state + '</span>' +
+          '<span class=\"policy-meta\">lane=' + lane + '; action=' + action + '; attempts=' + attempts + '; created_at=' + createdAt + '</span>' +
+          '</li>';
+      }).join('');
+    }
+
+    async function refreshRemediationQueue() {
+      try {
+        const response = await fetch('/api/remediation_queue');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderRemediationQueue(payload);
+      } catch (error) {
+        // Keep existing queue render on refresh failure.
+      }
+    }
+
+    function setQueueStatus(message) {
+      const node = document.getElementById('remediation-queue-status');
+      if (node) node.textContent = message;
+    }
+
+    async function enqueueRemediationItem() {
+      const laneNode = document.getElementById('queue-lane');
+      const actionNode = document.getElementById('queue-action');
+      const payload = {
+        lane: laneNode ? String(laneNode.value || '').trim() : '',
+        action: actionNode ? String(actionNode.value || '').trim() : '',
+      };
+      try {
+        const response = await fetch('/api/remediation_queue/enqueue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        setQueueStatus(result.ok ? 'enqueue ok: ' + String(result.item && result.item.id || 'n/a') : 'enqueue failed: ' + (result.errors || []).join(', '));
+        if (response.ok) refreshRemediationQueue();
+      } catch (error) {
+        setQueueStatus('enqueue failed: request_error');
+      }
+    }
+
+    function setPresetStatus(message) {
+      const node = document.getElementById('approval-preset-status');
+      if (node) node.textContent = message;
+    }
+
+    async function submitPresetAction(action, preset) {
+      const endpoint = action === 'apply' ? '/api/approval_presets/apply' : '/api/approval_presets/reset';
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ preset }),
+        });
+        const result = await response.json();
+        setPresetStatus(result.ok ? action + ' ok: ' + preset : action + ' failed: ' + (result.errors || []).join(', '));
+        if (response.ok) {
+          refreshApprovalPresets();
+          refreshApprovalHistory();
+          refreshAutonomyPolicy();
+        }
+      } catch (error) {
+        setPresetStatus(action + ' failed: request_error');
+      }
+    }
+
+    function renderAutonomyPolicy(payload) {
+      const panel = document.getElementById("autonomy-policy-panel");
+      if (!panel) return;
+      const lanes = payload && payload.lanes ? payload.lanes : {};
+      const order = ["memory_recovery", "worker_recovery", "api_recovery", "redis_recovery"];
+      const rows = order.filter((lane) => lanes[lane]);
+      if (rows.length === 0) {
+        panel.innerHTML = '<li>No autonomy policy available</li>';
+        return;
+      }
+      panel.innerHTML = rows.map((lane) => {
+        const row = lanes[lane] || {};
+        const status = String(row.status || 'denied');
+        const klass = status.toLowerCase();
+        const reason = String(row.reason || 'unknown');
+        const approval = String(row.approval_state || 'invalid');
+        const expires = String(row.expires_at || 'n/a');
+        const expired = String(Boolean(row.expired));
+        const expiringSoon = String(Boolean(row.expiring_soon));
+        return '<li class="policy-item status-' + klass + '">' +
+          '<span class="lane-name">' + lane + '</span>' +
+          '<span class="policy-status">' + status + '</span>' +
+          '<span class="policy-reason">' + reason + '</span>' +
+          '<span class="policy-meta">approval=' + approval + '; expires=' + expires + '; expired=' + expired + '; expiring_soon=' + expiringSoon + '</span>' +
+          '</li>';
+      }).join("");
+    }
+
+    async function refreshAutonomyPolicy() {
+      try {
+        const response = await fetch('/api/autonomy_policy');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderAutonomyPolicy(payload);
+      } catch (error) {
+        // Leave the last rendered autonomy policy intact on refresh failures.
+      }
+    }
+
+    function approvalInputValue(selector, lane) {
+      const node = document.querySelector(selector + '[data-lane="' + lane + '"]');
+      return node ? String(node.value || '').trim() : '';
+    }
+
+    function setApprovalStatus(message) {
+      const node = document.getElementById('approval-action-status');
+      if (node) node.textContent = message;
+    }
+
+    async function submitApprovalAction(action, lane) {
+      const actor = approvalInputValue('.policy-actor', lane);
+      const expiresAt = approvalInputValue('.policy-expiry', lane);
+      const endpoint = action === 'approve' ? '/api/approval/approve' : '/api/approval/revoke';
+      const payload = { lane, actor };
+      if (action === 'approve' && expiresAt) payload.expires_at = expiresAt;
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        setApprovalStatus(result.ok ? action + ' ok: ' + lane : action + ' failed: ' + (result.errors || []).join(', '));
+        if (response.ok) refreshAutonomyPolicy();
+      } catch (error) {
+        setApprovalStatus(action + ' failed: request_error');
+      }
+    }
+
+    async function submitApprovalExpiry(lane, clearExpiry) {
+      const actor = approvalInputValue('.policy-actor', lane);
+      const expiresAt = approvalInputValue('.policy-expiry', lane);
+      const payload = { lane, actor, clear_expiry: clearExpiry };
+      if (!clearExpiry) payload.expires_at = expiresAt;
+      try {
+        const response = await fetch('/api/approval/expiry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        setApprovalStatus(result.ok ? (clearExpiry ? 'clear expiry ok: ' : 'set expiry ok: ') + lane : 'expiry failed: ' + (result.errors || []).join(', '));
+        if (response.ok) refreshAutonomyPolicy();
+      } catch (error) {
+        setApprovalStatus('expiry failed: request_error');
+      }
+    }
+
+    setInterval(refreshAlerts, 5000);
+    setInterval(refreshRemediation, 5000);
+    setInterval(refreshRemediationAudit, 5000);
+    setInterval(refreshApprovalHistory, 5000);
+    setInterval(refreshApprovalLog, 5000);
+    setInterval(refreshRuntimeDecisions, 5000);
+    setInterval(refreshApprovalPresets, 5000);
+    setInterval(refreshApprovalExpiry, 5000);
+    setInterval(refreshPolicyDrift, 5000);
+    setInterval(refreshRemediationQueue, 5000);
+    setInterval(refreshAutonomyPolicy, 5000);
+  </script>
+</body>
+</html>

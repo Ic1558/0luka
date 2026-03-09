@@ -21,6 +21,10 @@
       "sha256": "adebcc57b0dac1d401fe2e001f8d5808d435ad44e98269c710a1bf7327c2999b"
     },
     {
+      "path": "core/governance/RFC_TEMPLATE_KERNEL_CHANGE.md",
+      "sha256": "f66caa09bcad3bfb747b73d4dfea5259bdfe412f514973f70345bc0f75831e8f"
+    },
+    {
       "path": "core/governance/auto_governor_contract.yaml",
       "sha256": "46ef4f12a840234a0b876a233e478140bf3870432d30a9c4694f49d534f2fdc8"
     },
@@ -47,6 +51,10 @@
     {
       "path": "core/governance/decisions/DECISION_CONSTITUTIONAL_DECREE_20260213.md",
       "sha256": "827862143cf8eafda78088b104ab759fdad027bdbb9f906a7fe4547e95c8986e"
+    },
+    {
+      "path": "core/governance/kernel_frozen_manifest.yaml",
+      "sha256": "00d32d799e2df7e36c08394ba24768b6972520a819c461fb0a9ed9d707f83a17"
     },
     {
       "path": "core/governance/ontology.yaml",
@@ -150,7 +158,7 @@
     },
     {
       "path": "docs/dod/DOD__PHASE_3E.md",
-      "sha256": "fe7f6d6853734012b50f7475e5222e3f284ac1d928cf9405df70623b358e407d"
+      "sha256": "672fb82334604bef216651434ce68452fe4972a758e90aae71516f16394d219e"
     },
     {
       "path": "docs/dod/DOD__PHASE_8.md",
@@ -177,6 +185,6 @@
       "sha256": "5d1149dcb7acfdb4485f1b69cd462a3a441020a4c31256fe2a99f338aa5d888a"
     }
   ],
-  "generated_at_utc": "2026-02-24T22:30:55Z",
+  "generated_at_utc": "2026-03-05T22:24:01Z",
   "required_label": "governance-change"
 }
