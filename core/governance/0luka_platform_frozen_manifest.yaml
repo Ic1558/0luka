@@ -1,0 +1,114 @@
+version: 1.0
+freeze_id: 0luka-platform-v1
+date_utc: 2026-03-09
+status: PARTIAL_FREEZE_ACTIVE
+
+intent:
+  - Lock the verified 0luka runtime/app-layer boundary
+  - Freeze proven interface contracts before broader platform expansion
+  - Prevent runtime/app ownership drift
+  - Require compatibility discipline for post-v1 changes
+
+baseline:
+  source_of_truth: docs/0LUKA_MASTER_DOD_CHECKLIST.md
+  verified_slice: docs/review/QS_v1_VERIFIED.md
+  roadmap: docs/ROADMAP.md
+  tag_required: true
+  tag_status: pending
+
+ownership_boundary:
+  runtime_kernel:
+    owned_by:
+      - core/
+      - tools/ops/runtime_validator.py
+      - tools/ops/runtime_guardian.py
+    must_not_move_into:
+      - repos/
+  domain_application:
+    owned_by:
+      - repos/qs/
+    must_not_own:
+      - approval_engine
+      - runtime_validator
+      - runtime_guardian
+      - dispatcher
+      - queue_supervision
+
+frozen_interfaces:
+  - name: qs_job_registry_entrypoint
+    contract: run_registered_job(job_type, context)
+    owner: repos/qs/src/universal_qs_engine/job_registry.py
+    compatibility: backward_compatible_only
+  - name: qs_artifact_refs_contract
+    contract: artifact_refs list of artifact records
+    owner: repos/qs/src/universal_qs_engine/jobs/
+    compatibility: backward_compatible_only
+  - name: qs_runtime_sidecar
+    contract: runtime_root/state/qs_runs/<run_id>.json
+    owner: core/qs_runtime_state.py
+    compatibility: additive_only
+  - name: qs_mission_control_projection
+    contract: /api/qs_runs and /api/qs_runs/{run_id}
+    owner: interface/operator/mission_control_server.py
+    compatibility: additive_only
+  - name: activity_feed_chain
+    contract: append-only chained activity feed with guard enforcement
+    owner: core/activity_feed_guard.py
+    compatibility: invariant_preserving_only
+  - name: activity_feed_index_contract
+    contract: action/run_id index plus index_health report
+    owner: tools/ops/activity_feed_indexer.py
+    compatibility: backward_compatible_only
+  - name: runtime_validator_cli
+    contract: tools/ops/runtime_validator.py modes and report schema
+    owner: tools/ops/runtime_validator.py
+    compatibility: additive_only
+  - name: runtime_guardian_safe_actions
+    contract: none | report_only | freeze_and_alert
+    owner: tools/ops/runtime_guardian.py
+    compatibility: additive_only
+
+change_control:
+  requires_for_interface_change:
+    - ADR
+    - proof_backed_tests
+    - docs_update
+    - compatibility_note
+  forbidden_without_major_bump:
+    - removing_frozen_interface
+    - changing_identity_fields
+    - changing_artifact_refs_shape
+    - changing_qs_projection_meaning
+    - bypassing_runtime_execution_path
+
+compatibility_rules:
+  identity_fields_immutable:
+    - run_id
+    - job_type
+    - project_id
+  terminal_qs_status_values:
+    - completed
+    - failed
+    - rejected
+  guardian_safe_action_values:
+    - none
+    - report_only
+    - freeze_and_alert
+  interface_changes:
+    additive_fields_allowed: true
+    renames_allowed: false
+    semantic_redefinition_allowed: false
+
+proof_anchors:
+  validator_tests:
+    - core/verify/test_runtime_validator.py
+  guardian_tests:
+    - core/verify/test_runtime_guardian.py
+  feed_tests:
+    - core/verify/test_activity_feed_guard_evidence.py
+    - core/verify/test_activity_feed_index_evidence.py
+    - core/verify/test_pack10_index_sovereignty.py
+  mission_control_tests:
+    - core/verify/test_mission_control_feed_consumption.py
+    - core/verify/test_mission_control_summary_feed.py
+    - core/verify/test_qs_mission_control_projection.py

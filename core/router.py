@@ -9,6 +9,7 @@ from core.verify.gates_registry import GATES
 from core.enforcement import RuntimeEnforcer, PermissionDenied
 from core.phase1d_result_gate import ResultGateError, gate_outbound_result
 from core.outbox_writer import OutboxWriterError, write_result_to_outbox
+from core.qs_runtime_state import QSRuntimeStateError, record_ingress_state
 try:
     from jsonschema import ValidationError, validate as jsonschema_validate
 except ImportError:
@@ -24,6 +25,7 @@ def _resolve_repo_root() -> Path:
 
 REPO_ROOT = _resolve_repo_root()
 _ROUTER_AUDIT_SCHEMA_CACHE = None
+_QS_INGRESS_REQUIRED_INPUTS = ("kind", "bridge_kind", "run_id", "job_type", "project_id", "status", "payload")
 
 def load_policy():
     repo_root = _resolve_repo_root()
@@ -167,6 +169,9 @@ class Router:
     def execute(self, task_spec):
         schema_version = task_spec.get("schema_version")
         if schema_version == "clec.v1":
+            intent = str(task_spec.get("intent") or "").strip()
+            if intent == "qs.bridge_result.ingress":
+                return self._execute_qs_bridge_ingress(task_spec)
             from core.clec_executor import CLECExecutorError, execute_clec_ops
 
             ops = task_spec.get("ops", [])
@@ -183,6 +188,172 @@ class Router:
                 return {"status": "error", "reason": str(exc), "evidence": {}}
             return {"status": status, "evidence": evidence}
         return {"status": "unsupported_schema", "reason": "schema_not_routable"}
+
+    def _execute_qs_bridge_ingress(self, task_spec: dict) -> dict:
+        task_id = str(task_spec.get("task_id") or task_spec.get("id") or "unknown").strip()
+        inputs = task_spec.get("inputs") if isinstance(task_spec.get("inputs"), dict) else {}
+        missing = [field for field in _QS_INGRESS_REQUIRED_INPUTS if field not in inputs]
+        if missing:
+            return {
+                "status": "rejected",
+                "reason": f"qs_bridge_ingress_missing:{','.join(missing)}",
+                "evidence": {
+                    "logs": [f"qs_bridge_ingress_rejected:{task_id}:missing={','.join(missing)}"],
+                    "commands": [],
+                    "effects": [],
+                },
+                "outputs": {
+                    "json": {
+                        "ingress": {
+                            "accepted": False,
+                            "reason": "missing_required_inputs",
+                            "missing": missing,
+                        }
+                    },
+                    "artifacts": [],
+                },
+            }
+
+        bridge_kind = str(inputs.get("bridge_kind") or "").strip()
+        status = str(inputs.get("status") or "").strip()
+        run_id = str(inputs.get("run_id") or "").strip()
+        job_type = str(inputs.get("job_type") or "").strip()
+        project_id = str(inputs.get("project_id") or "").strip()
+
+        if bridge_kind != "0luka.bridge_result":
+            return {
+                "status": "rejected",
+                "reason": f"qs_bridge_ingress_invalid_bridge_kind:{bridge_kind or 'missing'}",
+                "evidence": {
+                    "logs": [f"qs_bridge_ingress_rejected:{task_id}:bridge_kind={bridge_kind or 'missing'}"],
+                    "commands": [],
+                    "effects": [],
+                },
+                "outputs": {
+                    "json": {
+                        "ingress": {
+                            "accepted": False,
+                            "reason": "invalid_bridge_kind",
+                            "run_id": run_id,
+                            "job_type": job_type,
+                            "project_id": project_id,
+                            "status": status,
+                        }
+                    },
+                    "artifacts": [],
+                },
+            }
+
+        if status not in {"completed", "failed", "rejected"}:
+            return {
+                "status": "rejected",
+                "reason": f"qs_bridge_ingress_invalid_status:{status or 'missing'}",
+                "evidence": {
+                    "logs": [f"qs_bridge_ingress_rejected:{task_id}:status={status or 'missing'}"],
+                    "commands": [],
+                    "effects": [],
+                },
+                "outputs": {
+                    "json": {
+                        "ingress": {
+                            "accepted": False,
+                            "reason": "invalid_status",
+                            "run_id": run_id,
+                            "job_type": job_type,
+                            "project_id": project_id,
+                            "status": status,
+                        }
+                    },
+                    "artifacts": [],
+                },
+            }
+
+        if task_id != run_id:
+            return {
+                "status": "rejected",
+                "reason": "qs_bridge_ingress_task_id_mismatch",
+                "evidence": {
+                    "logs": [f"qs_bridge_ingress_rejected:{task_id}:run_id_mismatch={run_id}"],
+                    "commands": [],
+                    "effects": [],
+                },
+                "outputs": {
+                    "json": {
+                        "ingress": {
+                            "accepted": False,
+                            "reason": "task_id_run_id_mismatch",
+                            "run_id": run_id,
+                            "job_type": job_type,
+                            "project_id": project_id,
+                            "status": status,
+                        }
+                    },
+                    "artifacts": [],
+                },
+            }
+
+        try:
+            runtime_entry = record_ingress_state(
+                run_id=run_id,
+                job_type=job_type,
+                project_id=project_id,
+                qs_status=status,
+                ingress_payload=inputs.get("payload"),
+            )
+        except QSRuntimeStateError as exc:
+            return {
+                "status": "rejected",
+                "reason": str(exc),
+                "evidence": {
+                    "logs": [f"qs_bridge_ingress_rejected:{task_id}:runtime_state={exc}"],
+                    "commands": [],
+                    "effects": [],
+                },
+                "outputs": {
+                    "json": {
+                        "ingress": {
+                            "accepted": False,
+                            "reason": "runtime_state_write_failed",
+                            "run_id": run_id,
+                            "job_type": job_type,
+                            "project_id": project_id,
+                            "status": status,
+                        }
+                    },
+                    "artifacts": [],
+                },
+            }
+
+        return {
+            "status": "ok",
+            "evidence": {
+                "logs": [f"qs_bridge_ingress_accepted:{run_id}:{status}"],
+                "commands": [],
+                "effects": [],
+            },
+            "outputs": {
+                "json": {
+                    "ingress": {
+                        "accepted": True,
+                        "run_id": run_id,
+                        "job_type": job_type,
+                        "project_id": project_id,
+                        "status": status,
+                        "bridge_kind": bridge_kind,
+                        "kind": str(inputs.get("kind") or ""),
+                        "runtime_state": runtime_entry.get("runtime_state"),
+                        "approval_state": runtime_entry.get("approval_state"),
+                        "execution_status": runtime_entry.get("execution_status"),
+                        "block_reason": runtime_entry.get("block_reason"),
+                        "requires_approval": runtime_entry.get("requires_approval"),
+                        "artifacts": runtime_entry.get("artifacts"),
+                        "job_execution_state": runtime_entry.get("job_execution_state"),
+                        "job_execution_error": runtime_entry.get("job_execution_error"),
+                    }
+                },
+                "artifacts": [],
+            },
+        }
 
     def propose(self, task_spec):
         # 1. Basic Validation

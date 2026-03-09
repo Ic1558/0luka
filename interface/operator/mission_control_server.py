@@ -12,10 +12,12 @@ from typing import Any
 
 try:
     from fastapi import FastAPI
+    from fastapi import Request
     from fastapi.responses import HTMLResponse, JSONResponse
     FASTAPI_AVAILABLE = True
 except ImportError:  # pragma: no cover
     from starlette.applications import Starlette as FastAPI
+    from starlette.requests import Request
     from starlette.responses import HTMLResponse, JSONResponse
     FASTAPI_AVAILABLE = False
 
@@ -69,6 +71,10 @@ def _approval_log_path() -> Path:
 
 def _remediation_history_log_path() -> Path:
     return _runtime_root() / "state" / "remediation_history.jsonl"
+
+
+def _qs_runs_dir() -> Path:
+    return _runtime_root() / "state" / "qs_runs"
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -216,6 +222,58 @@ def load_runtime_decisions(last: int = 100) -> dict[str, Any]:
     if last >= 0:
         rows = rows[-last:]
     return {"ok": True, "entries": rows}
+
+
+def _normalize_qs_run_projection(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "run_id": str(row.get("run_id") or ""),
+        "job_type": str(row.get("job_type") or ""),
+        "project_id": str(row.get("project_id") or ""),
+        "qs_status": str(row.get("qs_status") or ""),
+        "requires_approval": bool(row.get("requires_approval", False)),
+        "approval_state": row.get("approval_state"),
+        "runtime_state": row.get("runtime_state"),
+        "execution_status": row.get("execution_status"),
+        "block_reason": row.get("block_reason"),
+        "approved_by": row.get("approved_by"),
+        "approved_at": row.get("approved_at"),
+        "approval_reason": row.get("approval_reason"),
+        "artifacts": row.get("artifacts") if isinstance(row.get("artifacts"), list) else [],
+    }
+
+
+def load_qs_run(run_id: str) -> dict[str, Any]:
+    path = _qs_runs_dir() / f"{str(run_id or '').strip()}.json"
+    if not path.exists():
+        raise RuntimeError(f"qs_run_not_found:{run_id}")
+    payload = _read_json(path)
+    projection = _normalize_qs_run_projection(payload)
+    if not projection["run_id"]:
+        raise RuntimeError(f"qs_run_invalid:{run_id}")
+    return {"ok": True, "run": projection}
+
+
+def load_qs_runs_summary() -> dict[str, Any]:
+    items: list[dict[str, Any]] = []
+    for path in sorted(_qs_runs_dir().glob("*.json")):
+        try:
+            payload = _read_json(path)
+            projection = _normalize_qs_run_projection(payload)
+        except Exception:
+            continue
+        if not projection["run_id"]:
+            continue
+        items.append(projection)
+
+    summary = {
+        "total_runs": len(items),
+        "blocked_runs": sum(1 for item in items if str(item.get("execution_status") or "") == "blocked"),
+        "allowed_runs": sum(1 for item in items if str(item.get("execution_status") or "") == "allowed"),
+        "pending_approval_runs": sum(1 for item in items if str(item.get("approval_state") or "") == "pending_approval"),
+        "approved_runs": sum(1 for item in items if str(item.get("approval_state") or "") == "approved"),
+        "not_required_runs": sum(1 for item in items if str(item.get("approval_state") or "") == "not_required"),
+    }
+    return {"ok": True, "items": items, "summary": summary}
 
 
 def _build_remediation_timeline(report: dict[str, Any], *, last: int | None = None) -> list[dict[str, Any]]:
@@ -654,7 +712,7 @@ def render_mission_control(
     )
 
 
-async def health_endpoint(request) -> JSONResponse:
+async def health_endpoint(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True, "service": "mission_control", "port": SERVER_PORT})
 
 
@@ -737,6 +795,20 @@ async def runtime_decisions_endpoint(request) -> JSONResponse:
         except ValueError:
             last = 100
     return JSONResponse(load_runtime_decisions(last=last))
+
+
+async def qs_runs_endpoint(request: Request) -> JSONResponse:
+    return JSONResponse(load_qs_runs_summary())
+
+
+async def qs_run_endpoint(request: Request) -> JSONResponse:
+    run_id = str(request.path_params.get("run_id") or "").strip()
+    if not run_id:
+        return JSONResponse({"ok": False, "error": "missing_run_id"}, status_code=400)
+    try:
+        return JSONResponse(load_qs_run(run_id))
+    except RuntimeError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
 
 async def approval_presets_endpoint(request) -> JSONResponse:
     return JSONResponse(load_approval_presets())
@@ -886,6 +958,8 @@ def create_app():
         app.add_api_route("/api/policy_drift", policy_drift_endpoint, methods=["GET"])
         app.add_api_route("/api/approval_log", approval_log_endpoint, methods=["GET"])
         app.add_api_route("/api/runtime_decisions", runtime_decisions_endpoint, methods=["GET"])
+        app.add_api_route("/api/qs_runs", qs_runs_endpoint, methods=["GET"])
+        app.add_api_route("/api/qs_runs/{run_id}", qs_run_endpoint, methods=["GET"])
         app.add_api_route("/api/remediation_queue", remediation_queue_endpoint, methods=["GET"])
         app.add_api_route("/api/remediation_queue/enqueue", remediation_queue_enqueue_endpoint, methods=["POST"])
         app.add_api_route("/api/approval_presets/apply", approval_presets_apply_endpoint, methods=["POST"])
@@ -911,6 +985,8 @@ def create_app():
             Route("/api/policy_drift", policy_drift_endpoint),
             Route("/api/approval_log", approval_log_endpoint),
             Route("/api/runtime_decisions", runtime_decisions_endpoint),
+            Route("/api/qs_runs", qs_runs_endpoint),
+            Route("/api/qs_runs/{run_id}", qs_run_endpoint),
             Route("/api/remediation_queue", remediation_queue_endpoint),
             Route("/api/remediation_queue/enqueue", remediation_queue_enqueue_endpoint, methods=["POST"]),
             Route("/api/approval_presets/apply", approval_presets_apply_endpoint, methods=["POST"]),

@@ -578,6 +578,7 @@ def _check_phase_prerequisites(task_id: str, task: Dict[str, Any]) -> Dict[str, 
 
 def _build_result_bundle(task_id: str, envelope: Dict[str, Any], task: Dict[str, Any], exec_result: Dict[str, Any]) -> Dict[str, Any]:
     raw_evidence = exec_result.get("evidence", {}) if isinstance(exec_result.get("evidence", {}), dict) else {}
+    raw_outputs = exec_result.get("outputs", {}) if isinstance(exec_result.get("outputs", {}), dict) else {}
     logs = []
     for item in raw_evidence.get("logs", []) if isinstance(raw_evidence.get("logs", []), list) else []:
         if isinstance(item, str):
@@ -591,17 +592,19 @@ def _build_result_bundle(task_id: str, envelope: Dict[str, Any], task: Dict[str,
     for item in raw_evidence.get("effects", []) if isinstance(raw_evidence.get("effects", []), list) else []:
         effects.append(item if isinstance(item, str) else json.dumps(item, ensure_ascii=False, sort_keys=True))
     evidence = {"logs": logs, "commands": commands, "effects": effects}
+    outputs_json = raw_outputs.get("json") if isinstance(raw_outputs.get("json"), dict) else {}
+    artifacts = raw_outputs.get("artifacts") if isinstance(raw_outputs.get("artifacts"), list) else []
 
     return {
         "task_id": task_id,
         "trace_id": str(envelope.get("trace", {}).get("trace_id", task_id)),
         "status": exec_result.get("status", "error"),
         "summary": f"dispatched:{task_id}",
-        "outputs": {"json": {}, "artifacts": []},
+        "outputs": {"json": outputs_json, "artifacts": artifacts},
         "evidence": evidence,
         "resolved": task.get("resolved", {}),
         "gates": {"observed_fs_writes": [], "observed_processes": []},
-        "artifacts": {"outputs": [], "deleted": []},
+        "artifacts": {"outputs": artifacts, "deleted": []},
         "provenance": {
             "trace_id": str(envelope.get("trace", {}).get("trace_id", task_id)),
             "started_at": str(envelope.get("trace", {}).get("ts", _utc_now())),
@@ -954,6 +957,52 @@ def dispatch_one(file_path: Path, *, dry_run: bool = False) -> Dict[str, Any]:
                 ],
             )
             return result
+
+        if str(task.get("intent", "")).strip() == "qs.bridge_result.ingress" and exec_result.get("status") == "rejected":
+            _move_file(file_path, REJECTED)
+            result = {
+                "task_id": task_id,
+                "status": "rejected",
+                "reason": str(exec_result.get("reason", "qs_bridge_ingress_rejected")),
+                "exec_result": exec_result,
+            }
+            _log_event({**result, "ts": _utc_now(), "file": file_path.name})
+            _stats["total_dispatched"] += 1
+            _stats["total_rejected"] += 1
+            counted_dispatch = True
+            _write_dispatch_pointer(
+                task_id=task_id,
+                status="rejected",
+                author=str(task.get("author", "")),
+                intent=str(task.get("intent", "")),
+                trace_id=dispatch_trace_id,
+                source_moved_to=f"interface/rejected/{file_path.name}",
+            )
+            _emit_dispatch_end(
+                task_id=task_id,
+                trace_id=dispatch_trace_id,
+                status="rejected",
+                started=dispatch_started_at,
+            )
+            prov_row = complete_run_provenance(prov_row, result)
+            append_provenance(prov_row)
+            append_execution_event(
+                {
+                    "type": "execution.completed",
+                    "category": "execution",
+                    "task_id": task_id,
+                    "component": "dispatcher",
+                    "status": "rejected",
+                    "input_hash": prov_row.get("input_hash"),
+                    "output_hash": prov_row.get("output_hash"),
+                }
+            )
+            _emit_activity_event(
+                "failed",
+                task_id,
+                evidence=[{"kind": "log", "ref": "observability/logs/dispatcher.jsonl"}],
+            )
+            return result
         if dry_run:
             _stats["total_skipped"] += 1
             _emit_dispatch_end(
@@ -1109,7 +1158,7 @@ def dispatch_all(*, dry_run: bool = False) -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
     if not INBOX.exists():
         return results
-    for file_path in sorted(INBOX.glob("task_*.yaml")):
+    for file_path in sorted(INBOX.glob("*.yaml")):
         if file_path.is_file():
             results.append(dispatch_one(file_path, dry_run=dry_run))
     return results

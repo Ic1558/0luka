@@ -40,6 +40,7 @@ def to_core_task(task: dict[str, Any]) -> dict[str, Any]:
     schema_version = str(task.get("schema_version") or payload.get("schema_version") or "clec.v1")
     ops = task.get("ops") if isinstance(task.get("ops"), list) else payload.get("ops")
     verify = task.get("verify") if isinstance(task.get("verify"), list) else payload.get("verify")
+    inputs = task.get("inputs") if isinstance(task.get("inputs"), dict) else payload.get("inputs")
 
     mapped = {
         "author": author,
@@ -53,6 +54,8 @@ def to_core_task(task: dict[str, Any]) -> dict[str, Any]:
         "ops": ops if isinstance(ops, list) else [],
         "verify": verify if isinstance(verify, list) else [],
     }
+    if isinstance(inputs, dict):
+        mapped["inputs"] = inputs
     if task_id:
         mapped["task_id"] = task_id
     return mapped
@@ -104,4 +107,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
