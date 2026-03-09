@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from starlette.testclient import TestClient
@@ -49,6 +50,9 @@ def test_valid_approval_state_allows_approved_lane(monkeypatch, tmp_path) -> Non
             "redis_recovery": (False, "redis_unavailable"),
         },
     )
+
+    future_expiry = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
     _write_approval_state(
         tmp_path,
         {
@@ -56,7 +60,7 @@ def test_valid_approval_state_allows_approved_lane(monkeypatch, tmp_path) -> Non
                 "approved": True,
                 "approved_by": "operator",
                 "approved_at": "2026-03-08T08:00:00Z",
-                "expires_at": "2026-03-09T08:00:00Z",
+                "expires_at": future_expiry,
             }
         },
     )
