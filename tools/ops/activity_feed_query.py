@@ -19,6 +19,10 @@ ROOT = _REPO_ROOT
 INDEX_DIR = RUNTIME_ROOT / "logs/index"
 INDEX_HEALTH_PATH = INDEX_DIR / "index_health.json"
 INDEXER = Path(__file__).parent / "activity_feed_indexer.py"
+BY_OUTCOME_DIR = INDEX_DIR / "by_outcome"
+PROVENANCE_INDEX_DIR = INDEX_DIR / "provenance"
+
+PROVENANCE_PATH = ROOT / "observability" / "artifacts" / "run_provenance.jsonl"
 
 def load_index_lines(path: Path) -> List[Dict[str, Any]]:
     if not path.exists(): return []
@@ -135,6 +139,97 @@ def query(action=None, run_id=None, since_ms=None, until_ms=None, last_min=None,
         "indices_used": 1,
         "results": results
     }
+
+
+def _load_provenance_index() -> Dict[str, Dict[str, Any]]:
+    idx_path = PROVENANCE_INDEX_DIR / "by_trace_id.idx.jsonl"
+    mapping: Dict[str, Dict[str, Any]] = {}
+    for item in load_index_lines(idx_path):
+        trace = str(item.get("trace_id") or "").strip()
+        if trace:
+            mapping[trace] = item
+    return mapping
+
+
+def _read_json_line_at(path: Path, off: int, length: int) -> Dict[str, Any] | None:
+    try:
+        with open(path, "rb") as f:
+            f.seek(off)
+            line = f.read(length)
+        ev = json.loads(line.decode("utf-8"))
+        return ev if isinstance(ev, dict) else None
+    except Exception:
+        return None
+
+
+def query_decision_history(n: int = 10, status: str | None = None) -> List[Dict[str, Any]]:
+    """
+    Returns recent decision/execution history records joined with run_provenance by trace_id when possible.
+    This is a bounded read-only query over existing authoritative surfaces.
+    """
+    status_value = str(status).strip().lower() if status is not None else None
+    if status_value == "":
+        status_value = None
+
+    candidates: List[Dict[str, Any]] = []
+    if status_value:
+        idx_path = BY_OUTCOME_DIR / f"{status_value}.jsonl"
+        candidates = load_index_lines(idx_path)
+    else:
+        for idx_path in sorted(BY_OUTCOME_DIR.glob("*.jsonl")):
+            candidates.extend(load_index_lines(idx_path))
+
+    if not candidates:
+        return []
+
+    candidates.sort(key=lambda x: int(x.get("ms") or 0))
+    picked = candidates[-int(n) :] if len(candidates) > int(n) else candidates
+
+    prov_index = _load_provenance_index()
+    results: List[Dict[str, Any]] = []
+
+    for c in picked:
+        file_rel = c.get("file")
+        if not isinstance(file_rel, str) or not file_rel:
+            continue
+        f_path = ROOT / file_rel
+        try:
+            if not f_path.exists() or int(c.get("off") or 0) + int(c.get("len") or 0) > f_path.stat().st_size:
+                continue
+        except OSError:
+            continue
+
+        ev = _read_json_line_at(f_path, int(c.get("off") or 0), int(c.get("len") or 0))
+        if not ev:
+            continue
+
+        ev_status = ev.get("status")
+        if status_value and str(ev_status or "").strip().lower() != status_value:
+            # If index file is stale or event changed shape, fail-closed by skipping mismatch.
+            continue
+
+        record: Dict[str, Any] = {}
+        for key in ("trace_id", "status", "ts_utc", "ts", "run_id", "task_id", "job_type", "project_id"):
+            val = ev.get(key)
+            if val is not None and str(val).strip() != "":
+                record[key] = val
+
+        trace = str(ev.get("trace_id") or "").strip()
+        if trace and trace in prov_index:
+            prov_ptr = prov_index[trace]
+            prov_path = Path(str(prov_ptr.get("file") or PROVENANCE_PATH))
+            prov = _read_json_line_at(prov_path, int(prov_ptr.get("off") or 0), int(prov_ptr.get("len") or 0))
+            if isinstance(prov, dict):
+                for key in ("run_id", "task_id", "job_type", "project_id"):
+                    val = prov.get(key)
+                    if val is not None and str(val).strip() != "" and key not in record:
+                        record[key] = val
+                if "trace_id" not in record and prov.get("trace_id"):
+                    record["trace_id"] = prov.get("trace_id")
+
+        results.append(record)
+
+    return results
 
 def main():
     parser = argparse.ArgumentParser(description="0luka Activity Feed Query (O(log n))")

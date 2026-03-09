@@ -24,7 +24,12 @@ INDEX_DIR = RUNTIME_ROOT / "logs/index"
 BY_ACTION_DIR = INDEX_DIR / "by_action"
 BY_RUN_DIR = INDEX_DIR / "by_run"
 TS_RANGES_DIR = INDEX_DIR / "ts_ranges"
+BY_OUTCOME_DIR = INDEX_DIR / "by_outcome"
+PROVENANCE_INDEX_DIR = INDEX_DIR / "provenance"
 INDEX_HEALTH_PATH = INDEX_DIR / "index_health.json"
+PROVENANCE_PATH = ROOT / "observability" / "artifacts" / "run_provenance.jsonl"
+
+_OUTCOME_ALLOWLIST = {"committed", "failed", "rejected"}
 
 def get_ms(ev: Dict[str, Any]) -> int:
     ms = ev.get("ts_epoch_ms")
@@ -38,11 +43,59 @@ def get_ms(ev: Dict[str, Any]) -> int:
         except: pass
     return 0
 
-def build_index(feed_path: Path):
+def _safe_json_loads(line_bytes: bytes) -> Dict[str, Any] | None:
+    try:
+        ev = json.loads(line_bytes.decode("utf-8"))
+    except Exception:
+        return None
+    return ev if isinstance(ev, dict) else None
+
+
+def _detect_outcome(ev: Dict[str, Any]) -> str | None:
+    raw = ev.get("status")
+    if raw is None:
+        raw = ev.get("outcome")
+    if raw is None:
+        return None
+    value = str(raw).strip().lower()
+    return value if value in _OUTCOME_ALLOWLIST else None
+
+
+def _build_provenance_index(provenance_path: Path) -> None:
+    if PROVENANCE_INDEX_DIR.exists():
+        shutil.rmtree(PROVENANCE_INDEX_DIR)
+    PROVENANCE_INDEX_DIR.mkdir(parents=True, exist_ok=True)
+
+    idx_path = PROVENANCE_INDEX_DIR / "by_trace_id.idx.jsonl"
+    if not provenance_path.exists():
+        return
+    with open(provenance_path, "rb") as f:
+        offset = 0
+        while True:
+            line = f.readline()
+            if not line:
+                break
+            length = len(line)
+            ev = _safe_json_loads(line)
+            if not ev:
+                offset += length
+                continue
+            trace_id = ev.get("trace_id")
+            trace = str(trace_id).strip() if trace_id is not None else ""
+            if trace:
+                idx_line = {"trace_id": trace, "file": str(provenance_path), "off": offset, "len": length}
+                with open(idx_path, "a", encoding="utf-8") as out:
+                    out.write(json.dumps(idx_line) + "\n")
+            offset += length
+
+
+def build_index(feed_path: Path, *, provenance_path: Path | None = None):
     # Setup dirs
-    for d in [BY_ACTION_DIR, BY_RUN_DIR, TS_RANGES_DIR]:
+    for d in [BY_ACTION_DIR, BY_RUN_DIR, TS_RANGES_DIR, BY_OUTCOME_DIR]:
         if d.exists(): shutil.rmtree(d)
         d.mkdir(parents=True, exist_ok=True)
+
+    _build_provenance_index(provenance_path or PROVENANCE_PATH)
 
     last_ms = 0
     anomalies_flagged = False
@@ -89,15 +142,15 @@ def build_index(feed_path: Path):
                 
                 length = len(line_bytes)
                 line_no += 1
-                try:
-                    ev = json.loads(line_bytes.decode('utf-8'))
-                except:
+                ev = _safe_json_loads(line_bytes)
+                if not ev:
                     offset += length
                     continue
                 
                 curr_ms = get_ms(ev)
                 action = ev.get("action")
                 run_id = ev.get("run_id")
+                outcome = _detect_outcome(ev)
                 
                 if curr_ms and last_ms and curr_ms < last_ms:
                     if not anomalies_flagged:
@@ -122,6 +175,13 @@ def build_index(feed_path: Path):
                     idx_line = {"ms": curr_ms, "file": rel_path, "off": offset, "len": length}
                     with open(BY_RUN_DIR / f"{run_id}.idx.jsonl", "a") as rf:
                         rf.write(json.dumps(idx_line) + "\n")
+                    if rel_path == current_feed_rel:
+                        max_indexed_offset = max(max_indexed_offset, offset + length)
+
+                if outcome:
+                    idx_line = {"ms": curr_ms, "file": rel_path, "off": offset, "len": length}
+                    with open(BY_OUTCOME_DIR / f"{outcome}.jsonl", "a", encoding="utf-8") as of:
+                        of.write(json.dumps(idx_line) + "\n")
                     if rel_path == current_feed_rel:
                         max_indexed_offset = max(max_indexed_offset, offset + length)
                 
