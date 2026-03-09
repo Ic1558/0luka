@@ -10,7 +10,9 @@ Usage:
 from __future__ import annotations
 
 import json
+import hashlib
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -73,6 +75,8 @@ TEST_SUITES = [
     "test_pack10_index_sovereignty.py",
 ]
 
+ENV_CONFIG_PATH = ROOT / "core" / "contracts" / "v1" / "0luka_schemas.json"
+
 
 def _utc_now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -93,6 +97,88 @@ def _write_json_atomic(path: Path, payload: Dict[str, Any]) -> None:
     tmp = path.parent / f".{path.name}.tmp"
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     os.replace(tmp, path)
+
+def _run_cmd(args: List[str], *, cwd: Path, timeout: float) -> tuple[bool, str]:
+    try:
+        proc = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=str(cwd),
+        )
+        if proc.returncode != 0:
+            return False, ""
+        return True, (proc.stdout or "").strip()
+    except Exception:
+        return False, ""
+
+
+def _probe_env() -> Dict[str, Any]:
+    # Git probe (fail-closed)
+    ok_branch, branch = _run_cmd(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=ROOT, timeout=2)
+    ok_head, head_sha = _run_cmd(["git", "rev-parse", "HEAD"], cwd=ROOT, timeout=2)
+    ok_porcelain, porcelain = _run_cmd(["git", "status", "--porcelain"], cwd=ROOT, timeout=2)
+    if not (ok_branch and ok_head and ok_porcelain):
+        git_env = {
+            "branch": "unknown",
+            "head_sha": "unknown",
+            "dirty": True,
+            "uncommitted_count": -1,
+        }
+    else:
+        lines = [line for line in porcelain.splitlines() if line.strip()]
+        git_env = {
+            "branch": branch or "unknown",
+            "head_sha": head_sha or "unknown",
+            "dirty": len(lines) > 0,
+            "uncommitted_count": len(lines),
+        }
+
+    # launchd probe (fail-closed)
+    services = {
+        "com.0luka.heartbeat": "inactive",
+        "com.0luka.librarian_apply": "inactive",
+        "com.0luka.inbox_bridge": "inactive",
+    }
+    ok_launchctl, launchctl_out = _run_cmd(["launchctl", "list"], cwd=ROOT, timeout=2)
+    if ok_launchctl and launchctl_out:
+        for name in list(services.keys()):
+            if name in launchctl_out:
+                services[name] = "active"
+
+    # service probe (Mission Control) (fail-closed)
+    alive = False
+    try:
+        with socket.create_connection(("127.0.0.1", 7010), timeout=0.5):
+            alive = True
+    except Exception:
+        alive = False
+
+    # config hash (fail-closed)
+    if not ENV_CONFIG_PATH.exists():
+        config_hash = "missing"
+    else:
+        try:
+            config_hash = hashlib.sha256(ENV_CONFIG_PATH.read_bytes()).hexdigest()
+        except Exception:
+            config_hash = "missing"
+
+    return {
+        "git": git_env,
+        "launchd": {
+            "heartbeat": services["com.0luka.heartbeat"],
+            "librarian_apply": services["com.0luka.librarian_apply"],
+            "inbox_bridge": services["com.0luka.inbox_bridge"],
+        },
+        "services": {
+            "mission_control": {
+                "port": 7010,
+                "alive": bool(alive),
+            }
+        },
+        "config_hash": config_hash,
+    }
 
 
 def _count_files(directory: Path, pattern: str = "*") -> int:
@@ -207,6 +293,7 @@ def _run_tests() -> Dict[str, Any]:
 
 def check_health(*, run_tests: bool = False) -> Dict[str, Any]:
     """Run full health check. Returns health report dict."""
+    env = _probe_env()
     dispatcher = _check_dispatcher()
     last_dispatch = _check_last_dispatch()
     schemas = _get_schemas()
@@ -256,6 +343,7 @@ def check_health(*, run_tests: bool = False) -> Dict[str, Any]:
         "ts": ts_val,
         "producer": "core/health.py",
         "head_sha": head_sha,
+        "env": env,
         "status": status,
         "tests_failed": tests_failed,
         "failed_suites": failed_suites,
@@ -329,9 +417,36 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description="0luka System Health Check")
     parser.add_argument("--full", action="store_true", help="Run all test suites")
+    parser.add_argument("--env", action="store_true", help="Probe environment only (no test suites)")
     parser.add_argument("--json", action="store_true", help="JSON output")
     parser.add_argument("--cache", action="store_true", help="Write health report cache artifact")
     args = parser.parse_args()
+
+    if args.env:
+        env = _probe_env()
+        payload = _read_json(CACHE_PATH) or {
+            "schema_version": "health_v1",
+            "ts_utc": _utc_now(),
+            "ts": _utc_now(),
+            "producer": "core/health.py",
+            "head_sha": None,
+            "status": "unknown",
+            "tests_failed": None,
+            "failed_suites": [],
+            "issues": [],
+            "dispatcher": {"status": "unknown", "pid": None},
+            "last_dispatch": None,
+            "queues": {},
+            "schemas": {"count": 0, "names": []},
+            "tests": {"ran": False, "suites": len(TEST_SUITES), "passed": None, "failed": None, "details": None},
+        }
+        payload["env"] = env
+        _write_json_atomic(CACHE_PATH, payload)
+        if args.json:
+            print(json.dumps({"env": env}, indent=2, ensure_ascii=False))
+        else:
+            print(json.dumps({"env": env}, indent=2, ensure_ascii=False))
+        return 0
 
     report = check_health(run_tests=args.full)
     if args.cache or args.full:
