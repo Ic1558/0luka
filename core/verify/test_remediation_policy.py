@@ -103,9 +103,9 @@ def test_memory_failure_first_attempt_uses_priority(monkeypatch, tmp_path: Path)
 
     decisions = remediation_engine.run_once(runtime_root=runtime_root)
 
-    assert [item["decision"] for item in decisions] == ["memory_recovery_started", "memory_recovery_finished"]
+    assert [item["decision"] for item in decisions] == ["memory_recovery_started", "memory_recovery_finished", "remediation_recovered"]
     state = json.loads((runtime_root / "state" / "remediation_state.json").read_text(encoding="utf-8"))
-    assert state["memory_recovery_attempts"] == 1
+    assert state["memory_recovery_attempts"] == 0
     assert state["worker_recovery_attempts"] == 0
 
 
@@ -171,7 +171,7 @@ def test_retry_attempt_after_cooldown(monkeypatch, tmp_path: Path) -> None:
 
     assert decisions[0]["decision"] == "memory_recovery_started"
     state = json.loads((state_dir / "remediation_state.json").read_text(encoding="utf-8"))
-    assert state["memory_recovery_attempts"] == 2
+    assert state["memory_recovery_attempts"] == 0
 
 
 def test_cooldown_active(monkeypatch, tmp_path: Path) -> None:

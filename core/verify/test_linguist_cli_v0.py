@@ -9,6 +9,13 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _ensure_activity_feed(root: Path) -> None:
+    feed = root / "observability" / "logs" / "activity_feed.jsonl"
+    feed.parent.mkdir(parents=True, exist_ok=True)
+    if not feed.exists():
+        feed.write_text('{"ts":"2026-03-08T00:00:00Z","action":"seed"}\n', encoding="utf-8")
+
+
 def _run_cli(input_text: str, *, root: Path, runner_mode: str = "ok") -> subprocess.CompletedProcess:
     env = os.environ.copy()
     env["ROOT"] = str(root)
@@ -18,6 +25,7 @@ def _run_cli(input_text: str, *, root: Path, runner_mode: str = "ok") -> subproc
 
 
 def test_cli_happy_path_vector_001() -> None:
+    _ensure_activity_feed(REPO_ROOT)
     cp = _run_cli("Create file notes/today.txt with text 'hello team'", root=REPO_ROOT)
     assert cp.returncode == 0, cp.stderr or cp.stdout
     obj = json.loads(cp.stdout)
@@ -28,6 +36,7 @@ def test_cli_happy_path_vector_001() -> None:
 
 
 def test_cli_fail_closed_delete_all() -> None:
+    _ensure_activity_feed(REPO_ROOT)
     cp = _run_cli("ลบไฟล์ทั้งหมดในโปรเจกต์", root=REPO_ROOT)
     assert cp.returncode == 2, cp.stderr or cp.stdout
     obj = json.loads(cp.stdout)
