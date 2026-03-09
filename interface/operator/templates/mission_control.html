@@ -267,12 +267,24 @@
         </ul>
       </section>
       <section class="card">
+        <h2>Remediation History (Audit)</h2>
+        <ul id="remediation-audit-panel">
+          ${remediation_audit_items}
+        </ul>
+      </section>
+      <section class="card">
         <h2>Approval History</h2>
         <div id="approval-history-last-event" class="stack">
           ${approval_history_last_event}
         </div>
         <ul id="approval-history-timeline">
           ${approval_history_timeline}
+        </ul>
+      </section>
+      <section class="card">
+        <h2>Approval Timeline</h2>
+        <ul id="approval-log-panel">
+          ${approval_log_items}
         </ul>
       </section>
       <section class="card">
@@ -305,6 +317,12 @@
           <button type="button" onclick="enqueueRemediationItem()">Enqueue</button>
         </div>
         <p id="remediation-queue-status" class="approval-status">No queue actions submitted</p>
+      </section>
+      <section class="card">
+        <h2>Runtime Decisions</h2>
+        <ul id="runtime-decisions-panel">
+          ${runtime_decision_items}
+        </ul>
       </section>
       <section class="card">
         <h2>Autonomy / Approval</h2>
@@ -404,6 +422,33 @@
       }
     }
 
+    function renderAuditList(panelId, payload, mapper) {
+      const panel = document.getElementById(panelId);
+      if (!panel) return;
+      const rows = payload && Array.isArray(payload.entries) ? payload.entries.slice(-10).reverse() : [];
+      if (rows.length === 0) {
+        panel.innerHTML = '<li>No entries available</li>';
+        return;
+      }
+      panel.innerHTML = rows.map(mapper).join('');
+    }
+
+    async function refreshRemediationAudit() {
+      try {
+        const response = await fetch('/api/remediation_history?last=20');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderAuditList('remediation-audit-panel', payload, (entry) => {
+          return '<li><span class=\"ts\">' + String(entry.timestamp || 'n/a') + '</span> ' +
+            '<span class=\"action\">' + String(entry.action || entry.decision || 'unknown') + '</span> ' +
+            '<span class=\"lane\">(' + String(entry.lane || 'n/a') + ')</span> ' +
+            '<span class=\"result\">result=' + String(entry.result || 'n/a') + '</span></li>';
+        });
+      } catch (error) {
+        // Keep existing render on failures.
+      }
+    }
+
     function renderApprovalHistory(payload) {
       const lastEvent = document.getElementById("approval-history-last-event");
       const timeline = document.getElementById("approval-history-timeline");
@@ -439,6 +484,38 @@
         renderApprovalHistory(payload);
       } catch (error) {
         // Leave the last rendered approval history intact on refresh failures.
+      }
+    }
+
+    async function refreshApprovalLog() {
+      try {
+        const response = await fetch('/api/approval_log?last=20');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderAuditList('approval-log-panel', payload, (entry) => {
+          return '<li><span class=\"ts\">' + String(entry.timestamp || 'n/a') + '</span> ' +
+            '<span class=\"action\">' + String(entry.action || 'unknown') + '</span> ' +
+            '<span class=\"lane\">(' + String(entry.lane || 'n/a') + ')</span> ' +
+            '<span class=\"actor\">by ' + String(entry.actor || 'n/a') + '</span></li>';
+        });
+      } catch (error) {
+        // Keep existing render on failures.
+      }
+    }
+
+    async function refreshRuntimeDecisions() {
+      try {
+        const response = await fetch('/api/runtime_decisions?last=20');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderAuditList('runtime-decisions-panel', payload, (entry) => {
+          return '<li><span class=\"ts\">' + String(entry.timestamp || 'n/a') + '</span> ' +
+            '<span class=\"action\">' + String(entry.decision || 'unknown') + '</span> ' +
+            '<span class=\"lane\">(' + String(entry.lane || 'n/a') + ')</span> ' +
+            '<span class=\"result\">result=' + String(entry.result || 'n/a') + '</span></li>';
+        });
+      } catch (error) {
+        // Keep existing render on failures.
       }
     }
 
@@ -720,7 +797,10 @@
 
     setInterval(refreshAlerts, 5000);
     setInterval(refreshRemediation, 5000);
+    setInterval(refreshRemediationAudit, 5000);
     setInterval(refreshApprovalHistory, 5000);
+    setInterval(refreshApprovalLog, 5000);
+    setInterval(refreshRuntimeDecisions, 5000);
     setInterval(refreshApprovalPresets, 5000);
     setInterval(refreshApprovalExpiry, 5000);
     setInterval(refreshPolicyDrift, 5000);
