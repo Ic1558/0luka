@@ -907,6 +907,196 @@ async def approval_presets_reset_endpoint(request) -> JSONResponse:
         return JSONResponse({"ok": False, "errors": [str(exc)]}, status_code=400)
 
 
+def load_kernel_status() -> dict[str, Any]:
+    try:
+        runtime_status = load_runtime_status()
+    except Exception:
+        runtime_status = {}
+    # Safely extract health metrics
+    health = runtime_status.get("system_health", {})
+    suite_status = "ok" if health.get("status") == "OK" else "warning"
+
+    # Check for core artifacts
+    runtime_root = _runtime_root()
+    epoch_manifest = runtime_root / "logs" / "epoch_manifest.jsonl"
+    rotation_registry = runtime_root / "logs" / "rotation_registry.jsonl"
+
+    # Get counts for verification and guardian actions
+    verifications = load_verification_history(limit=100)
+    guardians = load_guardian_history(limit=100)
+
+    return {
+        "status": "ok" if suite_status == "ok" else "warning",
+        "health": {
+            "env_present": bool(os.environ.get("LUKA_RUNTIME_ROOT")),
+            "suite_status": suite_status
+        },
+        "verification": {
+            "recent_verification_count": len(verifications),
+            "guardian_action_count": len(guardians)
+        },
+        "artifacts": {
+            "epoch_manifest_present": epoch_manifest.exists(),
+            "rotation_registry_present": rotation_registry.exists()
+        }
+    }
+
+
+def load_verification_history(limit: int = 50) -> list[dict[str, Any]]:
+    runtime_root = _runtime_root()
+    tasks_dir = runtime_root / "artifacts" / "tasks"
+    if not tasks_dir.exists():
+        return []
+
+    items: list[dict[str, Any]] = []
+    # Use glob to find all verification.json files
+    paths = sorted(tasks_dir.glob("*/verification.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+    for path in paths[:limit]:
+        try:
+            data = _read_json(path)
+            items.append({
+                "trace_id": data.get("trace_id"),
+                "verdict": data.get("verdict"),
+                "ts": data.get("timestamp") or data.get("ts_utc")
+            })
+        except Exception:
+            continue
+    return items
+
+
+def load_guardian_history(limit: int = 50) -> list[dict[str, Any]]:
+    try:
+        from tools.ops import activity_feed_query
+        # action="guardian_recovery" matches _activity_event in runtime_guardian.py
+        query_res = activity_feed_query.query(action="guardian_recovery", limit=limit)
+        if not query_res.get("ok"):
+            return []
+
+        results = query_res.get("results", [])
+        items: list[dict[str, Any]] = []
+        for row in results:
+            items.append({
+                "ts": row.get("ts_utc") or row.get("ts"),
+                "action": row.get("guardian_action") or row.get("action"),
+                "reason": row.get("reason"),
+                "trace_id": row.get("task_id") or row.get("trace_id"),
+                "run_id": row.get("run_id"),
+                "severity": row.get("severity")
+            })
+        return items
+    except Exception:
+        return []
+
+
+async def kernel_status_endpoint(request: Request) -> JSONResponse:
+    return JSONResponse(load_kernel_status())
+
+
+async def kernel_verification_history_endpoint(request: Request) -> JSONResponse:
+    return JSONResponse({"items": load_verification_history()})
+
+
+async def kernel_guardian_history_endpoint(request: Request) -> JSONResponse:
+    return JSONResponse({"items": load_guardian_history()})
+
+
+def load_operator_runtime_decisions(limit: int = 50) -> list[dict[str, Any]]:
+    # Extract decision-related events from activity feed
+    entries = load_activity_entries(limit=limit * 10)
+    decisions = []
+    for row in reversed(entries):
+        # Heuristic: events with 'decision' or specific action types
+        if "decision" in row or row.get("action") in ("remediation_triggered", "escalation_shift", "guardian_recovery"):
+            decisions.append({
+                "timestamp": row.get("ts_utc") or row.get("ts"),
+                "lane": row.get("lane"),
+                "action": row.get("action"),
+                "decision": row.get("decision"),
+                "result": row.get("result") or row.get("guardian_action")
+            })
+        if len(decisions) >= limit:
+            break
+    return decisions
+
+
+async def operator_approval_state_endpoint(request: Request) -> JSONResponse:
+    payload = load_autonomy_policy()
+    return JSONResponse({
+        "lanes": payload.get("lanes", {}),
+        "approval_state": payload.get("approval_state", {})
+    })
+
+
+async def operator_remediation_queue_endpoint(request: Request) -> JSONResponse:
+    return JSONResponse(load_remediation_queue())
+
+
+async def operator_runtime_decisions_endpoint(request: Request) -> JSONResponse:
+    return JSONResponse({"entries": load_operator_runtime_decisions()})
+
+
+async def operator_policy_drift_endpoint(request: Request) -> JSONResponse:
+    return JSONResponse(load_policy_drift())
+
+
+async def operator_qs_overview_endpoint(request: Request) -> JSONResponse:
+    summary_data = load_qs_runs_summary()
+    items = summary_data.get("items", [])
+    # Return top 20 recent items
+    recent = items[:20] 
+    return JSONResponse({
+        "summary": summary_data.get("summary", {}),
+        "recent_items": [
+            {
+                "run_id": item.get("run_id"),
+                "job_type": item.get("job_type"),
+                "qs_status": item.get("qs_status"),
+                "execution_status": item.get("execution_status")
+            } for item in recent
+        ]
+    })
+
+
+def load_dashboard_state() -> dict[str, Any]:
+    # Aggregator for all panel data
+    try:
+        qs_summary = load_qs_runs_summary()
+    except Exception:
+        qs_summary = {"summary": {}, "items": []}
+
+    try:
+        rem_queue = load_remediation_queue()
+    except Exception:
+        rem_queue = {"items": []}
+
+    try:
+        policy = load_autonomy_policy()
+    except Exception:
+        policy = {"lanes": {}, "approval_state": {}}
+
+    return {
+        "kernel": load_kernel_status(),
+        "verification": load_verification_history(limit=50),
+        "guardian": load_guardian_history(limit=50),
+        "runtime_decisions": load_operator_runtime_decisions(limit=50),
+        "remediation_queue": rem_queue.get("items", []),
+        "approval_state": {
+            "lanes": policy.get("lanes", {}),
+            "approval_state": policy.get("approval_state", {})
+        },
+        "policy_drift": load_policy_drift(),
+        "qs_overview": {
+            "summary": qs_summary.get("summary", {}),
+            "recent_items": qs_summary.get("items", [])[:20]
+        }
+    }
+
+
+async def operator_dashboard_endpoint(request: Request) -> JSONResponse:
+    return JSONResponse(load_dashboard_state())
+
+
 async def root_endpoint(request) -> HTMLResponse:
     operator_status = load_operator_status()
     runtime_status = load_runtime_status()
@@ -967,6 +1157,15 @@ def create_app():
         app.add_api_route("/api/approval/approve", approval_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/approval/revoke", approval_revoke_endpoint, methods=["POST"])
         app.add_api_route("/api/approval/expiry", approval_expiry_endpoint, methods=["POST"])
+        app.add_api_route("/api/kernel/status", kernel_status_endpoint, methods=["GET"])
+        app.add_api_route("/api/kernel/verification_history", kernel_verification_history_endpoint, methods=["GET"])
+        app.add_api_route("/api/kernel/guardian_history", kernel_guardian_history_endpoint, methods=["GET"])
+        app.add_api_route("/api/operator/approval_state", operator_approval_state_endpoint, methods=["GET"])
+        app.add_api_route("/api/operator/remediation_queue", operator_remediation_queue_endpoint, methods=["GET"])
+        app.add_api_route("/api/operator/runtime_decisions", operator_runtime_decisions_endpoint, methods=["GET"])
+        app.add_api_route("/api/operator/policy_drift", operator_policy_drift_endpoint, methods=["GET"])
+        app.add_api_route("/api/operator/qs_overview", operator_qs_overview_endpoint, methods=["GET"])
+        app.add_api_route("/api/operator/dashboard", operator_dashboard_endpoint, methods=["GET"])
         app.add_api_route("/", root_endpoint, methods=["GET"], response_class=HTMLResponse)
         return app
 
@@ -994,6 +1193,15 @@ def create_app():
             Route("/api/approval/approve", approval_approve_endpoint, methods=["POST"]),
             Route("/api/approval/revoke", approval_revoke_endpoint, methods=["POST"]),
             Route("/api/approval/expiry", approval_expiry_endpoint, methods=["POST"]),
+            Route("/api/kernel/status", kernel_status_endpoint),
+            Route("/api/kernel/verification_history", kernel_verification_history_endpoint),
+            Route("/api/kernel/guardian_history", kernel_guardian_history_endpoint),
+            Route("/api/operator/approval_state", operator_approval_state_endpoint),
+            Route("/api/operator/remediation_queue", operator_remediation_queue_endpoint),
+            Route("/api/operator/runtime_decisions", operator_runtime_decisions_endpoint),
+            Route("/api/operator/policy_drift", operator_policy_drift_endpoint),
+            Route("/api/operator/qs_overview", operator_qs_overview_endpoint),
+            Route("/api/operator/dashboard", operator_dashboard_endpoint),
             Route("/", root_endpoint),
         ]
     )
