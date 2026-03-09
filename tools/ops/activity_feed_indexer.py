@@ -16,6 +16,8 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 from core.config import RUNTIME_ROOT  # single source — fail-closed enforced in core.config
 
+ROOT = _REPO_ROOT
+
 DEFAULT_FEED_PATH = RUNTIME_ROOT / "logs/activity_feed.jsonl"
 ARCHIVE_DIR = RUNTIME_ROOT / "logs/archive"
 INDEX_DIR = RUNTIME_ROOT / "logs/index"
