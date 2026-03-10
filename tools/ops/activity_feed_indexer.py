@@ -56,6 +56,33 @@ def get_ms(ev: Dict[str, Any]) -> int:
         except: pass
     return 0
 
+
+def _min_event_timestamp(feed_file: Path) -> tuple[int, str]:
+    """Return a deterministic archive ordering key.
+
+    Files with at least one parseable event timestamp sort by their earliest
+    event timestamp. Empty or unparseable files sort after timestamped files and
+    then by filename for stability.
+    """
+    min_ms: int | None = None
+    try:
+        with open(feed_file, "rb") as f:
+            for line_bytes in f:
+                try:
+                    ev = json.loads(line_bytes.decode("utf-8"))
+                except Exception:
+                    continue
+                curr_ms = get_ms(ev)
+                if curr_ms:
+                    min_ms = curr_ms if min_ms is None else min(min_ms, curr_ms)
+    except Exception:
+        pass
+
+    if min_ms is not None:
+        return (0, min_ms, feed_file.name)
+    return (1, 0, feed_file.name)
+
+
 def build_index(feed_path: Path):
     archive_dir, by_action_dir, by_run_dir, ts_ranges_dir, index_health_path = _resolved_paths(feed_path)
 
@@ -69,7 +96,10 @@ def build_index(feed_path: Path):
     current_feed_rel = str(feed_path.relative_to(_REPO_ROOT)) if feed_path.is_relative_to(_REPO_ROOT) else str(feed_path)
     max_indexed_offset = 0
     
-    archive_files = sorted(list(archive_dir.glob("activity_feed.*.jsonl")))
+    archive_files = sorted(
+        archive_dir.glob("activity_feed.*.jsonl"),
+        key=_min_event_timestamp,
+    )
     archive_files = [f for f in archive_files if not f.name.endswith(".index.jsonl")]
     all_files = archive_files + [feed_path]
     
