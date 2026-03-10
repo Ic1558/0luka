@@ -75,6 +75,20 @@ def _qs_runs_dir() -> Path:
     return _runtime_root() / "state" / "qs_runs"
 
 
+def _resolve_qs_run_path(run_id: str) -> Path:
+    raw = run_id.strip()
+    if not raw or raw in {".", ".."} or "/" in raw or "\\" in raw:
+        raise ValueError("unsafe_run_id")
+
+    base_dir = _qs_runs_dir().resolve()
+    candidate = (_qs_runs_dir() / f"{raw}.json").resolve()
+    try:
+        candidate.relative_to(base_dir)
+    except ValueError as exc:
+        raise ValueError("unsafe_run_id") from exc
+    return candidate
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
@@ -238,6 +252,35 @@ def load_proof_artifact_detail(artifact_id: str, *, entry_limit: int = 200) -> d
     }
 
 
+def _proof_artifacts_for_run(run_id: str) -> list[str]:
+    run_name = run_id.strip()
+    if not run_name:
+        return []
+
+    artifact_ids: list[str] = []
+    for artifact_type in ("proof_pack", "ledger_proof_export"):
+        artifact_id = f"{artifact_type}:{run_name}"
+        try:
+            _, artifact_path = _resolve_proof_artifact_path(artifact_id)
+        except ValueError:
+            continue
+        if artifact_path.exists() and artifact_path.is_dir():
+            artifact_ids.append(artifact_id)
+    return artifact_ids
+
+
+def _attach_qs_run_artifacts(payload: dict[str, Any]) -> dict[str, Any]:
+    run_id = payload.get("run_id")
+    if not isinstance(run_id, str):
+        result = dict(payload)
+        result["proof_artifacts"] = []
+        return result
+
+    result = dict(payload)
+    result["proof_artifacts"] = _proof_artifacts_for_run(run_id)
+    return result
+
+
 def load_alerts(limit: int = 100) -> list[dict[str, Any]]:
     path = _alerts_path()
     if not path.exists():
@@ -337,7 +380,7 @@ def load_qs_runs(limit: int = 100) -> dict[str, Any]:
         try:
             payload = json.loads(f.read_text(encoding="utf-8"))
             if isinstance(payload, dict):
-                runs.append(payload)
+                runs.append(_attach_qs_run_artifacts(payload))
         except (json.JSONDecodeError, OSError):
             continue
 
@@ -345,13 +388,16 @@ def load_qs_runs(limit: int = 100) -> dict[str, Any]:
 
 
 def load_qs_run(run_id: str) -> dict[str, Any] | None:
-    path = _qs_runs_dir() / f"{run_id}.json"
+    try:
+        path = _resolve_qs_run_path(run_id)
+    except ValueError:
+        return None
     if not path.exists() or not path.is_file():
         return None
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
         if isinstance(payload, dict):
-            return payload
+            return _attach_qs_run_artifacts(payload)
     except (json.JSONDecodeError, OSError):
         pass
     return None
