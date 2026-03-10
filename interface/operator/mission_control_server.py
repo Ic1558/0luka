@@ -177,6 +177,67 @@ def load_proof_artifacts(limit: int = 50) -> dict[str, Any]:
     }
 
 
+def _proof_artifact_roots() -> dict[str, Path]:
+    return {
+        "proof_pack": _observability_root() / "artifacts" / "proof_packs",
+        "ledger_proof_export": _runtime_root() / "exports",
+    }
+
+
+def _resolve_proof_artifact_path(artifact_id: str) -> tuple[str, Path] | None:
+    raw = artifact_id.strip()
+    if ":" not in raw:
+        raise ValueError("invalid_artifact_id")
+    artifact_type, name = raw.split(":", 1)
+    artifact_type = artifact_type.strip()
+    name = name.strip()
+    if not artifact_type or not name:
+        raise ValueError("invalid_artifact_id")
+    if name in {".", ".."} or "/" in name or "\\" in name:
+        raise ValueError("unsafe_artifact_id")
+
+    roots = _proof_artifact_roots()
+    base_dir = roots.get(artifact_type)
+    if base_dir is None:
+        raise ValueError("invalid_artifact_type")
+
+    base_resolved = base_dir.resolve()
+    candidate = (base_dir / name).resolve()
+    try:
+        candidate.relative_to(base_resolved)
+    except ValueError as exc:
+        raise ValueError("unsafe_artifact_id") from exc
+    return artifact_type, candidate
+
+
+def load_proof_artifact_detail(artifact_id: str, *, entry_limit: int = 200) -> dict[str, Any] | None:
+    artifact_type, artifact_path = _resolve_proof_artifact_path(artifact_id)
+    if not artifact_path.exists() or not artifact_path.is_dir():
+        return None
+
+    entries: list[dict[str, Any]] = []
+    for entry in sorted(artifact_path.iterdir(), key=lambda item: item.name)[:entry_limit]:
+        info: dict[str, Any] = {
+            "name": entry.name,
+            "is_dir": entry.is_dir(),
+            "kind": "dir" if entry.is_dir() else "file",
+            "size": None,
+        }
+        if entry.is_file():
+            info["size"] = entry.stat().st_size
+        entries.append(info)
+
+    return {
+        "artifact_id": artifact_id,
+        "artifact_type": artifact_type,
+        "root_type": artifact_type,
+        "exists": True,
+        "path": str(artifact_path),
+        "entries": entries,
+        "entry_count": len(entries),
+    }
+
+
 def load_alerts(limit: int = 100) -> list[dict[str, Any]]:
     path = _alerts_path()
     if not path.exists():
@@ -768,6 +829,19 @@ async def proof_artifacts_endpoint(request) -> JSONResponse:
     return JSONResponse(load_proof_artifacts(limit=limit))
 
 
+async def proof_artifact_detail_endpoint(request) -> JSONResponse:
+    artifact_id = str(request.path_params.get("artifact_id", "")).strip()
+    if not artifact_id:
+        return JSONResponse({"ok": False, "error": "missing_artifact_id"}, status_code=400)
+    try:
+        payload = load_proof_artifact_detail(artifact_id)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    if payload is None:
+        return JSONResponse({"ok": False, "error": "not_found", "artifact_id": artifact_id}, status_code=404)
+    return JSONResponse(payload)
+
+
 async def alerts_endpoint(request) -> JSONResponse:
     limit_raw = request.query_params.get("limit", "100")
     try:
@@ -995,6 +1069,7 @@ def create_app():
         app.add_api_route("/api/runtime_status", runtime_status_endpoint, methods=["GET"])
         app.add_api_route("/api/activity", activity_endpoint, methods=["GET"])
         app.add_api_route("/api/proof_artifacts", proof_artifacts_endpoint, methods=["GET"])
+        app.add_api_route("/api/proof_artifacts/{artifact_id}", proof_artifact_detail_endpoint, methods=["GET"])
         app.add_api_route("/api/alerts", alerts_endpoint, methods=["GET"])
         app.add_api_route("/api/remediation_history", remediation_history_endpoint, methods=["GET"])
         app.add_api_route("/api/autonomy_policy", autonomy_policy_endpoint, methods=["GET"])
@@ -1023,6 +1098,7 @@ def create_app():
             Route("/api/runtime_status", runtime_status_endpoint),
             Route("/api/activity", activity_endpoint),
             Route("/api/proof_artifacts", proof_artifacts_endpoint),
+            Route("/api/proof_artifacts/{artifact_id}", proof_artifact_detail_endpoint),
             Route("/api/alerts", alerts_endpoint),
             Route("/api/remediation_history", remediation_history_endpoint),
             Route("/api/autonomy_policy", autonomy_policy_endpoint),

@@ -86,6 +86,59 @@ def test_proof_artifacts_endpoint_returns_inventory(monkeypatch) -> None:
     assert payload["artifacts"][0]["manifest_present"] is True
 
 
+def test_proof_artifact_detail_endpoint_returns_json(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    proof_root = tmp_path / "observability" / "artifacts" / "proof_packs"
+    export_root = tmp_path / "runtime" / "exports"
+    artifact_dir = proof_root / "pack_001"
+    artifact_dir.mkdir(parents=True)
+    export_root.mkdir(parents=True)
+    note = artifact_dir / "summary.json"
+    note.write_text('{"ok": true}', encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: tmp_path / "observability")
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: tmp_path / "runtime")
+
+    before = note.read_text(encoding="utf-8")
+    response = client.get("/api/proof_artifacts/proof_pack:pack_001")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["artifact_id"] == "proof_pack:pack_001"
+    assert payload["artifact_type"] == "proof_pack"
+    assert payload["exists"] is True
+    assert payload["entries"][0]["name"] == "summary.json"
+    assert note.read_text(encoding="utf-8") == before
+
+
+def test_proof_artifact_detail_endpoint_returns_404_for_missing(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    (tmp_path / "observability" / "artifacts" / "proof_packs").mkdir(parents=True)
+    (tmp_path / "runtime" / "exports").mkdir(parents=True)
+
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: tmp_path / "observability")
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: tmp_path / "runtime")
+
+    response = client.get("/api/proof_artifacts/proof_pack:missing_pack")
+
+    assert response.status_code == 404
+    assert response.json()["error"] == "not_found"
+
+
+def test_proof_artifact_detail_endpoint_rejects_traversal(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    (tmp_path / "observability" / "artifacts" / "proof_packs").mkdir(parents=True)
+    (tmp_path / "runtime" / "exports").mkdir(parents=True)
+
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: tmp_path / "observability")
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: tmp_path / "runtime")
+
+    response = client.get("/api/proof_artifacts/proof_pack:..")
+
+    assert response.status_code == 400
+    assert response.json()["error"] == "unsafe_artifact_id"
+
+
 def test_qs_runs_endpoint_returns_list(monkeypatch) -> None:
     client = TestClient(mission_control_server.app)
     monkeypatch.setattr(
