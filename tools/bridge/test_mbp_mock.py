@@ -1,11 +1,17 @@
 
-import socket
-import sys
-import unittest.mock
 import tools.bridge.consumer as consumer
 
-# Mock Hostname to MBP
-with unittest.mock.patch("socket.gethostname", return_value="MBP-Pro-Max"):
-    print("MOCK: Hostname -> MBP-Pro-Max")
+
+def test_consumer_bootstrap_on_mbp(monkeypatch):
+    monkeypatch.setattr(consumer.socket, "gethostname", lambda: "MBP-Pro-Max")
+
+    called = False
+
+    def fake_main():
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(consumer, "main", fake_main)
     consumer.main()
 
+    assert called is True
