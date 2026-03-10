@@ -173,6 +173,54 @@
       border-color: #a12828;
       background: #fff0ee;
     }
+    .proof-grid {
+      display: grid;
+      gap: 12px;
+    }
+    .proof-subpanel {
+      display: grid;
+      gap: 8px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.6);
+    }
+    .proof-subpanel h3 {
+      margin: 0;
+      font-size: 0.95rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .proof-list {
+      list-style: none;
+      padding-left: 0;
+      display: grid;
+      gap: 8px;
+    }
+    .proof-list li {
+      margin: 0;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.7);
+    }
+    .proof-list li[data-run-id] {
+      cursor: pointer;
+    }
+    .proof-list li.is-selected {
+      border-color: var(--accent);
+      background: #fff3df;
+    }
+    .proof-label {
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.03em;
+    }
+    .proof-meta {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
     .alert-item {
       display: grid;
       gap: 4px;
@@ -247,6 +295,30 @@
         <ul>
           ${activity_items}
         </ul>
+      </section>
+      <section class="card">
+        <h2>Proof Consumption</h2>
+        <div class="proof-grid">
+          <div class="proof-subpanel">
+            <h3>Proof Inventory</h3>
+            <ul id="proof-artifact-panel" class="proof-list">
+              <li class="muted">No proof artifacts loaded</li>
+            </ul>
+          </div>
+          <div class="proof-subpanel">
+            <h3>QS Runs</h3>
+            <ul id="qs-run-panel" class="proof-list">
+              <li class="muted">No QS runs detected</li>
+            </ul>
+          </div>
+          <div class="proof-subpanel">
+            <h3>Selected Run Artifacts</h3>
+            <p id="qs-run-selection-label" class="proof-meta">No run selected</p>
+            <ul id="qs-run-artifacts-panel" class="proof-list">
+              <li class="muted">No linked artifacts available</li>
+            </ul>
+          </div>
+        </div>
       </section>
       <section class="card">
         <h2>Alerts</h2>
@@ -334,6 +406,145 @@
     </div>
   </main>
   <script>
+    let selectedQsRunId = null;
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function renderProofInventory(payload) {
+      const panel = document.getElementById('proof-artifact-panel');
+      if (!panel) return;
+      const rows = payload && Array.isArray(payload.artifacts) ? payload.artifacts.slice(0, 8) : [];
+      if (rows.length === 0) {
+        panel.innerHTML = '<li class="muted">No proof artifacts loaded</li>';
+        return;
+      }
+      panel.innerHTML = rows.map((entry) => {
+        const artifactType = escapeHtml(entry.artifact_type || 'unknown');
+        const name = escapeHtml(entry.name || 'unnamed');
+        const artifactId = escapeHtml(artifactType + ':' + name);
+        return '<li>' +
+          '<div class="proof-label">' + artifactId + '</div>' +
+          '<div class="proof-meta">root=' + artifactType + '</div>' +
+          '</li>';
+      }).join('');
+    }
+
+    async function refreshProofInventory() {
+      try {
+        const response = await fetch('/api/proof_artifacts?limit=8');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderProofInventory(payload);
+      } catch (error) {
+        // Leave existing proof inventory render on refresh failures.
+      }
+    }
+
+    function renderQsRunArtifacts(payload) {
+      const panel = document.getElementById('qs-run-artifacts-panel');
+      const label = document.getElementById('qs-run-selection-label');
+      if (!panel || !label) return;
+      const runId = payload && payload.run_id ? String(payload.run_id) : '';
+      const rows = payload && Array.isArray(payload.artifacts) ? payload.artifacts : [];
+      label.textContent = runId ? 'Run: ' + runId : 'No run selected';
+      if (!runId || rows.length === 0) {
+        panel.innerHTML = '<li class="muted">No linked artifacts available</li>';
+        return;
+      }
+      panel.innerHTML = rows.map((entry) => {
+        const artifactId = escapeHtml(entry.artifact_id || 'unknown');
+        const artifactType = escapeHtml(entry.artifact_type || 'unknown');
+        const exists = entry.exists ? 'present' : 'missing';
+        return '<li>' +
+          '<div class="proof-label">' + artifactId + '</div>' +
+          '<div class="proof-meta">type=' + artifactType + '; exists=' + exists + '</div>' +
+          '</li>';
+      }).join('');
+    }
+
+    async function refreshQsRunArtifacts(runId) {
+      const safeRunId = String(runId || '').trim();
+      if (!safeRunId) {
+        renderQsRunArtifacts({ run_id: '', artifacts: [] });
+        return;
+      }
+      try {
+        const response = await fetch('/api/qs_runs/' + encodeURIComponent(safeRunId) + '/artifacts');
+        if (!response.ok) {
+          renderQsRunArtifacts({ run_id: safeRunId, artifacts: [] });
+          return;
+        }
+        const payload = await response.json();
+        renderQsRunArtifacts(payload);
+      } catch (error) {
+        renderQsRunArtifacts({ run_id: safeRunId, artifacts: [] });
+      }
+    }
+
+    function renderQsRuns(payload) {
+      const panel = document.getElementById('qs-run-panel');
+      if (!panel) return;
+      const rows = payload && Array.isArray(payload.runs) ? payload.runs.slice(0, 8) : [];
+      if (rows.length === 0) {
+        selectedQsRunId = null;
+        renderQsRunArtifacts({ run_id: '', artifacts: [] });
+        panel.innerHTML = '<li class="muted">No QS runs detected</li>';
+        return;
+      }
+
+      const candidateRunId = rows.some((entry) => String(entry.run_id || '') === selectedQsRunId)
+        ? selectedQsRunId
+        : String(rows[0].run_id || '');
+      selectedQsRunId = candidateRunId;
+
+      panel.innerHTML = rows.map((entry) => {
+        const runId = String(entry.run_id || '');
+        const status = escapeHtml(entry.status || 'unknown');
+        const linked = Array.isArray(entry.proof_artifacts) ? entry.proof_artifacts.length : 0;
+        const selectedClass = runId === selectedQsRunId ? ' is-selected' : '';
+        return '<li data-run-id="' + escapeHtml(runId) + '" tabindex="0" class="' + selectedClass.trim() + '">' +
+          '<div class="proof-label">' + escapeHtml(runId || 'unknown-run') + '</div>' +
+          '<div class="proof-meta">status=' + status + '; linked_artifacts=' + String(linked) + '</div>' +
+          '</li>';
+      }).join('');
+
+      panel.querySelectorAll('li[data-run-id]').forEach((node) => {
+        const activate = () => {
+          const runId = node.getAttribute('data-run-id') || '';
+          selectedQsRunId = runId;
+          panel.querySelectorAll('li[data-run-id]').forEach((row) => row.classList.toggle('is-selected', row === node));
+          refreshQsRunArtifacts(runId);
+        };
+        node.addEventListener('click', activate);
+        node.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            activate();
+          }
+        });
+      });
+
+      refreshQsRunArtifacts(selectedQsRunId);
+    }
+
+    async function refreshQsRuns() {
+      try {
+        const response = await fetch('/api/qs_runs?limit=8');
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderQsRuns(payload);
+      } catch (error) {
+        renderQsRuns({ runs: [] });
+      }
+    }
+
     function renderAlerts(alerts) {
       const panel = document.getElementById("alerts-panel");
       if (!panel) return;
@@ -796,6 +1007,8 @@
     }
 
     setInterval(refreshAlerts, 5000);
+    setInterval(refreshProofInventory, 5000);
+    setInterval(refreshQsRuns, 5000);
     setInterval(refreshRemediation, 5000);
     setInterval(refreshRemediationAudit, 5000);
     setInterval(refreshApprovalHistory, 5000);
@@ -806,6 +1019,8 @@
     setInterval(refreshPolicyDrift, 5000);
     setInterval(refreshRemediationQueue, 5000);
     setInterval(refreshAutonomyPolicy, 5000);
+    refreshProofInventory();
+    refreshQsRuns();
   </script>
 </body>
 </html>
