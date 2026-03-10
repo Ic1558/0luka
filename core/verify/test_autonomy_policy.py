@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from starlette.testclient import TestClient
@@ -38,6 +39,7 @@ def test_missing_approval_state_fails_closed(monkeypatch, tmp_path) -> None:
 
 
 def test_valid_approval_state_allows_approved_lane(monkeypatch, tmp_path) -> None:
+    now = datetime.now(timezone.utc)
     monkeypatch.setenv("LUKA_ALLOW_MEMORY_RECOVERY", "1")
     monkeypatch.setattr(
         autonomy_policy,
@@ -55,8 +57,8 @@ def test_valid_approval_state_allows_approved_lane(monkeypatch, tmp_path) -> Non
             "memory_recovery": {
                 "approved": True,
                 "approved_by": "operator",
-                "approved_at": "2026-03-08T08:00:00Z",
-                "expires_at": "2026-03-09T08:00:00Z",
+                "approved_at": (now - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "expires_at": (now + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
             }
         },
     )
@@ -68,6 +70,7 @@ def test_valid_approval_state_allows_approved_lane(monkeypatch, tmp_path) -> Non
 
 
 def test_expired_approval_requires_approval(monkeypatch, tmp_path) -> None:
+    now = datetime.now(timezone.utc)
     monkeypatch.setenv("LUKA_ALLOW_MEMORY_RECOVERY", "1")
     monkeypatch.setattr(
         autonomy_policy,
@@ -85,8 +88,8 @@ def test_expired_approval_requires_approval(monkeypatch, tmp_path) -> None:
             "memory_recovery": {
                 "approved": True,
                 "approved_by": "operator",
-                "approved_at": "2026-03-06T08:00:00Z",
-                "expires_at": "2026-03-07T08:00:00Z",
+                "approved_at": (now - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "expires_at": (now - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
             }
         },
     )
