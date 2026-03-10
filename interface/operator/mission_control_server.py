@@ -26,6 +26,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.ops import approval_presets, approval_write, remediation_queue
+from tools.ops.decision_engine import classify_once
 from tools.ops.run_interpreter import interpret_run
 
 CANONICAL_RUNTIME_ROOT = Path("/Users/icmini/0luka_runtime")
@@ -539,6 +540,51 @@ def load_policy_drift() -> dict[str, Any]:
     return _run_json_command([sys.executable, "tools/ops/policy_drift_detector.py", "--json"])
 
 
+def load_decision_preview() -> dict[str, Any]:
+    operator_status: dict[str, Any] | None
+    runtime_status: dict[str, Any] | None
+    policy_drift: dict[str, Any] | None
+
+    try:
+        raw_operator_status = load_operator_status()
+        operator_status = raw_operator_status if isinstance(raw_operator_status, dict) else None
+    except Exception:
+        operator_status = None
+
+    try:
+        raw_runtime_status = load_runtime_status()
+        runtime_status = raw_runtime_status if isinstance(raw_runtime_status, dict) else None
+    except Exception:
+        runtime_status = None
+
+    try:
+        raw_policy_drift = load_policy_drift()
+        policy_drift = raw_policy_drift if isinstance(raw_policy_drift, dict) else None
+    except Exception:
+        policy_drift = None
+
+    classification: str | None = None
+    if operator_status is not None and runtime_status is not None and policy_drift is not None:
+        decision = classify_once(
+            operator_status=operator_status,
+            runtime_status=runtime_status,
+            policy_drift=policy_drift,
+            ts_utc="decision_preview",
+        )
+        if isinstance(decision, dict):
+            decision_type = decision.get("type")
+            classification = decision_type if isinstance(decision_type, str) else None
+
+    return {
+        "classification": classification,
+        "inputs": {
+            "operator_status": operator_status,
+            "runtime_status": runtime_status,
+            "policy_drift": policy_drift,
+        },
+    }
+
+
 def load_remediation_queue() -> dict[str, Any]:
     return remediation_queue.list_queue(runtime_root=_runtime_root())
 
@@ -1042,6 +1088,10 @@ async def policy_drift_endpoint(request) -> JSONResponse:
     return JSONResponse(load_policy_drift())
 
 
+async def decision_preview_endpoint(request) -> JSONResponse:
+    return JSONResponse(load_decision_preview())
+
+
 async def remediation_queue_endpoint(request) -> JSONResponse:
     return JSONResponse(load_remediation_queue())
 
@@ -1178,6 +1228,7 @@ def create_app():
         app.add_api_route("/api/approval_presets", approval_presets_endpoint, methods=["GET"])
         app.add_api_route("/api/approval_expiry", approval_expiry_status_endpoint, methods=["GET"])
         app.add_api_route("/api/policy_drift", policy_drift_endpoint, methods=["GET"])
+        app.add_api_route("/api/decision_preview", decision_preview_endpoint, methods=["GET"])
         app.add_api_route("/api/approval_log", approval_log_endpoint, methods=["GET"])
         app.add_api_route("/api/runtime_decisions", runtime_decisions_endpoint, methods=["GET"])
         app.add_api_route("/api/remediation_queue", remediation_queue_endpoint, methods=["GET"])
@@ -1208,6 +1259,7 @@ def create_app():
             Route("/api/approval_presets", approval_presets_endpoint),
             Route("/api/approval_expiry", approval_expiry_status_endpoint),
             Route("/api/policy_drift", policy_drift_endpoint),
+            Route("/api/decision_preview", decision_preview_endpoint),
             Route("/api/approval_log", approval_log_endpoint),
             Route("/api/runtime_decisions", runtime_decisions_endpoint),
             Route("/api/remediation_queue", remediation_queue_endpoint),
