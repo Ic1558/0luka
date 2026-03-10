@@ -1,67 +1,59 @@
 # Stash Register 2026-03-10
 
-Current stash inventory at outer-repo root. This note is operational memory only.
+## Current Stash List
 
-## Current Stashes
+- `stash@{0}` `hold-back-post-handoff-ui-test-wip-20260310`
+- `stash@{1}` `hold-back-post-handoff-ui-wip-20260310`
+- `stash@{2}` `hold-back-outer-pr-handoff-20260310`
+- `stash@{3}` `hold-back-phase-c-untracked-20260310`
+- `stash@{4}` `hold-back-outer-docs-tracked-20260310`
+- `stash@{5}` `On ops/phase3-1-8-pr3-rotation-seals: wip-pr3-rotation-seals`
+- `stash@{6}` `On codex/phase3-1-1-watchdog-strictness: wip-split-20260303T200811Z`
+- `stash@{7}` `On codex/plan-c-purity-finalize: park: test_config pending before docs-only PR`
+- `stash@{8}` `On codex/plan-c-purity-finalize: freeze12h-prep: park dirty worktree before PlanC freeze`
 
-- `stash@{0}` `park-phase-cd-recovery-20260310`
-  - Classification: `KEEP_FOR_FUTURE_WORK`
-  - Reason: parked Phase C/D recovery files require broader historical lineage and must remain isolated from the clean A+B branch.
+## Classification
 
-- `stash@{1}` `hold-back-post-handoff-ui-test-wip-20260310`
-  - Classification: `MANUAL_REVIEW_REQUIRED`
-  - Reason: UI test WIP with unclear remaining value after the merged UI slice line.
+- `stash@{0}`: `MANUAL_REVIEW_REQUIRED`
+  - UI test WIP stash with unclear tracked-file surface in summary output; inspect before any drop decision.
 
-- `stash@{2}` `hold-back-post-handoff-ui-wip-20260310`
-  - Classification: `KEEP_FOR_FUTURE_WORK`
-  - Reason: post-handoff Mission Control UI follow-up work, still potentially useful for later UI continuation.
+- `stash@{1}`: `KEEP_FOR_FUTURE_WORK`
+  - Mission Control UI follow-up WIP on the same dashboard surface as the merged UI slices.
 
-- `stash@{3}` `hold-back-outer-pr-handoff-20260310`
-  - Classification: `SAFE_TO_DROP_LATER`
-  - Reason: PR handoff note was already committed and pushed.
+- `stash@{2}`: `SAFE_TO_DROP_LATER`
+  - Outer PR handoff residue; the handoff doc was already committed and pushed.
 
-- `stash@{4}` `hold-back-phase-c-untracked-20260310`
-  - Classification: `ARCHIVE_REFERENCE_ONLY`
-  - Reason: historical Phase C review/docs material; keep only as reference.
+- `stash@{3}`: `ARCHIVE_REFERENCE_ONLY`
+  - Historical Phase C review/doc material kept for reference, not active work.
 
-- `stash@{5}` `hold-back-outer-docs-tracked-20260310`
-  - Classification: `KEEP_FOR_FUTURE_WORK`
-  - Reason: governance/planning hold-back set; should stay isolated until intentionally revisited.
+- `stash@{4}`: `KEEP_FOR_FUTURE_WORK`
+  - Governance/planning hold-back set that should remain isolated until intentionally revisited.
 
-- `stash@{6}` `wip-pr3-rotation-seals`
-  - Classification: `REVIEW_LATER`
-  - Reason: unrelated ops/runtime WIP, not part of the current bounded branch work.
+- `stash@{5}`: `REVIEW_LATER`
+  - Small unrelated ops/runtime WIP centered on rotation seals; not urgent, not part of current branch closeout.
 
-- `stash@{7}` `wip-split-20260303T200811Z`
-  - Classification: `MANUAL_REVIEW_REQUIRED`
-  - Reason: broad mixed core/tools stash; too risky to drop without a dedicated forensic pass.
+- `stash@{6}`: `MANUAL_REVIEW_REQUIRED`
+  - Broad mixed code/tools stash spanning core and ops; too substantial to drop without inspection.
 
-- `stash@{8}` `park: test_config pending before docs-only PR`
-  - Classification: `REVIEW_LATER`
-  - Reason: small single-test stash, low urgency but not obviously obsolete.
+- `stash@{7}`: `REVIEW_LATER`
+  - Narrow single-test stash that can be evaluated later without urgency.
 
-- `stash@{9}` `freeze12h-prep: park dirty worktree before PlanC freeze`
-  - Classification: `MANUAL_REVIEW_REQUIRED`
-  - Reason: mixed test/docs/tools stash; requires separate review before any cleanup.
+- `stash@{8}`: `MANUAL_REVIEW_REQUIRED`
+  - Mixed test/docs/tools stash with both transient notes and code-bearing content.
 
 ## Recommended Handling Order
 
-1. Keep intact:
-   - `stash@{0}`
-   - `stash@{2}`
-   - `stash@{5}`
-
-2. Keep as archive/reference:
+1. Preserve active future-work stashes:
+   - `stash@{1}`
    - `stash@{4}`
-
-3. Review later in dedicated passes:
+2. Preserve archive reference stash:
+   - `stash@{3}`
+3. Leave review-required stashes untouched until a dedicated cleanup pass:
+   - `stash@{0}`
    - `stash@{6}`
    - `stash@{8}`
-
-4. Manual review before any destructive action:
-   - `stash@{1}`
+4. Review later when convenient:
+   - `stash@{5}`
    - `stash@{7}`
-   - `stash@{9}`
-
-5. Safe drop candidate only after confirmation:
-   - `stash@{3}`
+5. Drop only after explicit confirmation in a later pass:
+   - `stash@{2}`
