@@ -71,6 +71,10 @@ def _remediation_history_log_path() -> Path:
     return _runtime_root() / "state" / "remediation_history.jsonl"
 
 
+def _qs_runs_dir() -> Path:
+    return _runtime_root() / "state" / "qs_runs"
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
@@ -257,6 +261,39 @@ def load_approval_log_entries(last: int = 100) -> dict[str, Any]:
     if last >= 0:
         rows = rows[-last:]
     return {"ok": True, "entries": rows}
+
+
+def load_qs_runs(limit: int = 100) -> dict[str, Any]:
+    base_dir = _qs_runs_dir()
+    if not base_dir.exists() or not base_dir.is_dir():
+        return {"ok": True, "runs": [], "total_entries": 0}
+
+    files = [f for f in base_dir.glob("*.json") if f.is_file()]
+    files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+
+    runs = []
+    for f in files[:limit]:
+        try:
+            payload = json.loads(f.read_text(encoding="utf-8"))
+            if isinstance(payload, dict):
+                runs.append(payload)
+        except (json.JSONDecodeError, OSError):
+            continue
+
+    return {"ok": True, "runs": runs, "total_entries": len(runs)}
+
+
+def load_qs_run(run_id: str) -> dict[str, Any] | None:
+    path = _qs_runs_dir() / f"{run_id}.json"
+    if not path.exists() or not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict):
+            return payload
+    except (json.JSONDecodeError, OSError):
+        pass
+    return None
 
 
 def load_runtime_decisions(last: int = 100) -> dict[str, Any]:
@@ -799,6 +836,25 @@ async def runtime_decisions_endpoint(request) -> JSONResponse:
             last = 100
     return JSONResponse(load_runtime_decisions(last=last))
 
+
+async def qs_runs_endpoint(request) -> JSONResponse:
+    limit_raw = request.query_params.get("limit", "100")
+    try:
+        limit = max(1, min(int(limit_raw), 500))
+    except ValueError:
+        limit = 100
+    return JSONResponse(load_qs_runs(limit=limit))
+
+
+async def qs_run_detail_endpoint(request) -> JSONResponse:
+    run_id = str(request.path_params.get("run_id", "")).strip()
+    if not run_id:
+        return JSONResponse({"ok": False, "error": "missing_run_id"}, status_code=400)
+    payload = load_qs_run(run_id)
+    if payload is None:
+        return JSONResponse({"ok": False, "error": "not_found", "run_id": run_id}, status_code=404)
+    return JSONResponse(payload)
+
 async def approval_presets_endpoint(request) -> JSONResponse:
     return JSONResponse(load_approval_presets())
 
@@ -949,6 +1005,8 @@ def create_app():
         app.add_api_route("/api/approval_log", approval_log_endpoint, methods=["GET"])
         app.add_api_route("/api/runtime_decisions", runtime_decisions_endpoint, methods=["GET"])
         app.add_api_route("/api/remediation_queue", remediation_queue_endpoint, methods=["GET"])
+        app.add_api_route("/api/qs_runs", qs_runs_endpoint, methods=["GET"])
+        app.add_api_route("/api/qs_runs/{run_id}", qs_run_detail_endpoint, methods=["GET"])
         app.add_api_route("/api/remediation_queue/enqueue", remediation_queue_enqueue_endpoint, methods=["POST"])
         app.add_api_route("/api/approval_presets/apply", approval_presets_apply_endpoint, methods=["POST"])
         app.add_api_route("/api/approval_presets/reset", approval_presets_reset_endpoint, methods=["POST"])
@@ -975,6 +1033,8 @@ def create_app():
             Route("/api/approval_log", approval_log_endpoint),
             Route("/api/runtime_decisions", runtime_decisions_endpoint),
             Route("/api/remediation_queue", remediation_queue_endpoint),
+            Route("/api/qs_runs", qs_runs_endpoint),
+            Route("/api/qs_runs/{run_id}", qs_run_detail_endpoint),
             Route("/api/remediation_queue/enqueue", remediation_queue_enqueue_endpoint, methods=["POST"]),
             Route("/api/approval_presets/apply", approval_presets_apply_endpoint, methods=["POST"]),
             Route("/api/approval_presets/reset", approval_presets_reset_endpoint, methods=["POST"]),
