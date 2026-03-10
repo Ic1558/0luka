@@ -7,6 +7,11 @@
 - [x] **Phase 9 Implementation**: Skeleton `synthesizer.py` implemented with mandatory Governance & Provenance gates.
 - [x] **Phase 9 Verification**: `prove_phase9_nlp.py` PASS with deterministic vectors.
 
+## NotebookLM Sync Lane Recovery
+- [x] **Phase 1 (Ingest)**: COMPLETE (Log dir created, script fixed for repeat runs).
+- [x] **Phase 2 (Automation)**: COMPLETE (launchd reconstructed and verified).
+- [ ] **Phase 3 (Publish)**: PENDING (SOT Seal & Publish gate).
+
 ## Active Phase
 - **Phase 9**: IN_PROGRESS (Linguist & Sentry logic reinforcement)
 
@@ -17,3 +22,4 @@
 ## Next Steps
 - Finalize NLP Model integration for complex conversion.
 - Unblock Mission Control UI integration.
+- Recover NotebookLM Sync Lane (Phase 3).

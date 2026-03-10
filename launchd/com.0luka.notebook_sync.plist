@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.0luka.notebook_sync</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>/Users/icmini/0luka/tools/0luka_to_notebook.zsh</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>86400</integer>
+    <key>StandardErrorPath</key>
+    <string>/Users/icmini/0luka/logs/notebooklm/launchd.stderr.log</string>
+    <key>StandardOutPath</key>
+    <string>/Users/icmini/0luka/logs/notebooklm/launchd.stdout.log</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/icmini/0luka</string>
+</dict>
+</plist>

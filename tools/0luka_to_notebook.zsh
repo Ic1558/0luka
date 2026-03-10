@@ -135,6 +135,7 @@ main() {
   gov_root="$(resolve_governance_root)"
 
   mkdir -p "${OUTPUT_DIR}"
+  rm -f "${OUTPUT_DIR}"/*(N)
   print -- "INFO: collating notebook ingest into ${OUTPUT_DIR}"
   print -- "INFO: governance_root=${gov_root}"
 
