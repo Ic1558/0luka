@@ -8,6 +8,18 @@
 - **v1.1**: Clarify activity chain ownership, migration scope (2026-02-12).
 - **v1.0**: Initial DoD creation (2026-02-12).
 
+## Phase 3.1.5 Close Marker
+- ✅ Phase 3.1.5 DONE
+  - PR: https://github.com/Ic1558/0luka/pull/157
+  - Merge: 11f9670
+
+## Phase 3.1.7B Close Marker
+- ✅ Phase 3.1.7B (PR-3) DONE
+  - PR: https://github.com/Ic1558/0luka/pull/166
+  - Merge: d5f378e
+  - Verify: health=HEALTHY (21/21), watchdog_check_epoch=ok:true rc=0
+  - Snapshot: observability/artifacts/sot_packs/20260305T053847Z_d5f378e/260305_123739_snapshot.md
+
 ## 0. Metadata (MANDATORY)
 - **Phase / Task ID**: PHASE_3E
 - **Owner (Actor)**: ops-governance

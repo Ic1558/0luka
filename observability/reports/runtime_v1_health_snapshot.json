@@ -1,0 +1,48 @@
+{
+  "schema_version": "health_v1",
+  "ts_utc": "2026-03-08T15:36:48Z",
+  "ts": "2026-03-08T15:36:48Z",
+  "producer": "core/health.py",
+  "head_sha": "1b9cb209224396b33d8f4eb4881f1bba1b90ce80",
+  "status": "healthy",
+  "tests_failed": null,
+  "failed_suites": [],
+  "issues": [],
+  "dispatcher": {
+    "status": "watching",
+    "pid": 71692,
+    "cycles": 56548,
+    "uptime_sec": 244677.2,
+    "interval_sec": 2
+  },
+  "last_dispatch": {
+    "task_id": "phase8_evidence_004",
+    "status": "committed",
+    "ts": "2026-03-08T08:13:16Z",
+    "author": "gemini"
+  },
+  "queues": {
+    "inbox_pending": 0,
+    "completed": 0,
+    "rejected": 0,
+    "outbox_results": 0
+  },
+  "schemas": {
+    "count": 6,
+    "names": [
+      "dispatch_latest",
+      "envelope",
+      "evidence_min",
+      "router_audit",
+      "run_result",
+      "task"
+    ]
+  },
+  "tests": {
+    "ran": false,
+    "suites": 21,
+    "passed": null,
+    "failed": null,
+    "details": null
+  }
+}

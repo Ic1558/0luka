@@ -19,10 +19,14 @@ def _set_env(root: Path):
         "ROOT": os.environ.get("ROOT"),
         "0LUKA_ROOT": os.environ.get("0LUKA_ROOT"),
         "OUTBOX_ROOT": os.environ.get("OUTBOX_ROOT"),
+        "LUKA_RUNTIME_ROOT": os.environ.get("LUKA_RUNTIME_ROOT"),
     }
+    runtime_root = root / "_runtime"
+    (runtime_root / "logs").mkdir(parents=True, exist_ok=True)
     os.environ["ROOT"] = str(root)
     os.environ["0LUKA_ROOT"] = str(root)
     os.environ["OUTBOX_ROOT"] = str(root / "interface" / "outbox" / "tasks")
+    os.environ["LUKA_RUNTIME_ROOT"] = str(runtime_root)
     return old
 
 
@@ -34,7 +38,14 @@ def _restore_env(old):
             os.environ[key] = val
 
 
+def _runtime_feed_path() -> Path:
+    raw = os.environ.get("LUKA_RUNTIME_ROOT")
+    assert raw and raw.strip(), "LUKA_RUNTIME_ROOT must be set in tests"
+    return Path(raw).expanduser().resolve() / "logs" / "activity_feed.jsonl"
+
+
 def _load_dispatcher(root: Path):
+    importlib.reload(importlib.import_module("core.config"))
     importlib.reload(importlib.import_module("core.ref_resolver"))
     importlib.reload(importlib.import_module("core.phase1a_resolver"))
     importlib.reload(importlib.import_module("core.clec_executor"))
@@ -88,7 +99,7 @@ def _mkdirs(root: Path) -> None:
 
 
 def _read_activity_rows(root: Path) -> list[dict]:
-    path = root / "observability" / "logs" / "activity_feed.jsonl"
+    path = _runtime_feed_path()
     if not path.exists():
         return []
     rows: list[dict] = []
@@ -263,7 +274,7 @@ def test_dispatch_invalid_yaml_is_quarantined() -> None:
             matched = list(quarantine_dir.glob("task_bad_001.yaml.*.bad.yaml*"))
             assert matched, "expected quarantined file with collision-safe suffix"
 
-            feed_path = root / "observability" / "logs" / "activity_feed.jsonl"
+            feed_path = _runtime_feed_path()
             lines = [json.loads(line) for line in feed_path.read_text(encoding="utf-8").splitlines() if line.strip()]
             hygiene_events = [e for e in lines if e.get("action") == "hygiene_quarantine"]
             assert hygiene_events, "missing hygiene_quarantine event"

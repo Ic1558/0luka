@@ -9,6 +9,11 @@
         <string>/bin/zsh</string>
         <string>/Users/icmini/0luka/tools/ops/activity_feed_maintenance.zsh</string>
     </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>LUKA_RUNTIME_ROOT</key>
+        <string>/Users/icmini/0luka_runtime</string>
+    </dict>
     <key>RunAtLoad</key>
     <true/>
     <key>StartInterval</key>

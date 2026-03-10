@@ -7,11 +7,10 @@ import time
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
-from core.config import ROOT
+from core.config import LEGACY_POLICY_MEMORY_PATH, OBSERVABILITY_DIR, POLICY_MEMORY_PATH
 from core.reasoning_audit import REASONING_AUDIT_PATH, append_reasoning_entry, load_reasoning_entries
 
-POLICY_MEMORY_PATH = ROOT / "core" / "state" / "policy_memory.json"
-EVENTS_PATH = ROOT / "observability" / "events.jsonl"
+EVENTS_PATH = OBSERVABILITY_DIR / "events.jsonl"
 
 BLOCK_KEYWORDS = {
     "cf-challenge",
@@ -27,6 +26,7 @@ BLOCK_KEYWORDS = {
 HEADLESS_TOOLS = {"FIRECRAWL_SCRAPE", "BROWSER_SUBAGENT", "HEADLESS_AUTOMATION", "READ_URL_CONTENT"}
 AUTOMATION_TOOLS = {"OFFICIAL_API", "CLI", "FIRECRAWL_SCRAPE", "READ_URL_CONTENT", "BROWSER_SUBAGENT", "HEADLESS_AUTOMATION"}
 PROTECTION_HEADERS = {"cloudflare", "datadome", "perimeterx", "akamai"}
+_LEGACY_FILE_EVENT_EMITTED = False
 
 
 def _utc_now() -> str:
@@ -56,7 +56,64 @@ def append_event(event_dict: Dict[str, Any]) -> None:
         f.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
+def _emit_legacy_file_detected_once() -> None:
+    global _LEGACY_FILE_EVENT_EMITTED
+    if _LEGACY_FILE_EVENT_EMITTED:
+        return
+    if not LEGACY_POLICY_MEMORY_PATH.exists():
+        return
+    append_event(
+        {
+            "type": "policy.memory.legacy_detected",
+            "category": "policy",
+            "reason": "legacy_file_present",
+            "legacy_path": str(LEGACY_POLICY_MEMORY_PATH),
+            "runtime_path": str(POLICY_MEMORY_PATH),
+        }
+    )
+    _LEGACY_FILE_EVENT_EMITTED = True
+
+
+def _emit_legacy_reference_detected(reference: str) -> None:
+    append_event(
+        {
+            "type": "policy.memory.legacy_referenced",
+            "category": "policy",
+            "reason": "legacy_path_referenced",
+            "reference": reference,
+            "legacy_path": str(LEGACY_POLICY_MEMORY_PATH),
+            "runtime_path": str(POLICY_MEMORY_PATH),
+        }
+    )
+
+
+def _find_legacy_path_reference(target_context: Dict[str, Any]) -> Optional[str]:
+    legacy = str(LEGACY_POLICY_MEMORY_PATH)
+    fields = (
+        str(target_context.get("target") or ""),
+        str(target_context.get("url") or ""),
+        str(target_context.get("task_text") or ""),
+    )
+    for value in fields:
+        if legacy in value:
+            return value
+    for signal in target_context.get("signals") or []:
+        text = str(signal)
+        if legacy in text:
+            return text
+    return None
+
+
+def _bootstrap_policy_memory() -> None:
+    _emit_legacy_file_detected_once()
+    POLICY_MEMORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if POLICY_MEMORY_PATH.exists():
+        return
+    write_policy_memory_atomic(_default_memory())
+
+
 def load_policy_memory() -> Dict[str, Any]:
+    _bootstrap_policy_memory()
     if not POLICY_MEMORY_PATH.exists():
         memory = _default_memory()
         write_policy_memory_atomic(memory)
@@ -134,6 +191,10 @@ def _append_violation(reason: str, decision: Optional[Dict[str, Any]] = None, re
 
 
 def sense_target(target_context: Dict[str, Any]) -> Dict[str, Any]:
+    legacy_reference = _find_legacy_path_reference(target_context)
+    if legacy_reference:
+        _emit_legacy_reference_detected(legacy_reference)
+
     append_event(
         {
             "type": "policy.sense.started",

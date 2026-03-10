@@ -11,14 +11,38 @@ from pathlib import Path
 from typing import Any, Dict, List, Set, Tuple
 
 # Configuration
-ROOT = Path(__file__).resolve().parent.parent.parent
-DEFAULT_FEED_PATH = ROOT / "observability/logs/activity_feed.jsonl"
-ARCHIVE_DIR = ROOT / "observability/logs/archive"
-INDEX_DIR = ROOT / "observability/logs/index"
-BY_ACTION_DIR = INDEX_DIR / "by_action"
-BY_RUN_DIR = INDEX_DIR / "by_run"
-TS_RANGES_DIR = INDEX_DIR / "ts_ranges"
-INDEX_HEALTH_PATH = INDEX_DIR / "index_health.json"
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+ROOT = _REPO_ROOT
+DEFAULT_FEED_PATH: Path | None = None
+ARCHIVE_DIR: Path | None = None
+INDEX_DIR: Path | None = None
+BY_ACTION_DIR: Path | None = None
+BY_RUN_DIR: Path | None = None
+TS_RANGES_DIR: Path | None = None
+INDEX_HEALTH_PATH: Path | None = None
+
+
+def _runtime_root() -> Path:
+    raw = os.environ.get("LUKA_RUNTIME_ROOT", "").strip()
+    if not raw:
+        raise RuntimeError(
+            "LUKA_RUNTIME_ROOT is required (fail-closed). "
+            "Set LUKA_RUNTIME_ROOT=/Users/icmini/0luka_runtime"
+        )
+    return Path(raw).expanduser().resolve()
+
+
+def _resolved_paths(feed_path: Path) -> tuple[Path, Path, Path, Path, Path]:
+    archive_dir = ARCHIVE_DIR or (feed_path.parent / "archive")
+    index_dir = INDEX_DIR or (feed_path.parent / "index")
+    by_action_dir = BY_ACTION_DIR or (index_dir / "by_action")
+    by_run_dir = BY_RUN_DIR or (index_dir / "by_run")
+    ts_ranges_dir = TS_RANGES_DIR or (index_dir / "ts_ranges")
+    index_health_path = INDEX_HEALTH_PATH or (index_dir / "index_health.json")
+    return archive_dir, by_action_dir, by_run_dir, ts_ranges_dir, index_health_path
 
 def get_ms(ev: Dict[str, Any]) -> int:
     ms = ev.get("ts_epoch_ms")
@@ -32,18 +56,58 @@ def get_ms(ev: Dict[str, Any]) -> int:
         except: pass
     return 0
 
+
+def _min_event_timestamp(feed_file: Path) -> tuple[int, str]:
+    """Return a deterministic archive ordering key.
+
+    Files with at least one parseable event timestamp sort by their earliest
+    event timestamp. Empty or unparseable files sort after timestamped files and
+    then by filename for stability.
+    """
+    min_ms: int | None = None
+    try:
+        with open(feed_file, "rb") as f:
+            for line_bytes in f:
+                try:
+                    ev = json.loads(line_bytes.decode("utf-8"))
+                except Exception:
+                    continue
+                curr_ms = get_ms(ev)
+                if curr_ms:
+                    min_ms = curr_ms if min_ms is None else min(min_ms, curr_ms)
+    except Exception:
+        pass
+
+    if min_ms is not None:
+        return (0, min_ms, feed_file.name)
+    return (1, 0, feed_file.name)
+
+
+def _normalize_for_monotonic_check(previous_ms: int, current_ms: int) -> int:
+    """Treat same-second mixed precision as equal for monotonic validation."""
+    if previous_ms and current_ms and current_ms < previous_ms:
+        if current_ms // 1000 == previous_ms // 1000:
+            return previous_ms
+    return current_ms
+
+
 def build_index(feed_path: Path):
+    archive_dir, by_action_dir, by_run_dir, ts_ranges_dir, index_health_path = _resolved_paths(feed_path)
+
     # Setup dirs
-    for d in [BY_ACTION_DIR, BY_RUN_DIR, TS_RANGES_DIR]:
+    for d in [by_action_dir, by_run_dir, ts_ranges_dir]:
         if d.exists(): shutil.rmtree(d)
         d.mkdir(parents=True, exist_ok=True)
 
     last_ms = 0
     anomalies_flagged = False
-    current_feed_rel = str(feed_path.relative_to(ROOT)) if feed_path.is_relative_to(ROOT) else str(feed_path)
+    current_feed_rel = str(feed_path.relative_to(_REPO_ROOT)) if feed_path.is_relative_to(_REPO_ROOT) else str(feed_path)
     max_indexed_offset = 0
     
-    archive_files = sorted(list(ARCHIVE_DIR.glob("activity_feed.*.jsonl")))
+    archive_files = sorted(
+        archive_dir.glob("activity_feed.*.jsonl"),
+        key=_min_event_timestamp,
+    )
     archive_files = [f for f in archive_files if not f.name.endswith(".index.jsonl")]
     all_files = archive_files + [feed_path]
     
@@ -66,7 +130,7 @@ def build_index(feed_path: Path):
     for fpath in all_files:
         if not fpath.exists(): continue
         
-        rel_path = str(fpath.relative_to(ROOT)) if fpath.is_relative_to(ROOT) else str(fpath)
+        rel_path = str(fpath.relative_to(_REPO_ROOT)) if fpath.is_relative_to(_REPO_ROOT) else str(fpath)
         f_manifest = {
             "min_ts_ms": float('inf'),
             "max_ts_ms": float('-inf'),
@@ -89,7 +153,8 @@ def build_index(feed_path: Path):
                     offset += length
                     continue
                 
-                curr_ms = get_ms(ev)
+                raw_ms = get_ms(ev)
+                curr_ms = _normalize_for_monotonic_check(last_ms, raw_ms)
                 action = ev.get("action")
                 run_id = ev.get("run_id")
                 
@@ -98,23 +163,23 @@ def build_index(feed_path: Path):
                         print(f"CRITICAL: monotonic regression detected at {rel_path}:{line_no} without anomaly flag. last={last_ms} curr={curr_ms}", file=sys.stderr)
                         sys.exit(1)
                 
-                if curr_ms:
+                if raw_ms:
                     last_ms = curr_ms
-                    f_manifest["min_ts_ms"] = min(f_manifest["min_ts_ms"], float(curr_ms))
-                    f_manifest["max_ts_ms"] = max(f_manifest["max_ts_ms"], float(curr_ms))
+                    f_manifest["min_ts_ms"] = min(f_manifest["min_ts_ms"], float(raw_ms))
+                    f_manifest["max_ts_ms"] = max(f_manifest["max_ts_ms"], float(raw_ms))
                 
                 f_manifest["count"] += 1
                 
                 if action:
-                    idx_line = {"ms": curr_ms, "file": rel_path, "off": offset, "len": length}
-                    with open(BY_ACTION_DIR / f"{action}.idx.jsonl", "a") as af:
+                    idx_line = {"ms": raw_ms, "file": rel_path, "off": offset, "len": length}
+                    with open(by_action_dir / f"{action}.idx.jsonl", "a") as af:
                         af.write(json.dumps(idx_line) + "\n")
                     if rel_path == current_feed_rel:
                         max_indexed_offset = max(max_indexed_offset, offset + length)
                 
                 if run_id:
-                    idx_line = {"ms": curr_ms, "file": rel_path, "off": offset, "len": length}
-                    with open(BY_RUN_DIR / f"{run_id}.idx.jsonl", "a") as rf:
+                    idx_line = {"ms": raw_ms, "file": rel_path, "off": offset, "len": length}
+                    with open(by_run_dir / f"{run_id}.idx.jsonl", "a") as rf:
                         rf.write(json.dumps(idx_line) + "\n")
                     if rel_path == current_feed_rel:
                         max_indexed_offset = max(max_indexed_offset, offset + length)
@@ -124,13 +189,13 @@ def build_index(feed_path: Path):
         if f_manifest["count"] > 0:
             manifest[rel_path] = f_manifest
 
-    with open(TS_RANGES_DIR / "manifest.json", "w") as mf:
+    with open(ts_ranges_dir / "manifest.json", "w") as mf:
         json.dump(manifest, mf, indent=2)
 
     result = {
         "status": "complete",
         "files_processed": len(all_files),
-        "manifest_sha256": hashlib.sha256((TS_RANGES_DIR / "manifest.json").read_bytes()).hexdigest()
+        "manifest_sha256": hashlib.sha256((ts_ranges_dir / "manifest.json").read_bytes()).hexdigest()
     }
 
     # Write index health file (Pack 10: Index Sovereignty Contract)
@@ -146,9 +211,9 @@ def build_index(feed_path: Path):
         "feed_size": feed_path.stat().st_size if feed_path.exists() else 0,
         "max_indexed_offset": max_indexed_offset,
     }
-    tmp = INDEX_HEALTH_PATH.with_suffix(".tmp")
+    tmp = index_health_path.with_suffix(".tmp")
     tmp.write_text(json.dumps(health, indent=2))
-    tmp.replace(INDEX_HEALTH_PATH)
+    tmp.replace(index_health_path)
 
     print(json.dumps(result))
 
@@ -159,7 +224,7 @@ if __name__ == "__main__":
                         help="Emit index_rebuilt_after_rotation event to activity feed after rebuild")
     args = parser.parse_args()
 
-    feed = Path(args.feed) if args.feed else DEFAULT_FEED_PATH
+    feed = Path(args.feed) if args.feed else (_runtime_root() / "logs/activity_feed.jsonl")
     build_index(feed)
 
     if args.emit_event:

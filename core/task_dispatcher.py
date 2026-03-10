@@ -15,6 +15,7 @@ import json
 import os
 import re
 import signal
+import subprocess
 import sys
 import time
 import uuid
@@ -36,6 +37,7 @@ try:
         INBOX,
         REJECTED,
         ROOT,
+        RUNTIME_LOGS_DIR,
     )
 except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -48,6 +50,7 @@ except ModuleNotFoundError:
         INBOX,
         REJECTED,
         ROOT,
+        RUNTIME_LOGS_DIR,
     )
 
 HEARTBEAT_PATH = DISPATCH_HEARTBEAT
@@ -69,7 +72,6 @@ sys.path.insert(0, str(ROOT))
 DISPATCHER_SESSION_RUN_ID = uuid.uuid4().hex
 
 from core.phase1a_resolver import Phase1AResolverError, gate_inbound_envelope
-from core.activity_feed_guard import guarded_append_activity_feed
 from core.run_provenance import (
     append_event as append_execution_event,
     append_provenance,
@@ -105,17 +107,59 @@ def _log_event(event: Dict[str, Any]) -> None:
 
 
 def _resolve_activity_feed_path() -> Path:
-    raw = os.environ.get("LUKA_ACTIVITY_FEED_JSONL", "observability/logs/activity_feed.jsonl").strip()
+    raw = os.environ.get("LUKA_ACTIVITY_FEED_JSONL", "").strip()
     p = Path(raw).expanduser()
-    if p.is_absolute():
-        return p
-    return ROOT / p
+    if raw:
+        if p.is_absolute():
+            return p
+        return ROOT / p
+    return RUNTIME_LOGS_DIR / "activity_feed.jsonl"
+
+
+def _append_activity_feed_via_helper(payload: dict[str, Any]) -> None:
+    """Best-effort append via universal helper. Must never break dispatch loop."""
+    helper = Path(__file__).resolve().parents[1] / "tools" / "ops" / "activity_feed_append.py"
+    if not helper.exists():
+        _log_event(
+            {
+                "event": "dispatch.activity_feed_append.skipped",
+                "ts": _utc_now(),
+                "reason": "helper_missing",
+                "helper_path": str(helper),
+            }
+        )
+        return
+    feed_path = _resolve_activity_feed_path()
+    payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    cmd = [sys.executable or "python3", str(helper), "--feed", str(feed_path), "--json", payload_json]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    except Exception as exc:
+        _log_event(
+            {
+                "event": "dispatch.activity_feed_append.error",
+                "ts": _utc_now(),
+                "reason": "helper_exec_error",
+                "error": str(exc),
+            }
+        )
+        return
+    if proc.returncode in (0, 2):
+        return
+    _log_event(
+        {
+            "event": "dispatch.activity_feed_append.error",
+            "ts": _utc_now(),
+            "reason": "helper_nonfatal_rc",
+            "rc": proc.returncode,
+            "stderr": (proc.stderr or "")[:240],
+        }
+    )
 
 
 def _append_runtime_heartbeat_event() -> None:
     # fail-open: observability append must never interrupt dispatch loop
     try:
-        feed_path = _resolve_activity_feed_path()
         payload = {
             "ts_utc": _utc_now(),
             "action": "heartbeat",
@@ -125,7 +169,7 @@ def _append_runtime_heartbeat_event() -> None:
             "run_id": DISPATCHER_SESSION_RUN_ID,
             "ts_epoch_ms": int(time.time_ns() // 1_000_000),
         }
-        guarded_append_activity_feed(feed_path, payload)
+        _append_activity_feed_via_helper(payload)
     except Exception:
         pass
 
@@ -141,7 +185,6 @@ def _emit_activity_event(
 ) -> None:
     """Emit lifecycle event to activity feed. Fail-open."""
     try:
-        feed_path = _resolve_activity_feed_path()
         payload = {
             "ts_utc": _utc_now(),
             "ts_epoch_ms": int(time.time_ns() // 1_000_000),
@@ -157,7 +200,7 @@ def _emit_activity_event(
         }
         if telemetry:
             payload.update(telemetry)
-        guarded_append_activity_feed(feed_path, payload)
+        _append_activity_feed_via_helper(payload)
     except Exception:
         pass
 

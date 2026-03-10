@@ -74,6 +74,11 @@ def _run_verify_checks(verify: List[Dict[str, Any]]) -> None:
             raise CLECExecutorError(f"verify_check_unsupported:index={idx}")
 
 
+def _get_git_bin() -> str:
+    """Resolve git binary (Phase 3.4 surgical isolation)."""
+    return str(os.environ.get("LUKA_GIT_BIN") or "/usr/bin/git")
+
+
 def execute_clec_ops(
     ops: List[Dict[str, Any]],
     evidence: Dict[str, Any],
@@ -176,6 +181,14 @@ def execute_clec_ops(
             command = str(op.get("command", "")).strip()
             if not _command_allowed(command):
                 raise CLECExecutorError(f"command_not_allowed:index={idx}")
+
+            # Phase 3.4 Surgical Fix: replace git with explicit binary path
+            # to avoid hanging wrappers in user's PATH.
+            cmd_parts = shlex.split(command)
+            if cmd_parts and cmd_parts[0] == "git":
+                cmd_parts[0] = _get_git_bin()
+                command = " ".join(shlex.quote(p) for p in cmd_parts)
+
             proc = subprocess.run(
                 command,
                 shell=True,
@@ -187,7 +200,7 @@ def execute_clec_ops(
             out["logs"].append(
                 {
                     "op_index": idx,
-                    "command": command,
+                    "command": str(op.get("command", "")).strip(),  # Keep original command in logs
                     "returncode": proc.returncode,
                     "stdout": proc.stdout,
                     "stderr": proc.stderr,
