@@ -84,3 +84,59 @@ def test_proof_artifacts_endpoint_returns_inventory(monkeypatch) -> None:
     assert payload["total_entries"] == 1
     assert payload["artifacts"][0]["artifact_type"] == "proof_pack"
     assert payload["artifacts"][0]["manifest_present"] is True
+
+
+def test_qs_runs_endpoint_returns_list(monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    monkeypatch.setattr(
+        mission_control_server,
+        "load_qs_runs",
+        lambda limit=100: {"ok": True, "runs": [{"run_id": "qs_run_1"}], "total_entries": 1},
+    )
+
+    response = client.get("/api/qs_runs")
+
+    assert response.status_code == 200
+    assert response.json()["runs"][0]["run_id"] == "qs_run_1"
+
+
+def test_qs_runs_endpoint_safe_empty(monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    monkeypatch.setattr(
+        mission_control_server,
+        "load_qs_runs",
+        lambda limit=100: {"ok": True, "runs": [], "total_entries": 0},
+    )
+
+    response = client.get("/api/qs_runs")
+
+    assert response.status_code == 200
+    assert response.json()["runs"] == []
+
+
+def test_qs_run_detail_endpoint_returns_json(monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    monkeypatch.setattr(
+        mission_control_server,
+        "load_qs_run",
+        lambda run_id: {"run_id": run_id, "status": "completed"} if run_id == "valid_id" else None,
+    )
+
+    response = client.get("/api/qs_runs/valid_id")
+
+    assert response.status_code == 200
+    assert response.json()["run_id"] == "valid_id"
+
+
+def test_qs_run_detail_endpoint_returns_404(monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    monkeypatch.setattr(
+        mission_control_server,
+        "load_qs_run",
+        lambda run_id: None,
+    )
+
+    response = client.get("/api/qs_runs/invalid_id")
+
+    assert response.status_code == 404
+    assert response.json()["error"] == "not_found"
