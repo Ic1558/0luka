@@ -10,39 +10,61 @@ if str(ROOT) not in sys.path:
 from tools.ops.decision_engine import classify_once
 
 
-def test_nominal_returns_nominal_decision() -> None:
+def test_nominal_classification() -> None:
     decision = classify_once(
-        operator_status={"ok": True, "overall_status": "HEALTHY"},
-        runtime_status={"ok": True, "overall_status": "HEALTHY"},
-        policy_drift={"ok": True, "drift_count": 0},
-        ts_utc="2026-03-10T12:00:00Z",
+        {"ok": True},
+        {"ok": True},
+        {"drift_count": 0},
     )
 
-    assert decision == {
-        "ts_utc": "2026-03-10T12:00:00Z",
-        "type": "nominal",
-        "source": ["operator_status", "runtime_status", "policy_drift"],
-        "evidence": {
-            "operator_status": {"ok": True, "overall_status": "HEALTHY"},
-            "runtime_status": {"ok": True, "overall_status": "HEALTHY"},
-            "policy_drift": {"ok": True, "drift_count": 0},
-        },
-    }
+    assert decision == "nominal"
 
 
-def test_drift_detected_returns_drift_decision() -> None:
+def test_operator_failure() -> None:
     decision = classify_once(
-        operator_status={"ok": True, "overall_status": "HEALTHY"},
-        runtime_status={"ok": True, "overall_status": "HEALTHY"},
-        policy_drift={"ok": False, "drift_count": 1},
-        ts_utc="2026-03-10T12:05:00Z",
+        {"ok": False},
+        {"ok": True},
+        {"drift_count": 0},
     )
 
-    assert decision == {
-        "ts_utc": "2026-03-10T12:05:00Z",
-        "type": "drift_detected",
-        "source": ["policy_drift"],
-        "evidence": {
-            "policy_drift": {"ok": False, "drift_count": 1},
-        },
-    }
+    assert decision == "drift_detected"
+
+
+def test_runtime_failure() -> None:
+    decision = classify_once(
+        {"ok": True},
+        {"ok": False},
+        {"drift_count": 0},
+    )
+
+    assert decision == "drift_detected"
+
+
+def test_policy_drift() -> None:
+    decision = classify_once(
+        {"ok": True},
+        {"ok": True},
+        {"drift_count": 1},
+    )
+
+    assert decision == "drift_detected"
+
+
+def test_missing_fields_returns_none() -> None:
+    decision = classify_once(
+        {"ok": True},
+        {"ok": True},
+        {},
+    )
+
+    assert decision is None
+
+
+def test_malformed_input_returns_none() -> None:
+    decision = classify_once(
+        [],
+        {"ok": True},
+        {"drift_count": 0},
+    )
+
+    assert decision is None
