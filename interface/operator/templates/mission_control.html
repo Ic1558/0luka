@@ -259,6 +259,30 @@
     .alert-item.info .severity {
       color: #6f6b63;
     }
+
+    /* Run Interpretation Signals */
+    .signal-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+    .tag-complete { color: #2c7b4a; background: #eef9f1; }
+    .tag-partial { color: #b96d15; background: #fff6ea; }
+    .tag-missing_proof { color: #a12828; background: #fff0ee; }
+    .tag-inconsistent { color: #d84315; background: #fbe9e7; }
+    .tag-unknown { color: #8f8b83; background: #f2f0eb; }
+
+    .signal-tag {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border: 1px solid rgba(0,0,0,0.05);
+    }
   </style>
 </head>
 <body>
@@ -506,12 +530,17 @@
 
       panel.innerHTML = rows.map((entry) => {
         const runId = String(entry.run_id || '');
-        const status = escapeHtml(entry.status || 'unknown');
-        const linked = Array.isArray(entry.proof_artifacts) ? entry.proof_artifacts.length : 0;
+        const signal = String(entry.signal || 'UNKNOWN').toUpperCase();
+        const signalClass = signal.toLowerCase();
+        const linked = entry.artifact_count || 0;
         const selectedClass = runId === selectedQsRunId ? ' is-selected' : '';
+        
         return '<li data-run-id="' + escapeHtml(runId) + '" tabindex="0" class="' + selectedClass.trim() + '">' +
-          '<div class="proof-label">' + escapeHtml(runId || 'unknown-run') + '</div>' +
-          '<div class="proof-meta">status=' + status + '; linked_artifacts=' + String(linked) + '</div>' +
+          '<div style="display: flex; align-items: center; justify-content: space-between;">' +
+            '<div class="proof-label">' + escapeHtml(runId || 'unknown-run') + '</div>' +
+            '<span class="signal-tag tag-' + signalClass + '">' + escapeHtml(signal) + '</span>' +
+          '</div>' +
+          '<div class="proof-meta">artifacts=' + String(linked) + '</div>' +
           '</li>';
       }).join('');
 
