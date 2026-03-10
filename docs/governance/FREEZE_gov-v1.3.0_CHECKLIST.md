@@ -69,10 +69,10 @@ If any precondition fails, **STOP**.
 
 ## 3) Canonical Freeze Script Flow (Mac mini only)
 
-Run only in canonical repo path:
+Run from the repository root on the Mac mini:
 
 ```bash
-cd /Users/icmini/0luka || exit 1
+cd "$(git rev-parse --show-toplevel)" || exit 1
 set -euo pipefail
 
 echo "== PRECHECK =="
