@@ -83,6 +83,14 @@ def _min_event_timestamp(feed_file: Path) -> tuple[int, str]:
     return (1, 0, feed_file.name)
 
 
+def _normalize_for_monotonic_check(previous_ms: int, current_ms: int) -> int:
+    """Treat same-second mixed precision as equal for monotonic validation."""
+    if previous_ms and current_ms and current_ms < previous_ms:
+        if current_ms // 1000 == previous_ms // 1000:
+            return previous_ms
+    return current_ms
+
+
 def build_index(feed_path: Path):
     archive_dir, by_action_dir, by_run_dir, ts_ranges_dir, index_health_path = _resolved_paths(feed_path)
 
@@ -145,7 +153,8 @@ def build_index(feed_path: Path):
                     offset += length
                     continue
                 
-                curr_ms = get_ms(ev)
+                raw_ms = get_ms(ev)
+                curr_ms = _normalize_for_monotonic_check(last_ms, raw_ms)
                 action = ev.get("action")
                 run_id = ev.get("run_id")
                 
@@ -154,22 +163,22 @@ def build_index(feed_path: Path):
                         print(f"CRITICAL: monotonic regression detected at {rel_path}:{line_no} without anomaly flag. last={last_ms} curr={curr_ms}", file=sys.stderr)
                         sys.exit(1)
                 
-                if curr_ms:
+                if raw_ms:
                     last_ms = curr_ms
-                    f_manifest["min_ts_ms"] = min(f_manifest["min_ts_ms"], float(curr_ms))
-                    f_manifest["max_ts_ms"] = max(f_manifest["max_ts_ms"], float(curr_ms))
+                    f_manifest["min_ts_ms"] = min(f_manifest["min_ts_ms"], float(raw_ms))
+                    f_manifest["max_ts_ms"] = max(f_manifest["max_ts_ms"], float(raw_ms))
                 
                 f_manifest["count"] += 1
                 
                 if action:
-                    idx_line = {"ms": curr_ms, "file": rel_path, "off": offset, "len": length}
+                    idx_line = {"ms": raw_ms, "file": rel_path, "off": offset, "len": length}
                     with open(by_action_dir / f"{action}.idx.jsonl", "a") as af:
                         af.write(json.dumps(idx_line) + "\n")
                     if rel_path == current_feed_rel:
                         max_indexed_offset = max(max_indexed_offset, offset + length)
                 
                 if run_id:
-                    idx_line = {"ms": curr_ms, "file": rel_path, "off": offset, "len": length}
+                    idx_line = {"ms": raw_ms, "file": rel_path, "off": offset, "len": length}
                     with open(by_run_dir / f"{run_id}.idx.jsonl", "a") as rf:
                         rf.write(json.dumps(idx_line) + "\n")
                     if rel_path == current_feed_rel:
