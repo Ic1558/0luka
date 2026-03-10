@@ -56,3 +56,31 @@ def test_activity_endpoint_returns_list(monkeypatch) -> None:
     assert response.status_code == 200
     assert isinstance(response.json(), list)
     assert response.json()[0]["action"] == "proof_export"
+
+
+def test_proof_artifacts_endpoint_returns_inventory(monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    monkeypatch.setattr(
+        mission_control_server,
+        "load_proof_artifacts",
+        lambda limit=50: {
+            "artifacts": [
+                {
+                    "artifact_type": "proof_pack",
+                    "name": "pack_001",
+                    "path": "/tmp/proof_packs/pack_001",
+                    "manifest_present": True,
+                    "mtime_utc": 1741392000.0,
+                }
+            ],
+            "total_entries": 1,
+        },
+    )
+
+    response = client.get("/api/proof_artifacts?limit=10")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total_entries"] == 1
+    assert payload["artifacts"][0]["artifact_type"] == "proof_pack"
+    assert payload["artifacts"][0]["manifest_present"] is True

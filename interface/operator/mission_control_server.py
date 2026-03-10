@@ -121,6 +121,58 @@ def load_activity_entries(limit: int = 50) -> list[dict[str, Any]]:
     return rows[-limit:]
 
 
+def _collect_artifact_directories(
+    base_dir: Path,
+    *,
+    artifact_type: str,
+    limit: int,
+    manifest_name: str | None = None,
+) -> list[dict[str, Any]]:
+    if not base_dir.exists() or not base_dir.is_dir():
+        return []
+
+    dirs = [path for path in base_dir.iterdir() if path.is_dir()]
+    dirs.sort(key=lambda item: item.stat().st_mtime, reverse=True)
+
+    rows: list[dict[str, Any]] = []
+    for path in dirs[:limit]:
+        row: dict[str, Any] = {
+            "artifact_type": artifact_type,
+            "name": path.name,
+            "path": str(path),
+            "mtime_utc": path.stat().st_mtime,
+        }
+        if manifest_name:
+            manifest_path = path / manifest_name
+            row["manifest_present"] = manifest_path.exists()
+        rows.append(row)
+    return rows
+
+
+def load_proof_artifacts(limit: int = 50) -> dict[str, Any]:
+    capped_limit = max(1, min(limit, 200))
+    entries = [
+        *_collect_artifact_directories(
+            _observability_root() / "artifacts" / "proof_packs",
+            artifact_type="proof_pack",
+            limit=capped_limit,
+            manifest_name="linter.json",
+        ),
+        *_collect_artifact_directories(
+            _runtime_root() / "exports",
+            artifact_type="ledger_proof_export",
+            limit=capped_limit,
+            manifest_name="export_manifest.json",
+        ),
+    ]
+    entries.sort(key=lambda item: float(item.get("mtime_utc", 0)), reverse=True)
+    entries = entries[:capped_limit]
+    return {
+        "artifacts": entries,
+        "total_entries": len(entries),
+    }
+
+
 def load_alerts(limit: int = 100) -> list[dict[str, Any]]:
     path = _alerts_path()
     if not path.exists():
@@ -670,6 +722,15 @@ async def activity_endpoint(request) -> JSONResponse:
     return JSONResponse(load_activity_entries())
 
 
+async def proof_artifacts_endpoint(request) -> JSONResponse:
+    limit_raw = request.query_params.get("limit", "50")
+    try:
+        limit = max(1, min(int(limit_raw), 200))
+    except ValueError:
+        limit = 50
+    return JSONResponse(load_proof_artifacts(limit=limit))
+
+
 async def alerts_endpoint(request) -> JSONResponse:
     limit_raw = request.query_params.get("limit", "100")
     try:
@@ -877,6 +938,7 @@ def create_app():
         app.add_api_route("/api/operator_status", operator_status_endpoint, methods=["GET"])
         app.add_api_route("/api/runtime_status", runtime_status_endpoint, methods=["GET"])
         app.add_api_route("/api/activity", activity_endpoint, methods=["GET"])
+        app.add_api_route("/api/proof_artifacts", proof_artifacts_endpoint, methods=["GET"])
         app.add_api_route("/api/alerts", alerts_endpoint, methods=["GET"])
         app.add_api_route("/api/remediation_history", remediation_history_endpoint, methods=["GET"])
         app.add_api_route("/api/autonomy_policy", autonomy_policy_endpoint, methods=["GET"])
@@ -902,6 +964,7 @@ def create_app():
             Route("/api/operator_status", operator_status_endpoint),
             Route("/api/runtime_status", runtime_status_endpoint),
             Route("/api/activity", activity_endpoint),
+            Route("/api/proof_artifacts", proof_artifacts_endpoint),
             Route("/api/alerts", alerts_endpoint),
             Route("/api/remediation_history", remediation_history_endpoint),
             Route("/api/autonomy_policy", autonomy_policy_endpoint),
