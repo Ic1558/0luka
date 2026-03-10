@@ -112,23 +112,21 @@ def upload_to_notebooklm(pack_dir: Path):
     if not snapshot_file: raise Exception("Missing snapshot file in pack")
     
     targets = [
+        # TITLE CONTRACT: These fixed titles are used to identify mirrored SOT content.
+        # Renaming these in NotebookLM will break the replacement logic and cause duplicates.
         {"title": "0luka [SOT]", "path": sot_file},
         {"title": "Catalog Index", "path": catalog_file},
         {"title": "System Snapshot", "path": snapshot_file}
     ]
     
-    print("Fetching existing sources for replacement...")
+    print("Fetching existing remote sources...")
     remote_sources = client.get_notebook_sources_with_types(NOTEBOOK_ID)
-    
     target_titles = [t["title"] for t in targets]
-    to_delete = [s["id"] for s in remote_sources if s["title"] in target_titles]
+    stale_source_ids = [s["id"] for s in remote_sources if s["title"] in target_titles]
     
-    if to_delete:
-        print(f"Deleting {len(to_delete)} stale sources...")
-        for src_id in to_delete:
-            client.delete_source(src_id)
-            
+    # 1. Upload Fresh Context FIRST (Maintain Availability)
     print("Uploading fresh sources...")
+    new_source_ids = []
     for target in targets:
         content = target["path"].read_text()
         print(f" - Uploading '{target['title']}'...")
@@ -140,6 +138,16 @@ def upload_to_notebooklm(pack_dir: Path):
                 raise Exception(f"Failed to upload {target['title']}: {res}")
         else:
             print(f"   Success: {res['id']}")
+            new_source_ids.append(res["id"])
+            
+    # 2. Cleanup Stale Context ONLY AFTER SUCCESS (Minimize Mirror Downtime)
+    if stale_source_ids:
+        print(f"Cleaning up {len(stale_source_ids)} stale sources...")
+        for src_id in stale_source_ids:
+            try:
+                client.delete_source(src_id)
+            except Exception as e:
+                print(f"   WARNING: Failed to delete stale source {src_id}: {e}")
 
 def record_publish_event(gates: dict, result: str, error: str = None):
     now = datetime.now(timezone.utc)

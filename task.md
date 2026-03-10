@@ -13,7 +13,7 @@
 - [x] **Phase 1 (Ingest)**: COMPLETE (Log dir created, script fixed for repeat runs).
 - [x] **Phase 2 (Automation)**: COMPLETE (launchd reconstructed and verified).
 - [x] **Phase 3 (Publish Preparation)**: COMPLETE (SOT Seals generated).
-- [x] **Phase 4 (Publish)**: COMPLETE (Un-mocked and verified replace-logic).
+- [x] **Phase 4 (Publish)**: COMPLETE (Harden: Upload-then-Delete logic + TITLE CONTRACT).
 
 ## Active Phase
 
