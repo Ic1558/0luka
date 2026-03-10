@@ -139,3 +139,6 @@ _AI_INBOX/
 cole/session_log/
 g/reports/
 plan_epoch.txt
+
+# Generated runtime-style summary artifact
+reports/summary/latest.md
