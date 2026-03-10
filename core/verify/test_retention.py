@@ -14,9 +14,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 
 def _set_env(root: Path) -> dict:
-    old = {"ROOT": os.environ.get("ROOT"), "0LUKA_ROOT": os.environ.get("0LUKA_ROOT")}
+    runtime_root = root / "runtime_root"
+    old = {
+        "ROOT": os.environ.get("ROOT"),
+        "0LUKA_ROOT": os.environ.get("0LUKA_ROOT"),
+        "LUKA_RUNTIME_ROOT": os.environ.get("LUKA_RUNTIME_ROOT"),
+    }
     os.environ["ROOT"] = str(root)
     os.environ["0LUKA_ROOT"] = str(root)
+    os.environ["LUKA_RUNTIME_ROOT"] = str(runtime_root)
     return old
 
 
