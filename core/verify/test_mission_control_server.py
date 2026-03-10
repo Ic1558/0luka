@@ -257,3 +257,73 @@ def test_qs_run_detail_endpoint_returns_404(monkeypatch) -> None:
 
     assert response.status_code == 404
     assert response.json()["error"] == "not_found"
+
+
+def test_qs_run_artifacts_endpoint_returns_artifacts(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    observability_root = tmp_path / "observability"
+    qs_runs_dir = runtime_root / "state" / "qs_runs"
+    proof_pack_dir = observability_root / "artifacts" / "proof_packs" / "run_123"
+    export_dir = runtime_root / "exports" / "run_123"
+    qs_runs_dir.mkdir(parents=True)
+    proof_pack_dir.mkdir(parents=True)
+    export_dir.mkdir(parents=True)
+    (qs_runs_dir / "run_123.json").write_text('{"run_id": "run_123", "status": "completed"}', encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/qs_runs/run_123/artifacts")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "run_id": "run_123",
+        "artifacts": [
+            {"artifact_id": "proof_pack:run_123", "artifact_type": "proof_pack", "exists": True},
+            {"artifact_id": "ledger_proof_export:run_123", "artifact_type": "ledger_proof_export", "exists": True},
+        ],
+    }
+
+
+def test_qs_run_artifacts_endpoint_handles_missing_artifacts(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    observability_root = tmp_path / "observability"
+    qs_runs_dir = runtime_root / "state" / "qs_runs"
+    qs_runs_dir.mkdir(parents=True)
+    (runtime_root / "exports").mkdir(parents=True)
+    (observability_root / "artifacts" / "proof_packs").mkdir(parents=True)
+    (qs_runs_dir / "run_456.json").write_text('{"run_id": "run_456", "status": "completed"}', encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/qs_runs/run_456/artifacts")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "run_id": "run_456",
+        "artifacts": [
+            {"artifact_id": "proof_pack:run_456", "artifact_type": "proof_pack", "exists": False},
+            {"artifact_id": "ledger_proof_export:run_456", "artifact_type": "ledger_proof_export", "exists": False},
+        ],
+    }
+
+
+def test_qs_run_artifacts_endpoint_rejects_unsafe_run_id(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    observability_root = tmp_path / "observability"
+    qs_runs_dir = runtime_root / "state" / "qs_runs"
+    qs_runs_dir.mkdir(parents=True)
+    (runtime_root / "exports").mkdir(parents=True)
+    (observability_root / "artifacts" / "proof_packs").mkdir(parents=True)
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/qs_runs/%2E%2E/artifacts")
+
+    assert response.status_code == 404
+    assert response.json()["error"] == "not_found"
