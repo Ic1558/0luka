@@ -26,6 +26,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.ops import approval_presets, approval_write, remediation_queue
+from tools.ops.run_interpreter import interpret_run
 
 CANONICAL_RUNTIME_ROOT = Path("/Users/icmini/0luka_runtime")
 CANONICAL_OBSERVABILITY_ROOT = Path("/Users/icmini/0luka/observability")
@@ -281,6 +282,24 @@ def _attach_qs_run_artifacts(payload: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _attach_qs_run_interpretation(payload: dict[str, Any]) -> dict[str, Any]:
+    result = dict(payload)
+    proof_artifacts = result.get("proof_artifacts")
+    decision = interpret_run(result, proof_artifacts)
+    if decision is None:
+        result.setdefault("artifact_count", 0)
+        result.setdefault("expected_artifacts", [])
+        result.setdefault("missing_artifacts", [])
+        result.setdefault("signal", None)
+        return result
+
+    result["artifact_count"] = decision["artifact_count"]
+    result["expected_artifacts"] = decision["expected_artifacts"]
+    result["missing_artifacts"] = decision["missing_artifacts"]
+    result["signal"] = decision["signal"]
+    return result
+
+
 def load_qs_run_artifacts(run_id: str) -> dict[str, Any] | None:
     run_payload = load_qs_run(run_id)
     if run_payload is None:
@@ -406,7 +425,7 @@ def load_qs_runs(limit: int = 100) -> dict[str, Any]:
         try:
             payload = json.loads(f.read_text(encoding="utf-8"))
             if isinstance(payload, dict):
-                runs.append(_attach_qs_run_artifacts(payload))
+                runs.append(_attach_qs_run_interpretation(_attach_qs_run_artifacts(payload)))
         except (json.JSONDecodeError, OSError):
             continue
 
@@ -423,7 +442,7 @@ def load_qs_run(run_id: str) -> dict[str, Any] | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
         if isinstance(payload, dict):
-            return _attach_qs_run_artifacts(payload)
+            return _attach_qs_run_interpretation(_attach_qs_run_artifacts(payload))
     except (json.JSONDecodeError, OSError):
         pass
     return None
