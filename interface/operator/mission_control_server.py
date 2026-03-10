@@ -281,6 +281,32 @@ def _attach_qs_run_artifacts(payload: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def load_qs_run_artifacts(run_id: str) -> dict[str, Any] | None:
+    run_payload = load_qs_run(run_id)
+    if run_payload is None:
+        return None
+
+    artifacts: list[dict[str, Any]] = []
+    for artifact_type in ("proof_pack", "ledger_proof_export"):
+        artifact_id = f"{artifact_type}:{run_id}"
+        try:
+            _, artifact_path = _resolve_proof_artifact_path(artifact_id)
+        except ValueError:
+            return None
+        artifacts.append(
+            {
+                "artifact_id": artifact_id,
+                "artifact_type": artifact_type,
+                "exists": artifact_path.exists() and artifact_path.is_dir(),
+            }
+        )
+
+    return {
+        "run_id": run_id,
+        "artifacts": artifacts,
+    }
+
+
 def load_alerts(limit: int = 100) -> list[dict[str, Any]]:
     path = _alerts_path()
     if not path.exists():
@@ -975,6 +1001,16 @@ async def qs_run_detail_endpoint(request) -> JSONResponse:
         return JSONResponse({"ok": False, "error": "not_found", "run_id": run_id}, status_code=404)
     return JSONResponse(payload)
 
+
+async def qs_run_artifacts_endpoint(request) -> JSONResponse:
+    run_id = str(request.path_params.get("run_id", "")).strip()
+    if not run_id:
+        return JSONResponse({"ok": False, "error": "missing_run_id"}, status_code=400)
+    payload = load_qs_run_artifacts(run_id)
+    if payload is None:
+        return JSONResponse({"ok": False, "error": "not_found", "run_id": run_id}, status_code=404)
+    return JSONResponse(payload)
+
 async def approval_presets_endpoint(request) -> JSONResponse:
     return JSONResponse(load_approval_presets())
 
@@ -1128,6 +1164,7 @@ def create_app():
         app.add_api_route("/api/remediation_queue", remediation_queue_endpoint, methods=["GET"])
         app.add_api_route("/api/qs_runs", qs_runs_endpoint, methods=["GET"])
         app.add_api_route("/api/qs_runs/{run_id}", qs_run_detail_endpoint, methods=["GET"])
+        app.add_api_route("/api/qs_runs/{run_id}/artifacts", qs_run_artifacts_endpoint, methods=["GET"])
         app.add_api_route("/api/remediation_queue/enqueue", remediation_queue_enqueue_endpoint, methods=["POST"])
         app.add_api_route("/api/approval_presets/apply", approval_presets_apply_endpoint, methods=["POST"])
         app.add_api_route("/api/approval_presets/reset", approval_presets_reset_endpoint, methods=["POST"])
@@ -1157,6 +1194,7 @@ def create_app():
             Route("/api/remediation_queue", remediation_queue_endpoint),
             Route("/api/qs_runs", qs_runs_endpoint),
             Route("/api/qs_runs/{run_id}", qs_run_detail_endpoint),
+            Route("/api/qs_runs/{run_id}/artifacts", qs_run_artifacts_endpoint),
             Route("/api/remediation_queue/enqueue", remediation_queue_enqueue_endpoint, methods=["POST"]),
             Route("/api/approval_presets/apply", approval_presets_apply_endpoint, methods=["POST"]),
             Route("/api/approval_presets/reset", approval_presets_reset_endpoint, methods=["POST"]),
