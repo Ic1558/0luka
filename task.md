@@ -27,5 +27,5 @@
 ## Next Steps
 
 - Finalize NLP Model integration for complex conversion.
-- Unblock Mission Control UI integration.
-- Recover NotebookLM Sync Lane (Phase 4).
+- [x] **PR 252 (UI Interpretation)**: COMPLETE (Render signals in MC dashboard).
+- [ ] **Phase 5 (Decision Surface)**: PENDING (Read-only Decision API).
