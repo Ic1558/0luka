@@ -190,6 +190,9 @@ def test_qs_runs_endpoint_returns_proof_artifacts(tmp_path, monkeypatch) -> None
         "proof_pack:run_123",
         "ledger_proof_export:run_123",
     ]
+    assert payload["runs"][0]["artifact_count"] == 2
+    assert payload["runs"][0]["missing_artifacts"] == []
+    assert payload["runs"][0]["signal"] == "COMPLETE"
 
 
 def test_qs_runs_endpoint_returns_empty_artifacts_when_missing(tmp_path, monkeypatch) -> None:
@@ -210,6 +213,12 @@ def test_qs_runs_endpoint_returns_empty_artifacts_when_missing(tmp_path, monkeyp
     assert response.status_code == 200
     payload = response.json()
     assert payload["runs"][0]["proof_artifacts"] == []
+    assert payload["runs"][0]["artifact_count"] == 0
+    assert payload["runs"][0]["missing_artifacts"] == [
+        "proof_pack:run_456",
+        "ledger_proof_export:run_456",
+    ]
+    assert payload["runs"][0]["signal"] == "MISSING_PROOF"
 
 
 def test_qs_run_detail_endpoint_returns_json(monkeypatch) -> None:
@@ -224,6 +233,30 @@ def test_qs_run_detail_endpoint_returns_json(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert response.json()["run_id"] == "valid_id"
+
+
+def test_qs_run_detail_endpoint_includes_interpretation(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    observability_root = tmp_path / "observability"
+    qs_runs_dir = runtime_root / "state" / "qs_runs"
+    proof_pack_dir = observability_root / "artifacts" / "proof_packs" / "run_789"
+    qs_runs_dir.mkdir(parents=True)
+    proof_pack_dir.mkdir(parents=True)
+    (runtime_root / "exports").mkdir(parents=True)
+    (qs_runs_dir / "run_789.json").write_text('{"run_id": "run_789", "status": "completed"}', encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/qs_runs/run_789")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["proof_artifacts"] == ["proof_pack:run_789"]
+    assert payload["artifact_count"] == 1
+    assert payload["missing_artifacts"] == ["ledger_proof_export:run_789"]
+    assert payload["signal"] == "PARTIAL"
 
 
 def test_qs_run_detail_endpoint_rejects_traversal(tmp_path, monkeypatch) -> None:
