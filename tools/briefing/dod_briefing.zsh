@@ -1,6 +1,8 @@
 #!/usr/bin/env zsh
 set -euo pipefail
-REPO="${REPO:-/Users/icmini/0luka}"
+SCRIPT_DIR="${0:A:h}"
+DEFAULT_REPO="${SCRIPT_DIR:h:h}"
+REPO="${REPO:-$DEFAULT_REPO}"
 FILE="$REPO/tools/briefing/DOD_BRIEFING.md"
 
 if [[ ! -f "$FILE" ]]; then
