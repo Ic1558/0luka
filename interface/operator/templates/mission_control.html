@@ -221,6 +221,13 @@
       color: var(--muted);
       font-size: 0.95rem;
     }
+    .proof-signal {
+      display: inline-block;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
     .alert-item {
       display: grid;
       gap: 4px;
@@ -508,10 +515,16 @@
         const runId = String(entry.run_id || '');
         const status = escapeHtml(entry.status || 'unknown');
         const linked = Array.isArray(entry.proof_artifacts) ? entry.proof_artifacts.length : 0;
+        const signal = String(entry.signal || '').trim();
+        const signalLabel = signal ? escapeHtml(signal) : 'Signal unavailable';
+        const artifactCount = Number.isFinite(entry.artifact_count) ? String(entry.artifact_count) : 'n/a';
+        const expectedArtifacts = Number.isFinite(entry.expected_artifacts) ? String(entry.expected_artifacts) : 'n/a';
+        const missingArtifacts = Number.isFinite(entry.missing_artifacts) ? String(entry.missing_artifacts) : 'n/a';
         const selectedClass = runId === selectedQsRunId ? ' is-selected' : '';
         return '<li data-run-id="' + escapeHtml(runId) + '" tabindex="0" class="' + selectedClass.trim() + '">' +
           '<div class="proof-label">' + escapeHtml(runId || 'unknown-run') + '</div>' +
-          '<div class="proof-meta">status=' + status + '; linked_artifacts=' + String(linked) + '</div>' +
+          '<div class="proof-meta"><span class="proof-signal">' + signalLabel + '</span></div>' +
+          '<div class="proof-meta">status=' + status + '; linked_artifacts=' + String(linked) + '; artifact_count=' + artifactCount + '; expected_artifacts=' + expectedArtifacts + '; missing_artifacts=' + missingArtifacts + '</div>' +
           '</li>';
       }).join('');
 
