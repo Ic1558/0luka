@@ -76,6 +76,9 @@ def test_decision_desk_section_renders_pending_fields() -> None:
     assert 'data-field="evidence_refs"' in section
     assert 'data-field="ts_utc"' in section
     assert 'data-field="operator_status"' in section
+    assert 'data-field="execution_bridge_status"' in section
+    assert 'data-field="execution_outcome_status"' in section
+    assert 'data-field="execution_outcome_ref"' in section
 
 
 def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
@@ -110,3 +113,12 @@ def test_decision_desk_has_no_execution_or_remediation_actions() -> None:
     assert "task_dispatcher" not in TEMPLATE
     assert "run anyway" not in TEMPLATE.lower()
     assert "retry" not in TEMPLATE.lower()
+
+
+def test_decision_desk_outcome_wording_distinguishes_handoff_from_completion() -> None:
+    assert "Handoff accepted" in TEMPLATE
+    assert "Waiting for confirmed outcome" in TEMPLATE
+    assert "Execution succeeded" in TEMPLATE
+    assert "Execution failed" in TEMPLATE
+    assert "Outcome unknown" in TEMPLATE
+    assert "Completion is not implied in this phase." in TEMPLATE

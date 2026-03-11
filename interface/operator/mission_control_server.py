@@ -36,6 +36,7 @@ from tools.ops.control_plane_execution_bridge import (
     ExecutionBridgeError,
     handoff_approved_decision,
 )
+from tools.ops.execution_outcome_reconciler import reconcile_execution_outcome
 from tools.ops.decision_engine import classify_once
 from tools.ops.run_interpreter import interpret_run
 
@@ -630,6 +631,16 @@ def _sanitize_decision_payload(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _decorate_decision_with_execution(payload: dict[str, Any]) -> dict[str, Any]:
+    decision = _sanitize_decision_payload(payload)
+    decision["execution"] = reconcile_execution_outcome(
+        payload,
+        repo_root=ROOT,
+        observability_root=_observability_root(),
+    )
+    return decision
+
+
 def load_latest_pending_decision() -> dict[str, Any]:
     try:
         payload = read_latest_decision(_runtime_root())
@@ -638,7 +649,7 @@ def load_latest_pending_decision() -> dict[str, Any]:
 
     if not isinstance(payload, dict):
         return {"pending": None, "latest": None}
-    latest = _sanitize_decision_payload(payload)
+    latest = _decorate_decision_with_execution(payload)
     if payload.get("operator_status") != "PENDING":
         return {"pending": None, "latest": latest}
     return {"pending": latest, "latest": latest}
