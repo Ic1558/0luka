@@ -54,3 +54,53 @@ def test_system_model_section_has_no_repos_qs_dependency() -> None:
     assert "repos/qs Boundary" in section
     assert "fetch('/api/qs_runs" not in section
     assert "proof-artifact-panel" not in section
+
+
+def _decision_desk_section() -> str:
+    marker = "<h2>Decision Desk</h2>"
+    start = TEMPLATE.index(marker)
+    end = TEMPLATE.index("</section>", start)
+    return TEMPLATE[start:end]
+
+
+def test_decision_desk_section_renders_pending_fields() -> None:
+    section = _decision_desk_section()
+
+    assert 'id="decision-desk-panel"' in section
+    assert 'id="decision-desk-status"' in section
+    assert 'id="decision-desk-fields"' in section
+    assert 'data-field="decision_id"' in section
+    assert 'data-field="trace_id"' in section
+    assert 'data-field="signal_received"' in section
+    assert 'data-field="proposed_action"' in section
+    assert 'data-field="evidence_refs"' in section
+    assert 'data-field="ts_utc"' in section
+    assert 'data-field="operator_status"' in section
+
+
+def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
+    assert "fetch('/api/decisions/latest')" in TEMPLATE
+    assert "fetch(endpoint, {" in TEMPLATE
+    assert "/api/decisions/latest/approve" in TEMPLATE
+    assert "/api/decisions/latest/reject" in TEMPLATE
+    assert "submitDecisionResolution('approve')" in TEMPLATE
+    assert "submitDecisionResolution('reject')" in TEMPLATE
+
+
+def test_decision_desk_buttons_start_disabled_and_can_be_enabled_for_pending() -> None:
+    section = _decision_desk_section()
+
+    assert 'id="decision-approve"' in section
+    assert 'id="decision-reject"' in section
+    assert 'id="decision-operator-note"' in section
+    assert 'disabled' in section
+    assert "setDecisionActionState(true);" in TEMPLATE
+
+
+def test_decision_desk_has_no_execution_or_remediation_actions() -> None:
+    section = _decision_desk_section()
+
+    assert "enqueueRemediationItem" not in section
+    assert "submitApprovalAction" not in section
+    assert "remediation_engine" not in TEMPLATE
+    assert "task_dispatcher" not in TEMPLATE
