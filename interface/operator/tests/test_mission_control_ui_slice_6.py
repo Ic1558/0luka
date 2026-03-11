@@ -71,6 +71,14 @@ def _policy_review_subsection() -> str:
     return section[start:end]
 
 
+def _policy_tuning_subsection() -> str:
+    section = _decision_desk_section()
+    marker = 'id="policy-tuning-panel"'
+    start = section.index(marker)
+    end = section.index("</div>", start)
+    return section[start:end]
+
+
 def test_decision_desk_section_renders_pending_fields() -> None:
     section = _decision_desk_section()
 
@@ -108,6 +116,7 @@ def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
     assert "fetch('/api/decisions/latest/suggestion-feedback')" in TEMPLATE
     assert "fetch('/api/policy/stats')" in TEMPLATE
     assert "fetch('/api/policy/review')" in TEMPLATE
+    assert "fetch('/api/policy/tuning-preview" in TEMPLATE
     assert "fetch('/api/policy/auto-lane/unfreeze'" in TEMPLATE
     assert "fetch(endpoint, {" in TEMPLATE
     assert "/api/decisions/latest/approve" in TEMPLATE
@@ -268,3 +277,25 @@ def test_decision_desk_policy_review_panel_is_review_only() -> None:
     assert "refreshPolicyReview()" in TEMPLATE
     assert "fetch('/api/policy/review')" in TEMPLATE
     assert "<button" not in section
+
+
+def test_decision_desk_policy_tuning_panel_is_sandbox_only() -> None:
+    section = _policy_tuning_subsection()
+
+    assert 'id="policy-tuning-panel"' in section
+    assert 'id="policy-tuning-status"' in section
+    assert 'id="policy-tuning-fields"' in section
+    assert 'data-field="baseline_threshold"' in section
+    assert 'data-field="simulated_threshold"' in section
+    assert 'data-field="baseline_retry_count"' in section
+    assert 'data-field="simulated_retry_count"' in section
+    assert 'data-field="baseline_success_rate"' in section
+    assert 'data-field="simulated_success_rate"' in section
+    assert 'data-field="retry_reduction"' in section
+    assert 'data-field="expected_success_gain"' in section
+    assert 'id="policy-tuning-threshold"' in section
+    assert 'id="policy-tuning-run"' in section
+    assert "Run Simulation" in section
+    assert "runPolicyTuningPreview()" in TEMPLATE
+    assert "Sandbox preview only. Live policy remains unchanged." in TEMPLATE
+    assert "apply policy" not in section.lower()

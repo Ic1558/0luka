@@ -424,6 +424,26 @@
               <li class="muted">No policy reason breakdown available</li>
             </ul>
           </div>
+          <div id="policy-tuning-panel" class="lane-block">
+            <h3>Policy Tuning Preview</h3>
+            <p id="policy-tuning-status" class="proof-meta">No policy tuning preview available.</p>
+            <dl id="policy-tuning-fields">
+              <dt>Current Retry Threshold</dt><dd data-field="baseline_threshold">0.70</dd>
+              <dt>Simulated Threshold</dt><dd data-field="simulated_threshold">0.80</dd>
+              <dt>Baseline Retry Count</dt><dd data-field="baseline_retry_count">0</dd>
+              <dt>Simulated Retry Count</dt><dd data-field="simulated_retry_count">0</dd>
+              <dt>Baseline Success Rate</dt><dd data-field="baseline_success_rate">0%</dd>
+              <dt>Simulated Success Rate</dt><dd data-field="simulated_success_rate">0%</dd>
+              <dt>Retry Reduction</dt><dd data-field="retry_reduction">0</dd>
+              <dt>Expected Success Gain</dt><dd data-field="expected_success_gain">0%</dd>
+            </dl>
+            <div class="policy-controls">
+              <label for="policy-tuning-threshold">Threshold</label>
+              <input id="policy-tuning-threshold" type="range" min="0.50" max="0.95" step="0.05" value="0.80">
+              <span id="policy-tuning-threshold-label">0.80</span>
+              <button id="policy-tuning-run" type="button" onclick="runPolicyTuningPreview()">Run Simulation</button>
+            </div>
+          </div>
           <div class="policy-controls">
             <textarea id="decision-operator-note" placeholder="optional operator note" rows="3" disabled></textarea>
             <button id="decision-approve" type="button" onclick="submitDecisionResolution('approve')" disabled>Approve</button>
@@ -1021,6 +1041,38 @@
         : '<li class="muted">No policy reason breakdown available</li>';
     }
 
+    function renderPolicyTuningPreview(payload) {
+      const statusNode = document.getElementById('policy-tuning-status');
+      const fieldNode = document.getElementById('policy-tuning-fields');
+      const labelNode = document.getElementById('policy-tuning-threshold-label');
+      const sliderNode = document.getElementById('policy-tuning-threshold');
+      if (!statusNode || !fieldNode) return;
+
+      const baselineThreshold = payload && typeof payload.baseline_threshold === 'number' ? payload.baseline_threshold : 0.70;
+      const simulatedThreshold = payload && typeof payload.simulated_threshold === 'number' ? payload.simulated_threshold : 0.80;
+      const values = {
+        baseline_threshold: baselineThreshold.toFixed(2),
+        simulated_threshold: simulatedThreshold.toFixed(2),
+        baseline_retry_count: payload && typeof payload.baseline_retry_count === 'number' ? String(payload.baseline_retry_count) : '0',
+        simulated_retry_count: payload && typeof payload.simulated_retry_count === 'number' ? String(payload.simulated_retry_count) : '0',
+        baseline_success_rate: payload && typeof payload.baseline_success_rate === 'number' ? Math.round(payload.baseline_success_rate * 100) + '%' : '0%',
+        simulated_success_rate: payload && typeof payload.simulated_success_rate === 'number' ? Math.round(payload.simulated_success_rate * 100) + '%' : '0%',
+        retry_reduction: payload && payload.difference && typeof payload.difference.retry_reduction === 'number' ? String(payload.difference.retry_reduction) : '0',
+        expected_success_gain: payload && payload.difference && typeof payload.difference.expected_success_gain === 'number' ? Math.round(payload.difference.expected_success_gain * 100) + '%' : '0%',
+      };
+      fieldNode.querySelectorAll('[data-field]').forEach((node) => {
+        const field = node.getAttribute('data-field') || '';
+        node.textContent = values[field] || 'n/a';
+      });
+      if (labelNode) labelNode.textContent = simulatedThreshold.toFixed(2);
+      if (sliderNode && document.activeElement !== sliderNode) {
+        sliderNode.value = simulatedThreshold.toFixed(2);
+      }
+      statusNode.textContent = payload && payload.stats_available
+        ? 'Sandbox preview only. Live policy remains unchanged.'
+        : 'Insufficient evidence for strong tuning simulation conclusions.';
+    }
+
     async function submitPolicyAutoLaneUnfreeze() {
       const noteNode = document.getElementById('policy-auto-lane-note');
       const statusNode = document.getElementById('policy-auto-lane-status');
@@ -1221,6 +1273,28 @@
         renderPolicyReview(payload);
       } catch (error) {
         renderPolicyReview(null);
+      }
+    }
+
+    async function runPolicyTuningPreview() {
+      const sliderNode = document.getElementById('policy-tuning-threshold');
+      const labelNode = document.getElementById('policy-tuning-threshold-label');
+      const statusNode = document.getElementById('policy-tuning-status');
+      const rawValue = sliderNode ? String(sliderNode.value || '0.80') : '0.80';
+      if (labelNode) labelNode.textContent = rawValue;
+      try {
+        const response = await fetch('/api/policy/tuning-preview?success_threshold=' + encodeURIComponent(rawValue));
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload && payload.error ? String(payload.error) : 'policy_tuning_preview_failed');
+        }
+        renderPolicyTuningPreview(payload);
+        if (statusNode) statusNode.textContent = payload.stats_available
+          ? 'Sandbox preview only. Live policy remains unchanged.'
+          : 'Insufficient evidence for strong tuning simulation conclusions.';
+      } catch (error) {
+        if (statusNode) statusNode.textContent = 'Unable to run sandbox tuning preview: ' + String(error.message || error);
+        renderPolicyTuningPreview(null);
       }
     }
 
@@ -1839,6 +1913,7 @@
     setInterval(refreshDecisionSuggestion, 5000);
     setInterval(refreshSuggestionFeedback, 5000);
     setInterval(refreshPolicyReview, 5000);
+    setInterval(runPolicyTuningPreview, 5000);
     setInterval(refreshDecisionHistory, 5000);
     setInterval(refreshProofInventory, 5000);
     setInterval(refreshQsRuns, 5000);
@@ -1858,6 +1933,7 @@
     refreshSuggestionFeedback();
     refreshPolicyStats();
     refreshPolicyReview();
+    runPolicyTuningPreview();
     refreshDecisionHistory();
     refreshProofInventory();
     refreshQsRuns();
