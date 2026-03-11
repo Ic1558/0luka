@@ -13,6 +13,13 @@ PROPOSAL_STATUSES = {
     "APPROVED_FOR_IMPLEMENTATION",
 }
 
+PROPOSAL_LIFECYCLE_EVENTS = {
+    "POLICY_PROPOSAL_APPROVED",
+    "POLICY_PROPOSAL_REJECTED",
+    "POLICY_DEPLOYMENT_REQUESTED",
+    "POLICY_DEPLOYED",
+}
+
 POLICY_COMPONENTS = {
     "auto_retry_threshold": 0.70,
 }
@@ -24,6 +31,10 @@ class PolicyProposalError(RuntimeError):
 
 def _proposal_log_path(observability_root: str | Path) -> Path:
     return Path(observability_root) / "logs" / "policy_change_proposals.jsonl"
+
+
+def _proposal_event_log_path(observability_root: str | Path) -> Path:
+    return Path(observability_root) / "logs" / "policy_change_proposal_events.jsonl"
 
 
 def _ensure_non_empty_string(value: Any, field: str) -> str:
@@ -112,6 +123,22 @@ def _append_record(observability_root: str | Path, record: dict[str, Any]) -> No
         handle.write(json.dumps(record, sort_keys=True) + "\n")
 
 
+def _append_event(observability_root: str | Path, payload: dict[str, Any]) -> dict[str, Any]:
+    event = _ensure_enum(payload.get("event"), "event", PROPOSAL_LIFECYCLE_EVENTS)
+    record = {
+        "event": event,
+        "proposal_id": _ensure_non_empty_string(payload.get("proposal_id"), "proposal_id"),
+        "created_at": _ensure_iso_utc_z(payload.get("created_at"), "created_at"),
+        "status": _ensure_enum(payload.get("status"), "status", PROPOSAL_STATUSES),
+        "operator_note": _normalize_note(payload.get("operator_note")),
+    }
+    path = _proposal_event_log_path(observability_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, sort_keys=True) + "\n")
+    return record
+
+
 def create_policy_change_proposal(
     observability_root: str | Path,
     *,
@@ -139,6 +166,46 @@ def create_policy_change_proposal(
     return record
 
 
+def _read_proposal_events(observability_root: str | Path, *, limit: int = 200) -> list[dict[str, Any]]:
+    path = _proposal_event_log_path(observability_root)
+    if not path.exists():
+        return []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        raise PolicyProposalError("unreadable_policy_change_proposal_events") from exc
+    items: list[dict[str, Any]] = []
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise PolicyProposalError("unreadable_policy_change_proposal_events") from exc
+        if not isinstance(payload, dict):
+            raise PolicyProposalError("invalid_policy_change_proposal_events")
+        items.append(
+            {
+                "event": _ensure_enum(payload.get("event"), "event", PROPOSAL_LIFECYCLE_EVENTS),
+                "proposal_id": _ensure_non_empty_string(payload.get("proposal_id"), "proposal_id"),
+                "created_at": _ensure_iso_utc_z(payload.get("created_at"), "created_at"),
+                "status": _ensure_enum(payload.get("status"), "status", PROPOSAL_STATUSES),
+                "operator_note": _normalize_note(payload.get("operator_note")),
+            }
+        )
+    if len(items) <= limit:
+        return items
+    return items[-limit:]
+
+
+def _effective_status(base_record: dict[str, Any], events: list[dict[str, Any]]) -> str:
+    status = str(base_record["status"])
+    for event in events:
+        if event["proposal_id"] == base_record["proposal_id"]:
+            status = str(event["status"])
+    return status
+
+
 def list_policy_change_proposals(observability_root: str | Path, *, limit: int = 50) -> list[dict[str, Any]]:
     if not isinstance(limit, int) or limit < 1:
         raise PolicyProposalError("invalid_limit")
@@ -161,6 +228,8 @@ def list_policy_change_proposals(observability_root: str | Path, *, limit: int =
         if not isinstance(payload, dict):
             raise PolicyProposalError("invalid_policy_change_proposals")
         items.append(_validate_record(payload))
+    events = _read_proposal_events(observability_root, limit=200)
+    items = [{**item, "status": _effective_status(item, events)} for item in items]
     if len(items) <= bounded_limit:
         return items
     return items[-bounded_limit:]
@@ -172,3 +241,94 @@ def get_policy_change_proposal(observability_root: str | Path, proposal_id: str)
         if item["proposal_id"] == target:
             return item
     return None
+
+
+def transition_policy_change_proposal(
+    observability_root: str | Path,
+    *,
+    proposal_id: str,
+    event: str,
+    status: str,
+    created_at: str,
+    operator_note: str | None = None,
+) -> dict[str, Any]:
+    proposal = get_policy_change_proposal(observability_root, proposal_id)
+    if proposal is None:
+        raise PolicyProposalError("proposal_not_found")
+    current_status = str(proposal["status"])
+    allowed = {"PROPOSED", "UNDER_REVIEW"}
+    if current_status not in allowed:
+        raise PolicyProposalError("proposal_not_transitionable")
+    _append_event(
+        observability_root,
+        {
+            "event": event,
+            "proposal_id": proposal_id,
+            "created_at": created_at,
+            "status": status,
+            "operator_note": operator_note,
+        },
+    )
+    updated = get_policy_change_proposal(observability_root, proposal_id)
+    if updated is None:
+        raise PolicyProposalError("proposal_not_found")
+    return updated
+
+
+def approve_policy_change_proposal(
+    observability_root: str | Path,
+    *,
+    proposal_id: str,
+    created_at: str,
+    operator_note: str | None = None,
+) -> dict[str, Any]:
+    return transition_policy_change_proposal(
+        observability_root,
+        proposal_id=proposal_id,
+        event="POLICY_PROPOSAL_APPROVED",
+        status="APPROVED_FOR_IMPLEMENTATION",
+        created_at=created_at,
+        operator_note=operator_note,
+    )
+
+
+def reject_policy_change_proposal(
+    observability_root: str | Path,
+    *,
+    proposal_id: str,
+    created_at: str,
+    operator_note: str | None = None,
+) -> dict[str, Any]:
+    return transition_policy_change_proposal(
+        observability_root,
+        proposal_id=proposal_id,
+        event="POLICY_PROPOSAL_REJECTED",
+        status="REJECTED",
+        created_at=created_at,
+        operator_note=operator_note,
+    )
+
+
+def append_policy_deployment_event(
+    observability_root: str | Path,
+    *,
+    proposal_id: str,
+    event: str,
+    created_at: str,
+    operator_note: str | None = None,
+) -> dict[str, Any]:
+    proposal = get_policy_change_proposal(observability_root, proposal_id)
+    if proposal is None:
+        raise PolicyProposalError("proposal_not_found")
+    if str(proposal["status"]) != "APPROVED_FOR_IMPLEMENTATION":
+        raise PolicyProposalError("proposal_not_approved_for_implementation")
+    return _append_event(
+        observability_root,
+        {
+            "event": event,
+            "proposal_id": proposal_id,
+            "created_at": created_at,
+            "status": "APPROVED_FOR_IMPLEMENTATION",
+            "operator_note": operator_note,
+        },
+    )

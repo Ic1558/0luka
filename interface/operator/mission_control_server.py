@@ -48,13 +48,21 @@ from tools.ops.control_plane_suggestions import load_latest_suggestion
 from tools.ops.control_plane_policy import load_latest_policy
 from tools.ops.control_plane_policy_change_proposals import (
     PolicyProposalError,
+    append_policy_deployment_event,
+    approve_policy_change_proposal,
     create_policy_change_proposal,
     get_policy_change_proposal,
     list_policy_change_proposals,
+    reject_policy_change_proposal,
 )
 from tools.ops.control_plane_policy_learning_review import load_policy_learning_review
 from tools.ops.control_plane_policy_observability import load_policy_stats
 from tools.ops.control_plane_policy_tuning_simulator import load_policy_tuning_preview
+from tools.ops.control_plane_policy_versions import (
+    deploy_policy_version,
+    list_policy_versions,
+    read_live_policy,
+)
 from tools.ops.execution_outcome_reconciler import reconcile_execution_outcome
 from tools.ops.decision_engine import classify_once
 from tools.ops.run_interpreter import interpret_run
@@ -804,6 +812,27 @@ def load_policy_change_proposal_detail_payload(proposal_id: str) -> dict[str, An
         return None
 
 
+def load_policy_version_payload() -> dict[str, Any]:
+    try:
+        return read_live_policy(_runtime_root())
+    except PolicyProposalError:
+        return {
+            "policy_component": "auto_retry_threshold",
+            "current_value": 0.70,
+            "policy_version_id": None,
+            "deployed_at": None,
+            "proposal_id": None,
+        }
+
+
+def load_policy_versions_payload(*, limit: int = 50) -> dict[str, Any]:
+    try:
+        items = list_policy_versions(_observability_root(), limit=limit)
+    except PolicyProposalError:
+        items = []
+    return {"items": items, "count": len(items)}
+
+
 def load_remediation_queue() -> dict[str, Any]:
     return remediation_queue.list_queue(runtime_root=_runtime_root())
 
@@ -1398,6 +1427,95 @@ async def policy_proposal_detail_endpoint(request) -> JSONResponse:
     if payload is None:
         return JSONResponse({"ok": False, "error": "proposal_not_found"}, status_code=404)
     return JSONResponse({"ok": True, "proposal": payload})
+
+
+async def policy_proposal_approve_endpoint(request) -> JSONResponse:
+    proposal_id = str(request.path_params.get("proposal_id") or "")
+    try:
+        payload = await _optional_request_json(request)
+        operator_note = payload.get("operator_note")
+        if operator_note is not None and not isinstance(operator_note, str):
+            raise RuntimeError("invalid_operator_note")
+        proposal = approve_policy_change_proposal(
+            _observability_root(),
+            proposal_id=proposal_id,
+            created_at=_utc_now_iso(),
+            operator_note=operator_note,
+        )
+        return JSONResponse({"ok": True, "proposal_id": proposal["proposal_id"], "status": proposal["status"]})
+    except (PolicyProposalError, RuntimeError) as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=409)
+
+
+async def policy_proposal_reject_endpoint(request) -> JSONResponse:
+    proposal_id = str(request.path_params.get("proposal_id") or "")
+    try:
+        payload = await _optional_request_json(request)
+        operator_note = payload.get("operator_note")
+        if operator_note is not None and not isinstance(operator_note, str):
+            raise RuntimeError("invalid_operator_note")
+        proposal = reject_policy_change_proposal(
+            _observability_root(),
+            proposal_id=proposal_id,
+            created_at=_utc_now_iso(),
+            operator_note=operator_note,
+        )
+        return JSONResponse({"ok": True, "proposal_id": proposal["proposal_id"], "status": proposal["status"]})
+    except (PolicyProposalError, RuntimeError) as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=409)
+
+
+async def policy_proposal_deploy_endpoint(request) -> JSONResponse:
+    proposal_id = str(request.path_params.get("proposal_id") or "")
+    try:
+        payload = await _optional_request_json(request)
+        operator_note = payload.get("operator_note")
+        if operator_note is not None and not isinstance(operator_note, str):
+            raise RuntimeError("invalid_operator_note")
+        proposal = load_policy_change_proposal_detail_payload(proposal_id)
+        if proposal is None:
+            raise PolicyProposalError("proposal_not_found")
+        if str(proposal.get("status") or "") != "APPROVED_FOR_IMPLEMENTATION":
+            raise PolicyProposalError("proposal_not_approved_for_implementation")
+        timestamp = _utc_now_iso()
+        append_policy_deployment_event(
+            _observability_root(),
+            proposal_id=proposal_id,
+            event="POLICY_DEPLOYMENT_REQUESTED",
+            created_at=timestamp,
+            operator_note=operator_note,
+        )
+        record = deploy_policy_version(
+            _runtime_root(),
+            _observability_root(),
+            proposal_id=proposal_id,
+            deployed_at=timestamp,
+            policy_component=str(proposal["policy_component"]),
+            new_value=float(proposal["proposed_value"]),
+        )
+        append_policy_deployment_event(
+            _observability_root(),
+            proposal_id=proposal_id,
+            event="POLICY_DEPLOYED",
+            created_at=timestamp,
+            operator_note=operator_note,
+        )
+        return JSONResponse({"ok": True, **record})
+    except (PolicyProposalError, RuntimeError) as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=409)
+
+
+async def policy_version_endpoint(request) -> JSONResponse:
+    return JSONResponse(load_policy_version_payload())
+
+
+async def policy_versions_endpoint(request) -> JSONResponse:
+    raw_limit = request.query_params.get("limit", "50")
+    try:
+        limit = int(raw_limit)
+    except (TypeError, ValueError):
+        limit = 50
+    return JSONResponse(load_policy_versions_payload(limit=limit))
 
 
 async def policy_auto_lane_unfreeze_endpoint(request) -> JSONResponse:
@@ -2093,6 +2211,11 @@ def create_app():
         app.add_api_route("/api/policy/tuning-preview", policy_tuning_preview_endpoint, methods=["GET"])
         app.add_api_route("/api/policy/proposals", policy_proposals_endpoint, methods=["GET", "POST"])
         app.add_api_route("/api/policy/proposals/{proposal_id}", policy_proposal_detail_endpoint, methods=["GET"])
+        app.add_api_route("/api/policy/proposals/{proposal_id}/approve", policy_proposal_approve_endpoint, methods=["POST"])
+        app.add_api_route("/api/policy/proposals/{proposal_id}/reject", policy_proposal_reject_endpoint, methods=["POST"])
+        app.add_api_route("/api/policy/proposals/{proposal_id}/deploy", policy_proposal_deploy_endpoint, methods=["POST"])
+        app.add_api_route("/api/policy/version", policy_version_endpoint, methods=["GET"])
+        app.add_api_route("/api/policy/versions", policy_versions_endpoint, methods=["GET"])
         app.add_api_route("/api/policy/auto-lane/unfreeze", policy_auto_lane_unfreeze_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/history", decisions_history_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
@@ -2142,6 +2265,11 @@ def create_app():
             Route("/api/policy/tuning-preview", policy_tuning_preview_endpoint),
             Route("/api/policy/proposals", policy_proposals_endpoint, methods=["GET", "POST"]),
             Route("/api/policy/proposals/{proposal_id}", policy_proposal_detail_endpoint),
+            Route("/api/policy/proposals/{proposal_id}/approve", policy_proposal_approve_endpoint, methods=["POST"]),
+            Route("/api/policy/proposals/{proposal_id}/reject", policy_proposal_reject_endpoint, methods=["POST"]),
+            Route("/api/policy/proposals/{proposal_id}/deploy", policy_proposal_deploy_endpoint, methods=["POST"]),
+            Route("/api/policy/version", policy_version_endpoint),
+            Route("/api/policy/versions", policy_versions_endpoint),
             Route("/api/policy/auto-lane/unfreeze", policy_auto_lane_unfreeze_endpoint, methods=["POST"]),
             Route("/api/decisions/history", decisions_history_endpoint),
             Route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"]),

@@ -472,6 +472,23 @@
               <dt>Simulation Reference</dt><dd data-field="simulation_reference">n/a</dd>
               <dt>Operator Note</dt><dd data-field="operator_note">n/a</dd>
             </dl>
+            <div class="policy-controls">
+              <textarea id="policy-proposal-action-note" placeholder="optional approval/deployment note" rows="2"></textarea>
+              <button id="policy-proposal-approve" type="button" onclick="submitPolicyProposalAction('approve')" disabled>Approve Proposal</button>
+              <button id="policy-proposal-reject" type="button" onclick="submitPolicyProposalAction('reject')" disabled>Reject Proposal</button>
+              <button id="policy-proposal-deploy" type="button" onclick="submitPolicyProposalDeploy()" disabled>Deploy Policy Change</button>
+            </div>
+          </div>
+          <div id="policy-version-panel" class="lane-block">
+            <h3>Live Policy Version</h3>
+            <p id="policy-version-status" class="proof-meta">No live policy version deployed beyond the default threshold.</p>
+            <dl id="policy-version-fields">
+              <dt>Policy Component</dt><dd data-field="policy_component">auto_retry_threshold</dd>
+              <dt>Current Value</dt><dd data-field="current_value">0.70</dd>
+              <dt>Policy Version ID</dt><dd data-field="policy_version_id">n/a</dd>
+              <dt>Deployed At</dt><dd data-field="deployed_at">n/a</dd>
+              <dt>Source Proposal ID</dt><dd data-field="proposal_id">n/a</dd>
+            </dl>
           </div>
           <div class="policy-controls">
             <textarea id="decision-operator-note" placeholder="optional operator note" rows="3" disabled></textarea>
@@ -1104,6 +1121,10 @@
 
     function renderPolicyProposalDetail(proposal) {
       const panel = document.getElementById('policy-proposal-detail-fields');
+      const approveButton = document.getElementById('policy-proposal-approve');
+      const rejectButton = document.getElementById('policy-proposal-reject');
+      const deployButton = document.getElementById('policy-proposal-deploy');
+      const noteNode = document.getElementById('policy-proposal-action-note');
       if (!panel) return;
       const values = {
         proposal_id: proposal && proposal.proposal_id ? String(proposal.proposal_id) : 'n/a',
@@ -1120,6 +1141,13 @@
         const field = node.getAttribute('data-field') || '';
         node.textContent = values[field] || 'n/a';
       });
+      const status = proposal && proposal.status ? String(proposal.status) : '';
+      const canReview = status === 'PROPOSED' || status === 'UNDER_REVIEW';
+      const canDeploy = status === 'APPROVED_FOR_IMPLEMENTATION';
+      if (approveButton) approveButton.disabled = !canReview;
+      if (rejectButton) rejectButton.disabled = !canReview;
+      if (deployButton) deployButton.disabled = !canDeploy;
+      if (noteNode) noteNode.disabled = !(canReview || canDeploy);
     }
 
     function renderPolicyProposals(payload) {
@@ -1207,6 +1235,104 @@
         refreshPolicyProposals();
       } catch (error) {
         if (statusNode) statusNode.textContent = 'Unable to create proposal: ' + String(error.message || error);
+      }
+    }
+
+    function selectedPolicyProposalId() {
+      const node = document.querySelector('#policy-proposal-detail-fields [data-field="proposal_id"]');
+      const proposalId = node ? String(node.textContent || '').trim() : '';
+      return proposalId && proposalId !== 'n/a' ? proposalId : '';
+    }
+
+    async function submitPolicyProposalAction(action) {
+      const proposalId = selectedPolicyProposalId();
+      const noteNode = document.getElementById('policy-proposal-action-note');
+      const statusNode = document.getElementById('policy-proposals-status');
+      if (!proposalId) {
+        if (statusNode) statusNode.textContent = 'Select a proposal before taking a review action.';
+        return;
+      }
+      const payload = {};
+      if (noteNode && noteNode.value.trim()) payload.operator_note = noteNode.value.trim();
+      try {
+        const response = await fetch('/api/policy/proposals/' + encodeURIComponent(proposalId) + '/' + action, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) {
+          throw new Error(result && result.error ? String(result.error) : 'proposal_' + action + '_failed');
+        }
+        if (statusNode) statusNode.textContent = 'Proposal ' + String(result.proposal_id || proposalId) + ' marked ' + String(result.status || 'updated') + '.';
+        if (noteNode) noteNode.value = '';
+        await refreshPolicyProposals();
+        await loadPolicyProposalDetail(proposalId);
+      } catch (error) {
+        if (statusNode) statusNode.textContent = 'Unable to ' + action + ' proposal: ' + String(error.message || error);
+      }
+    }
+
+    function renderPolicyVersion(payload) {
+      const statusNode = document.getElementById('policy-version-status');
+      const panel = document.getElementById('policy-version-fields');
+      if (!statusNode || !panel) return;
+      const values = {
+        policy_component: payload && payload.policy_component ? String(payload.policy_component) : 'auto_retry_threshold',
+        current_value: payload && typeof payload.current_value === 'number' ? payload.current_value.toFixed(2) : '0.70',
+        policy_version_id: payload && payload.policy_version_id ? String(payload.policy_version_id) : 'n/a',
+        deployed_at: payload && payload.deployed_at ? String(payload.deployed_at) : 'n/a',
+        proposal_id: payload && payload.proposal_id ? String(payload.proposal_id) : 'n/a',
+      };
+      panel.querySelectorAll('[data-field]').forEach((node) => {
+        const field = node.getAttribute('data-field') || '';
+        node.textContent = values[field] || 'n/a';
+      });
+      statusNode.textContent = payload && payload.policy_version_id
+        ? 'Live policy version loaded from explicit operator deployment.'
+        : 'No live policy version deployed beyond the default threshold.';
+    }
+
+    async function refreshPolicyVersion() {
+      try {
+        const response = await fetch('/api/policy/version');
+        if (!response.ok) {
+          renderPolicyVersion(null);
+          return;
+        }
+        renderPolicyVersion(await response.json());
+      } catch (_error) {
+        renderPolicyVersion(null);
+      }
+    }
+
+    async function submitPolicyProposalDeploy() {
+      const proposalId = selectedPolicyProposalId();
+      const noteNode = document.getElementById('policy-proposal-action-note');
+      const statusNode = document.getElementById('policy-proposals-status');
+      if (!proposalId) {
+        if (statusNode) statusNode.textContent = 'Select an approved proposal before deployment.';
+        return;
+      }
+      const payload = {};
+      if (noteNode && noteNode.value.trim()) payload.operator_note = noteNode.value.trim();
+      try {
+        const response = await fetch('/api/policy/proposals/' + encodeURIComponent(proposalId) + '/deploy', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) {
+          throw new Error(result && result.error ? String(result.error) : 'policy_deploy_failed');
+        }
+        if (statusNode) statusNode.textContent = 'Policy deployment recorded at version ' + String(result.policy_version_id || 'n/a') + '.';
+        if (noteNode) noteNode.value = '';
+        await refreshPolicyVersion();
+        await refreshPolicyProposals();
+        await loadPolicyProposalDetail(proposalId);
+      } catch (error) {
+        if (statusNode) statusNode.textContent = 'Unable to deploy policy change: ' + String(error.message || error);
       }
     }
 
@@ -2052,6 +2178,7 @@
     setInterval(refreshPolicyReview, 5000);
     setInterval(runPolicyTuningPreview, 5000);
     setInterval(refreshPolicyProposals, 5000);
+    setInterval(refreshPolicyVersion, 5000);
     setInterval(refreshDecisionHistory, 5000);
     setInterval(refreshProofInventory, 5000);
     setInterval(refreshQsRuns, 5000);
@@ -2073,6 +2200,7 @@
     refreshPolicyReview();
     runPolicyTuningPreview();
     refreshPolicyProposals();
+    refreshPolicyVersion();
     refreshDecisionHistory();
     refreshProofInventory();
     refreshQsRuns();
