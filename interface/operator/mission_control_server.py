@@ -14,7 +14,9 @@ from typing import Any
 try:
     from fastapi import FastAPI
     from fastapi.responses import HTMLResponse, JSONResponse
-    FASTAPI_AVAILABLE = True
+    # This module's endpoints expect raw Starlette request objects rather than
+    # FastAPI parameter parsing, so use the Starlette route path consistently.
+    FASTAPI_AVAILABLE = False
 except ImportError:  # pragma: no cover
     from starlette.applications import Starlette as FastAPI
     from starlette.responses import HTMLResponse, JSONResponse
@@ -48,6 +50,7 @@ from tools.ops.control_plane_suggestions import load_latest_suggestion
 from tools.ops.control_plane_policy import load_latest_policy
 from tools.ops.control_plane_auto_lane_review import derive_auto_lane_review
 from tools.ops.control_plane_auto_lane_queue import load_auto_lane_candidate_queue
+from tools.ops.control_plane_auto_lane_trends import load_auto_lane_readiness
 from tools.ops.control_plane_policy_change_proposals import (
     PolicyProposalError,
     append_policy_deployment_event,
@@ -794,6 +797,14 @@ def load_auto_lane_candidates_payload(*, limit: int = 10) -> dict[str, Any]:
     )
 
 
+def load_auto_lane_readiness_payload(*, recent_cases: int = 20) -> dict[str, Any]:
+    return load_auto_lane_readiness(
+        observability_root=_observability_root(),
+        repo_root=ROOT,
+        recent_cases=recent_cases,
+    )
+
+
 def load_policy_stats_payload() -> dict[str, Any]:
     return load_policy_stats(
         observability_root=_observability_root(),
@@ -808,11 +819,18 @@ def load_policy_review_payload() -> dict[str, Any]:
     )
 
 
-def load_policy_tuning_preview_payload(*, success_threshold: float | str) -> dict[str, Any]:
+def load_policy_tuning_preview_payload(
+    *,
+    alignment_threshold: int | str = 2,
+    confidence_requirement: str | None = "HIGH",
+    recent_cases: int = 20,
+) -> dict[str, Any]:
     return load_policy_tuning_preview(
         observability_root=_observability_root(),
         repo_root=ROOT,
-        simulated_success_threshold=success_threshold,
+        alignment_threshold=alignment_threshold,
+        confidence_requirement=confidence_requirement,
+        recent_cases=recent_cases,
     )
 
 
@@ -1413,6 +1431,15 @@ async def decisions_auto_lane_candidates_endpoint(request) -> JSONResponse:
     return JSONResponse(load_auto_lane_candidates_payload(limit=limit))
 
 
+async def decisions_auto_lane_readiness_endpoint(request) -> JSONResponse:
+    raw_recent_cases = request.query_params.get("recent_cases", "20")
+    try:
+        recent_cases = max(1, min(int(raw_recent_cases), 50))
+    except (TypeError, ValueError):
+        recent_cases = 20
+    return JSONResponse(load_auto_lane_readiness_payload(recent_cases=recent_cases))
+
+
 async def policy_stats_endpoint(request) -> JSONResponse:
     return JSONResponse(load_policy_stats_payload())
 
@@ -1422,9 +1449,17 @@ async def policy_review_endpoint(request) -> JSONResponse:
 
 
 async def policy_tuning_preview_endpoint(request) -> JSONResponse:
-    raw_threshold = request.query_params.get("success_threshold", "0.80")
+    raw_alignment_threshold = request.query_params.get("alignment_threshold", "2")
+    raw_confidence_requirement = request.query_params.get("confidence_requirement", "HIGH")
+    raw_recent_cases = request.query_params.get("recent_cases", "20")
     try:
-        return JSONResponse(load_policy_tuning_preview_payload(success_threshold=raw_threshold))
+        return JSONResponse(
+            load_policy_tuning_preview_payload(
+                alignment_threshold=raw_alignment_threshold,
+                confidence_requirement=raw_confidence_requirement,
+                recent_cases=int(raw_recent_cases),
+            )
+        )
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
 
@@ -2291,6 +2326,7 @@ def create_app():
         app.add_api_route("/api/decisions/latest/policy", decisions_latest_policy_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest/auto-lane-review", decisions_latest_auto_lane_review_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/auto-lane-candidates", decisions_auto_lane_candidates_endpoint, methods=["GET"])
+        app.add_api_route("/api/decisions/auto-lane-readiness", decisions_auto_lane_readiness_endpoint, methods=["GET"])
         app.add_api_route("/api/policy/stats", policy_stats_endpoint, methods=["GET"])
         app.add_api_route("/api/policy/review", policy_review_endpoint, methods=["GET"])
         app.add_api_route("/api/policy/tuning-preview", policy_tuning_preview_endpoint, methods=["GET"])
@@ -2349,6 +2385,7 @@ def create_app():
             Route("/api/decisions/latest/policy", decisions_latest_policy_endpoint),
             Route("/api/decisions/latest/auto-lane-review", decisions_latest_auto_lane_review_endpoint),
             Route("/api/decisions/auto-lane-candidates", decisions_auto_lane_candidates_endpoint),
+            Route("/api/decisions/auto-lane-readiness", decisions_auto_lane_readiness_endpoint),
             Route("/api/policy/stats", policy_stats_endpoint),
             Route("/api/policy/review", policy_review_endpoint),
             Route("/api/policy/tuning-preview", policy_tuning_preview_endpoint),

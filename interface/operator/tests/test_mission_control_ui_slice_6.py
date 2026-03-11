@@ -87,6 +87,14 @@ def _auto_lane_candidates_subsection() -> str:
     return section[start:end]
 
 
+def _auto_lane_readiness_subsection() -> str:
+    section = _decision_desk_section()
+    marker = 'id="auto-lane-readiness-panel"'
+    start = section.index(marker)
+    end = section.index("</div>", start)
+    return section[start:end]
+
+
 def _policy_tuning_subsection() -> str:
     section = _decision_desk_section()
     marker = 'id="policy-tuning-panel"'
@@ -147,10 +155,11 @@ def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
     assert "fetch('/api/decisions/latest/policy')" in TEMPLATE
     assert "fetch('/api/decisions/latest/auto-lane-review')" in TEMPLATE
     assert "fetch('/api/decisions/auto-lane-candidates')" in TEMPLATE
+    assert "fetch('/api/decisions/auto-lane-readiness')" in TEMPLATE
     assert "fetch('/api/decisions/latest/suggestion-feedback')" in TEMPLATE
     assert "fetch('/api/policy/stats')" in TEMPLATE
     assert "fetch('/api/policy/review')" in TEMPLATE
-    assert "fetch('/api/policy/tuning-preview" in TEMPLATE
+    assert "/api/policy/tuning-preview?alignment_threshold=" in TEMPLATE
     assert "fetch('/api/policy/proposals')" in TEMPLATE
     assert "fetch('/api/policy/proposals/' + encodeURIComponent(proposalId) + '/' + action" in TEMPLATE
     assert "fetch('/api/policy/proposals/' + encodeURIComponent(proposalId) + '/deploy'" in TEMPLATE
@@ -361,25 +370,55 @@ def test_decision_desk_auto_lane_candidates_panel_is_review_only() -> None:
     assert "<button" not in section
 
 
+def test_decision_desk_auto_lane_readiness_panel_is_review_only() -> None:
+    section = _auto_lane_readiness_subsection()
+
+    assert 'id="auto-lane-readiness-panel"' in section
+    assert 'id="auto-lane-readiness-status"' in section
+    assert 'id="auto-lane-readiness-fields"' in section
+    assert 'data-field="recent_cases"' in section
+    assert 'data-field="eligible"' in section
+    assert 'data-field="blocked"' in section
+    assert 'data-field="eligible_ratio"' in section
+    assert 'data-field="band"' in section
+    assert 'data-field="reason"' in section
+    assert 'id="auto-lane-readiness-top-blockers"' in section
+    assert "Readiness reflects recent bounded eligibility patterns only. No autonomy change is implied." in TEMPLATE
+    assert "Sparse or missing evidence keeps readiness bounded and conservative." in TEMPLATE
+    assert "No blocker trend summary available." in TEMPLATE
+    assert "renderAutoLaneReadiness(payload)" in TEMPLATE
+    assert "refreshAutoLaneReadiness()" in TEMPLATE
+    assert "fetch('/api/decisions/auto-lane-readiness')" in TEMPLATE
+    assert "<button" not in section
+
+
 def test_decision_desk_policy_tuning_panel_is_sandbox_only() -> None:
     section = _policy_tuning_subsection()
 
     assert 'id="policy-tuning-panel"' in section
     assert 'id="policy-tuning-status"' in section
     assert 'id="policy-tuning-fields"' in section
-    assert 'data-field="baseline_threshold"' in section
-    assert 'data-field="simulated_threshold"' in section
-    assert 'data-field="baseline_retry_count"' in section
-    assert 'data-field="simulated_retry_count"' in section
-    assert 'data-field="baseline_success_rate"' in section
-    assert 'data-field="simulated_success_rate"' in section
-    assert 'data-field="retry_reduction"' in section
-    assert 'data-field="expected_success_gain"' in section
-    assert 'id="policy-tuning-threshold"' in section
+    assert 'data-field="baseline_alignment_threshold"' in section
+    assert 'data-field="simulation_alignment_threshold"' in section
+    assert 'data-field="baseline_confidence_requirement"' in section
+    assert 'data-field="simulation_confidence_requirement"' in section
+    assert 'data-field="baseline_eligible_count"' in section
+    assert 'data-field="simulation_eligible_count"' in section
+    assert 'data-field="baseline_blocked_count"' in section
+    assert 'data-field="simulation_blocked_count"' in section
+    assert 'data-field="eligible_ratio_delta"' in section
+    assert 'data-field="baseline_readiness_band"' in section
+    assert 'data-field="simulation_readiness_band"' in section
+    assert 'id="policy-tuning-alignment-threshold"' in section
+    assert 'id="policy-tuning-confidence-requirement"' in section
     assert 'id="policy-tuning-run"' in section
+    assert 'id="policy-tuning-blocker-shift"' in section
+    assert 'id="policy-tuning-notes"' in section
     assert "Run Simulation" in section
     assert "runPolicyTuningPreview()" in TEMPLATE
     assert "Sandbox preview only. Live policy remains unchanged." in TEMPLATE
+    assert "Sandbox preview compares recent bounded eligibility under simulated settings only." in TEMPLATE
+    assert "No blocker shift summary available." in TEMPLATE
     assert "apply policy" not in section.lower()
 
 
