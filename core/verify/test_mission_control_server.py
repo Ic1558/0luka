@@ -1953,7 +1953,10 @@ def test_latest_suggestion_returns_retry_for_failed_execution(tmp_path, monkeypa
     assert response.status_code == 200
     payload = response.json()
     assert payload["suggestion"] == "RETRY_RECOMMENDED"
+    assert payload["confidence_score"] == 0.9
+    assert payload["confidence_band"] == "HIGH"
     assert payload["reason"] == "execution_failed_after_approved_decision"
+    assert payload["root_cause_hint"] == "deterministic execution failure observed after approved handoff"
 
 
 def test_latest_suggestion_returns_escalation_for_unknown_execution(tmp_path, monkeypatch) -> None:
@@ -1988,7 +1991,10 @@ def test_latest_suggestion_returns_escalation_for_unknown_execution(tmp_path, mo
     assert response.status_code == 200
     payload = response.json()
     assert payload["suggestion"] == "ESCALATION_RECOMMENDED"
+    assert payload["confidence_score"] == 0.65
+    assert payload["confidence_band"] == "MEDIUM"
     assert payload["reason"] == "execution_outcome_unknown_after_approved_decision"
+    assert payload["root_cause_hint"] == "downstream result not safely reconcilable from current execution surfaces"
 
 
 def test_latest_suggestion_returns_no_action_for_succeeded_execution(tmp_path, monkeypatch) -> None:
@@ -2023,7 +2029,10 @@ def test_latest_suggestion_returns_no_action_for_succeeded_execution(tmp_path, m
     assert response.status_code == 200
     payload = response.json()
     assert payload["suggestion"] == "NO_ACTION_RECOMMENDED"
+    assert payload["confidence_score"] == 0.95
+    assert payload["confidence_band"] == "HIGH"
     assert payload["reason"] == "execution_succeeded"
+    assert payload["root_cause_hint"] == "execution completed successfully; no further action suggested"
 
 
 def test_latest_suggestion_returns_no_action_when_decision_missing(tmp_path, monkeypatch) -> None:
@@ -2042,4 +2051,7 @@ def test_latest_suggestion_returns_no_action_when_decision_missing(tmp_path, mon
     assert response.status_code == 200
     payload = response.json()
     assert payload["suggestion"] == "NO_ACTION_RECOMMENDED"
+    assert payload["confidence_score"] == 0.2
+    assert payload["confidence_band"] == "LOW"
     assert payload["reason"] == "no_latest_decision"
+    assert payload["root_cause_hint"] == "no latest decision available for suggestion analysis"

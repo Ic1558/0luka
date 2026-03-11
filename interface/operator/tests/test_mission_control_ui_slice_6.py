@@ -82,7 +82,10 @@ def test_decision_desk_section_renders_pending_fields() -> None:
     assert 'id="decision-suggestion-panel"' in section
     assert 'id="decision-suggestion-fields"' in section
     assert 'data-field="suggestion"' in section
+    assert 'data-field="confidence_band"' in section
+    assert 'data-field="confidence_score"' in section
     assert 'data-field="reason"' in section
+    assert 'data-field="root_cause_hint"' in section
 
 
 def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
@@ -154,8 +157,17 @@ def test_decision_desk_suggestion_panel_is_advisory_only() -> None:
 
     assert "Suggested Action" in section
     assert "No Action Recommended" in section
+    assert "Confidence" in section
+    assert "Confidence Score" in section
     assert "No latest decision available." in section
+    assert "Hint" in section
+    assert "No latest decision available for suggestion analysis." in section
     assert "Retry Recommended" in TEMPLATE
     assert "Escalation Recommended" in TEMPLATE
+    assert "High" in TEMPLATE
+    assert "Medium" in TEMPLATE
+    assert "Low" in TEMPLATE
     assert "Execution failed after approved decision." in TEMPLATE
     assert "Execution outcome is unknown after approved decision." in TEMPLATE
+    assert "root_cause_hint" in TEMPLATE
+    assert "renderDecisionSuggestion(payload)" in TEMPLATE
