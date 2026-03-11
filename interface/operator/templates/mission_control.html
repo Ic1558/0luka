@@ -363,6 +363,13 @@
             <dt>Outcome Ref</dt><dd data-field="execution_outcome_ref">n/a</dd>
             <dt>Retry Count</dt><dd data-field="execution_retry_count">0</dd>
           </dl>
+          <div id="decision-suggestion-panel" class="lane-block">
+            <h3>Suggested Action</h3>
+            <dl id="decision-suggestion-fields">
+              <dt>Suggestion</dt><dd data-field="suggestion">No Action Recommended</dd>
+              <dt>Reason</dt><dd data-field="reason">No latest decision available.</dd>
+            </dl>
+          </div>
           <div class="policy-controls">
             <textarea id="decision-operator-note" placeholder="optional operator note" rows="3" disabled></textarea>
             <button id="decision-approve" type="button" onclick="submitDecisionResolution('approve')" disabled>Approve</button>
@@ -784,6 +791,40 @@
       if (escalateNode) escalateNode.disabled = !enabled;
     }
 
+    function suggestionLabel(payload) {
+      const suggestion = payload && payload.suggestion ? String(payload.suggestion) : 'NO_ACTION_RECOMMENDED';
+      if (suggestion === 'RETRY_RECOMMENDED') return 'Retry Recommended';
+      if (suggestion === 'ESCALATION_RECOMMENDED') return 'Escalation Recommended';
+      return 'No Action Recommended';
+    }
+
+    function suggestionReasonLabel(payload) {
+      const reason = payload && payload.reason ? String(payload.reason) : 'no_latest_decision';
+      const mapping = {
+        no_latest_decision: 'No latest decision available.',
+        latest_decision_not_approved: 'Latest decision is not approved for follow-up action.',
+        execution_failed_after_approved_decision: 'Execution failed after approved decision.',
+        execution_outcome_unknown_after_approved_decision: 'Execution outcome is unknown after approved decision.',
+        execution_succeeded: 'Execution already succeeded.',
+        waiting_for_confirmed_execution_outcome: 'Waiting for confirmed execution outcome.',
+        no_reconciled_execution_outcome: 'No reconciled execution outcome is available.',
+      };
+      return mapping[reason] || reason.replaceAll('_', ' ');
+    }
+
+    function renderDecisionSuggestion(payload) {
+      const panel = document.getElementById('decision-suggestion-fields');
+      if (!panel) return;
+      const values = {
+        suggestion: suggestionLabel(payload),
+        reason: suggestionReasonLabel(payload),
+      };
+      panel.querySelectorAll('[data-field]').forEach((node) => {
+        const field = node.getAttribute('data-field') || '';
+        node.textContent = values[field] || 'n/a';
+      });
+    }
+
     function renderDecisionDesk(payload) {
       const panel = document.getElementById('decision-desk-fields');
       const statusNode = document.getElementById('decision-desk-status');
@@ -811,6 +852,7 @@
         panel.querySelectorAll('[data-field]').forEach((node) => {
           node.textContent = node.getAttribute('data-field') === 'execution_retry_count' ? '0' : 'n/a';
         });
+        renderDecisionSuggestion(null);
         return;
       }
 
@@ -892,6 +934,20 @@
       }
     }
 
+    async function refreshDecisionSuggestion() {
+      try {
+        const response = await fetch('/api/decisions/latest/suggestion');
+        if (!response.ok) {
+          renderDecisionSuggestion(null);
+          return;
+        }
+        const payload = await response.json();
+        renderDecisionSuggestion(payload);
+      } catch (error) {
+        renderDecisionSuggestion(null);
+      }
+    }
+
     function renderDecisionHistory(payload) {
       const statusNode = document.getElementById('decision-history-status');
       const listNode = document.getElementById('decision-history-list');
@@ -958,6 +1014,7 @@
         if (response.ok) {
           refreshDecisionDesk();
           refreshDecisionHistory();
+          refreshDecisionSuggestion();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = action + ' failed: request_error';
@@ -981,6 +1038,7 @@
         if (response.ok) {
           refreshDecisionDesk();
           refreshDecisionHistory();
+          refreshDecisionSuggestion();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'execute failed: request_error';
@@ -1004,6 +1062,7 @@
         if (response.ok) {
           refreshDecisionDesk();
           refreshDecisionHistory();
+          refreshDecisionSuggestion();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'retry failed: request_error';
@@ -1027,6 +1086,7 @@
         if (response.ok) {
           refreshDecisionDesk();
           refreshDecisionHistory();
+          refreshDecisionSuggestion();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'escalation failed: request_error';
@@ -1463,6 +1523,7 @@
     setInterval(refreshAlerts, 5000);
     setInterval(refreshSystemModel, 5000);
     setInterval(refreshDecisionDesk, 5000);
+    setInterval(refreshDecisionSuggestion, 5000);
     setInterval(refreshDecisionHistory, 5000);
     setInterval(refreshProofInventory, 5000);
     setInterval(refreshQsRuns, 5000);
@@ -1478,6 +1539,7 @@
     setInterval(refreshAutonomyPolicy, 5000);
     refreshSystemModel();
     refreshDecisionDesk();
+    refreshDecisionSuggestion();
     refreshDecisionHistory();
     refreshProofInventory();
     refreshQsRuns();

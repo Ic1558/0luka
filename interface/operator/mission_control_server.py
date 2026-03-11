@@ -39,6 +39,7 @@ from tools.ops.control_plane_execution_bridge import (
     handoff_approved_decision,
     retry_approved_decision,
 )
+from tools.ops.control_plane_suggestions import load_latest_suggestion
 from tools.ops.execution_outcome_reconciler import reconcile_execution_outcome
 from tools.ops.decision_engine import classify_once
 from tools.ops.run_interpreter import interpret_run
@@ -694,6 +695,14 @@ def load_decision_history(limit: int = 50) -> dict[str, Any]:
     return {"items": items, "count": len(items)}
 
 
+def load_decision_suggestion() -> dict[str, Any]:
+    return load_latest_suggestion(
+        runtime_root=_runtime_root(),
+        observability_root=_observability_root(),
+        repo_root=ROOT,
+    )
+
+
 def load_remediation_queue() -> dict[str, Any]:
     return remediation_queue.list_queue(runtime_root=_runtime_root())
 
@@ -1214,6 +1223,10 @@ async def decisions_history_endpoint(request) -> JSONResponse:
     return JSONResponse(load_decision_history(limit=limit))
 
 
+async def decisions_latest_suggestion_endpoint(request) -> JSONResponse:
+    return JSONResponse(load_decision_suggestion())
+
+
 async def system_model_endpoint(request) -> JSONResponse:
     try:
         payload = load_system_model()
@@ -1535,6 +1548,7 @@ def create_app():
         app.add_api_route("/api/policy_drift", policy_drift_endpoint, methods=["GET"])
         app.add_api_route("/api/decision_preview", decision_preview_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest", decisions_latest_endpoint, methods=["GET"])
+        app.add_api_route("/api/decisions/latest/suggestion", decisions_latest_suggestion_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/history", decisions_history_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
@@ -1574,6 +1588,7 @@ def create_app():
             Route("/api/policy_drift", policy_drift_endpoint),
             Route("/api/decision_preview", decision_preview_endpoint),
             Route("/api/decisions/latest", decisions_latest_endpoint),
+            Route("/api/decisions/latest/suggestion", decisions_latest_suggestion_endpoint),
             Route("/api/decisions/history", decisions_history_endpoint),
             Route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"]),
             Route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"]),

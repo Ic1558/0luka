@@ -1919,3 +1919,127 @@ def test_no_automatic_retry_path_is_added_to_latest_endpoint(tmp_path, monkeypat
     assert response.status_code == 200
     execution = response.json()["latest"]["execution"]
     assert execution["outcome_status"] == "EXECUTION_FAILED"
+
+
+def test_latest_suggestion_returns_retry_for_failed_execution(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    audit_dir = observability_root / "artifacts" / "router_audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-suggest-retry",
+        ts_utc="2026-03-11T16:10:00Z",
+        signal_received="INCONSISTENT",
+        proposed_action="QUARANTINE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_HANDOFF_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-suggest-retry",
+        ts_utc="2026-03-11T16:10:00Z",
+        proposed_action="QUARANTINE",
+    )
+    (audit_dir / f"decision_exec_{decision_id}.json").write_text(json.dumps({"decision": "rejected"}), encoding="utf-8")
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/latest/suggestion")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["suggestion"] == "RETRY_RECOMMENDED"
+    assert payload["reason"] == "execution_failed_after_approved_decision"
+
+
+def test_latest_suggestion_returns_escalation_for_unknown_execution(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    outbox_dir = repo_root / "interface" / "outbox" / "tasks"
+    outbox_dir.mkdir(parents=True, exist_ok=True)
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-suggest-escalate",
+        ts_utc="2026-03-11T16:11:00Z",
+        signal_received="MISSING_PROOF",
+        proposed_action="REVIEW_PROOF",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_HANDOFF_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-suggest-escalate",
+        ts_utc="2026-03-11T16:11:00Z",
+        proposed_action="REVIEW_PROOF",
+    )
+    (outbox_dir / f"decision_exec_{decision_id}.result.json").write_text("{bad", encoding="utf-8")
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/latest/suggestion")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["suggestion"] == "ESCALATION_RECOMMENDED"
+    assert payload["reason"] == "execution_outcome_unknown_after_approved_decision"
+
+
+def test_latest_suggestion_returns_no_action_for_succeeded_execution(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    outbox_dir = repo_root / "interface" / "outbox" / "tasks"
+    outbox_dir.mkdir(parents=True, exist_ok=True)
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-suggest-success",
+        ts_utc="2026-03-11T16:12:00Z",
+        signal_received="UNKNOWN",
+        proposed_action="ESCALATE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_HANDOFF_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-suggest-success",
+        ts_utc="2026-03-11T16:12:00Z",
+        proposed_action="ESCALATE",
+    )
+    (outbox_dir / f"decision_exec_{decision_id}.result.json").write_text(json.dumps({"status": "committed"}), encoding="utf-8")
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/latest/suggestion")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["suggestion"] == "NO_ACTION_RECOMMENDED"
+    assert payload["reason"] == "execution_succeeded"
+
+
+def test_latest_suggestion_returns_no_action_when_decision_missing(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+    (observability_root / "logs").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/latest/suggestion")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["suggestion"] == "NO_ACTION_RECOMMENDED"
+    assert payload["reason"] == "no_latest_decision"
