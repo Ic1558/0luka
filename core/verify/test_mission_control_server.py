@@ -2312,6 +2312,99 @@ def test_latest_endpoint_does_not_auto_trigger_escalation_lane(tmp_path, monkeyp
     assert latest["execution"].get("policy_execution_status") is None
 
 
+def test_frozen_auto_lane_blocks_phase4_1_auto_retry_but_manual_retry_still_works(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    audit_dir = observability_root / "artifacts" / "router_audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-frozen-auto-retry",
+        ts_utc="2026-03-11T15:09:00Z",
+        signal_received="INCONSISTENT",
+        proposed_action="QUARANTINE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_HANDOFF_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-frozen-auto-retry",
+        ts_utc="2026-03-11T15:09:00Z",
+        proposed_action="QUARANTINE",
+    )
+    (audit_dir / f"decision_exec_{decision_id}.json").write_text(json.dumps({"decision": "rejected"}), encoding="utf-8")
+    _write_decision_event(
+        observability_root,
+        event="SUGGESTION_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-frozen-auto-retry",
+        ts_utc="2026-03-11T15:09:30Z",
+        proposed_action="QUARANTINE",
+        suggestion="RETRY_RECOMMENDED",
+        confidence_band="HIGH",
+        operator_action="RETRY_EXECUTION",
+        alignment="MATCHED_SUGGESTION",
+    )
+    _write_decision_event(
+        observability_root,
+        event="SUGGESTION_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-frozen-auto-retry",
+        ts_utc="2026-03-11T15:09:45Z",
+        proposed_action="QUARANTINE",
+        suggestion="RETRY_RECOMMENDED",
+        confidence_band="HIGH",
+        operator_action="RETRY_EXECUTION",
+        alignment="MATCHED_SUGGESTION",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_RETRY_REQUESTED",
+        decision_id="degraded_seed_2",
+        trace_id="trace-seed-2",
+        ts_utc="2026-03-11T15:09:50Z",
+        proposed_action="QUARANTINE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="AUTO_RETRY_TRIGGERED",
+        decision_id="degraded_seed_2",
+        trace_id="trace-seed-2",
+        ts_utc="2026-03-11T15:09:51Z",
+        proposed_action="QUARANTINE",
+        confidence_band="HIGH",
+        policy_reason="high_confidence_retry_after_repeated_operator_alignment",
+        alignment_count=2,
+    )
+    (audit_dir / "decision_exec_degraded_seed_2_retry_1.json").write_text(json.dumps({"decision": "error"}), encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    captured: list[str] = []
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda task, *, task_id=None: captured.append(task_id) or {"task_id": task_id, "inbox_path": f"interface/inbox/{task_id}.yaml"},
+    )
+
+    response = client.get("/api/decisions/latest")
+
+    assert response.status_code == 200
+    latest = response.json()["latest"]
+    assert latest["execution"]["outcome_status"] == "EXECUTION_FAILED"
+    assert latest["execution"].get("policy_execution_status") is None
+    assert captured == []
+
+    retry_response = client.post("/api/decisions/latest/retry", json={})
+
+    assert retry_response.status_code == 200
+    assert retry_response.json()["retry"]["requested_action"] == "QUARANTINE"
+    assert captured == [f"decision_exec_{decision_id}_retry_1"]
+
+
 def test_latest_suggestion_returns_retry_for_failed_execution(tmp_path, monkeypatch) -> None:
     client = TestClient(mission_control_server.app)
     repo_root = tmp_path / "repo"
@@ -2466,6 +2559,7 @@ def test_latest_policy_returns_manual_only_for_missing_decision(tmp_path, monkey
     assert payload["policy_verdict"] == "MANUAL_ONLY"
     assert payload["policy_safe_lane"] == "NONE"
     assert payload["policy_reason"] == "no_latest_decision"
+    assert payload["auto_lane_state"] == "AUTO_LANE_ACTIVE"
 
 
 def test_latest_policy_returns_auto_allowed_for_high_confidence_retry_with_alignment(tmp_path, monkeypatch) -> None:
@@ -2528,6 +2622,91 @@ def test_latest_policy_returns_auto_allowed_for_high_confidence_retry_with_align
     assert payload["policy_verdict"] == "AUTO_ALLOWED"
     assert payload["policy_safe_lane"] == "SUPERVISED_RETRY"
     assert payload["alignment_count"] == 2
+    assert payload["auto_lane_state"] == "AUTO_LANE_ACTIVE"
+
+
+def test_frozen_auto_lane_downgrades_policy_verdict(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    audit_dir = observability_root / "artifacts" / "router_audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-policy-frozen",
+        ts_utc="2026-03-11T18:01:00Z",
+        signal_received="INCONSISTENT",
+        proposed_action="QUARANTINE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_HANDOFF_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-policy-frozen",
+        ts_utc="2026-03-11T18:01:00Z",
+        proposed_action="QUARANTINE",
+    )
+    (audit_dir / f"decision_exec_{decision_id}.json").write_text(json.dumps({"decision": "rejected"}), encoding="utf-8")
+    _write_decision_event(
+        observability_root,
+        event="SUGGESTION_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-policy-frozen",
+        ts_utc="2026-03-11T18:01:30Z",
+        proposed_action="QUARANTINE",
+        suggestion="RETRY_RECOMMENDED",
+        confidence_band="HIGH",
+        operator_action="RETRY_EXECUTION",
+        alignment="MATCHED_SUGGESTION",
+    )
+    _write_decision_event(
+        observability_root,
+        event="SUGGESTION_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-policy-frozen",
+        ts_utc="2026-03-11T18:01:45Z",
+        proposed_action="QUARANTINE",
+        suggestion="RETRY_RECOMMENDED",
+        confidence_band="HIGH",
+        operator_action="RETRY_EXECUTION",
+        alignment="MATCHED_SUGGESTION",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_RETRY_REQUESTED",
+        decision_id="degraded_seed",
+        trace_id="trace-seed",
+        ts_utc="2026-03-11T18:01:50Z",
+        proposed_action="QUARANTINE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="AUTO_RETRY_TRIGGERED",
+        decision_id="degraded_seed",
+        trace_id="trace-seed",
+        ts_utc="2026-03-11T18:01:51Z",
+        proposed_action="QUARANTINE",
+        confidence_band="HIGH",
+        policy_reason="high_confidence_retry_after_repeated_operator_alignment",
+        alignment_count=2,
+    )
+    (audit_dir / "decision_exec_degraded_seed_retry_1.json").write_text(json.dumps({"decision": "error"}), encoding="utf-8")
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/latest/policy")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["policy_verdict"] == "HUMAN_APPROVAL_REQUIRED"
+    assert payload["policy_verdict_raw"] == "AUTO_ALLOWED"
+    assert payload["auto_lane_state"] == "AUTO_LANE_FROZEN"
+    assert payload["auto_lane_reason"] == "policy_degraded"
+    assert payload["policy_reason"] == "auto_lane_frozen_due_to_policy_degraded"
+    rows = (observability_root / "logs" / "decision_log.jsonl").read_text(encoding="utf-8").splitlines()
+    assert any(json.loads(row)["event"] == "POLICY_AUTO_LANE_FROZEN" for row in rows)
 
 
 def test_policy_endpoint_is_read_only(tmp_path, monkeypatch) -> None:
@@ -2789,6 +2968,8 @@ def test_policy_stats_endpoint_returns_aggregates_and_drift_warning(tmp_path, mo
     assert payload["alignment_mismatch"] == 1
     assert payload["success_rate"] == 0.5
     assert payload["policy_state"] == "POLICY_DEGRADED"
+    assert payload["auto_lane_state"] == "AUTO_LANE_FROZEN"
+    assert payload["auto_lane_reason"] == "policy_degraded"
     assert payload["warning"] == "Policy reliability degraded. Review recommended."
 
 

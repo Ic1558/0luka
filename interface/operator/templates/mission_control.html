@@ -394,6 +394,8 @@
               <dt>Operator Alignment</dt><dd data-field="operator_alignment_rate">0%</dd>
               <dt>Policy Mismatch</dt><dd data-field="alignment_mismatch">0</dd>
               <dt>Policy State</dt><dd data-field="policy_state">POLICY_HEALTHY</dd>
+              <dt>Auto Lane State</dt><dd data-field="auto_lane_state">AUTO_LANE_ACTIVE</dd>
+              <dt>Freeze Reason</dt><dd data-field="auto_lane_reason">n/a</dd>
               <dt>Warning</dt><dd data-field="warning">n/a</dd>
             </dl>
           </div>
@@ -919,15 +921,17 @@
         operator_alignment_rate: payload && typeof payload.operator_alignment_rate === 'number' ? Math.round(payload.operator_alignment_rate * 100) + '%' : '0%',
         alignment_mismatch: payload && typeof payload.alignment_mismatch === 'number' ? String(payload.alignment_mismatch) : '0',
         policy_state: payload && payload.policy_state ? String(payload.policy_state) : 'POLICY_HEALTHY',
+        auto_lane_state: payload && payload.auto_lane_state ? String(payload.auto_lane_state) : 'AUTO_LANE_FROZEN',
+        auto_lane_reason: payload && payload.auto_lane_reason ? String(payload.auto_lane_reason) : 'policy_stats_unavailable',
         warning: payload && payload.warning ? String(payload.warning) : 'n/a',
       };
       panel.querySelectorAll('[data-field]').forEach((node) => {
         const field = node.getAttribute('data-field') || '';
         node.textContent = values[field] || 'n/a';
       });
-      statusNode.textContent = values.policy_state === 'POLICY_DEGRADED'
-        ? 'Policy reliability degraded. Review recommended.'
-        : 'Policy reliability is within configured bounds.';
+      statusNode.textContent = values.auto_lane_state === 'AUTO_LANE_FROZEN'
+        ? 'Policy reliability degraded. Review recommended. Auto retry is frozen; manual retry remains available.'
+        : 'Policy reliability is within configured bounds. Auto retry lane remains active.';
     }
 
     function renderDecisionDesk(payload) {
