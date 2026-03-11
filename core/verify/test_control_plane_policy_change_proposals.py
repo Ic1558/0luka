@@ -7,10 +7,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from tools.ops.control_plane_policy_change_proposals import (
     POLICY_COMPONENTS,
+    append_policy_deployment_event,
+    approve_policy_change_proposal,
     create_policy_change_proposal,
     get_policy_change_proposal,
     list_policy_change_proposals,
+    reject_policy_change_proposal,
 )
+from tools.ops.control_plane_policy_versions import deploy_policy_version, read_live_policy
 
 
 def test_policy_change_proposal_creation_and_append_only_listing(tmp_path) -> None:
@@ -64,4 +68,95 @@ def test_policy_change_proposal_detail_lookup_and_runtime_policy_unchanged(tmp_p
     assert found["proposal_id"] == record["proposal_id"]
     assert found["status"] == "PROPOSED"
     assert found["current_value"] == 0.70
+    assert POLICY_COMPONENTS["auto_retry_threshold"] == 0.70
+
+
+def test_policy_change_proposal_can_transition_to_approved_and_rejected_append_only(tmp_path) -> None:
+    observability_root = tmp_path / "observability"
+    approved = create_policy_change_proposal(
+        observability_root,
+        created_at="2026-03-11T22:20:00Z",
+        policy_component="auto_retry_threshold",
+        proposed_value=0.80,
+        evidence_summary="review supports threshold increase",
+        simulation_reference="/api/policy/tuning-preview?success_threshold=0.80",
+    )
+    rejected = create_policy_change_proposal(
+        observability_root,
+        created_at="2026-03-11T22:21:00Z",
+        policy_component="auto_retry_threshold",
+        proposed_value=0.85,
+        evidence_summary="higher threshold needs more evidence",
+        simulation_reference="/api/policy/tuning-preview?success_threshold=0.85",
+    )
+
+    approved_row = approve_policy_change_proposal(
+        observability_root,
+        proposal_id=approved["proposal_id"],
+        created_at="2026-03-11T22:22:00Z",
+        operator_note="approved for bounded deployment review",
+    )
+    rejected_row = reject_policy_change_proposal(
+        observability_root,
+        proposal_id=rejected["proposal_id"],
+        created_at="2026-03-11T22:23:00Z",
+        operator_note="reject until more evidence exists",
+    )
+
+    rows = list_policy_change_proposals(observability_root, limit=10)
+
+    assert approved_row["status"] == "APPROVED_FOR_IMPLEMENTATION"
+    assert rejected_row["status"] == "REJECTED"
+    assert rows[0]["status"] == "APPROVED_FOR_IMPLEMENTATION"
+    assert rows[1]["status"] == "REJECTED"
+
+
+def test_policy_change_proposal_deployment_records_version_without_mutating_policy_logic(tmp_path) -> None:
+    observability_root = tmp_path / "observability"
+    runtime_root = tmp_path / "runtime"
+    proposal = create_policy_change_proposal(
+        observability_root,
+        created_at="2026-03-11T22:30:00Z",
+        policy_component="auto_retry_threshold",
+        proposed_value=0.80,
+        evidence_summary="simulation shows improved expected success rate",
+        simulation_reference="/api/policy/tuning-preview?success_threshold=0.80",
+    )
+    approve_policy_change_proposal(
+        observability_root,
+        proposal_id=proposal["proposal_id"],
+        created_at="2026-03-11T22:31:00Z",
+    )
+    append_policy_deployment_event(
+        observability_root,
+        proposal_id=proposal["proposal_id"],
+        event="POLICY_DEPLOYMENT_REQUESTED",
+        created_at="2026-03-11T22:32:00Z",
+        operator_note="deploy approved threshold",
+    )
+
+    version = deploy_policy_version(
+        runtime_root,
+        observability_root,
+        proposal_id=proposal["proposal_id"],
+        deployed_at="2026-03-11T22:32:00Z",
+        policy_component="auto_retry_threshold",
+        new_value=0.80,
+    )
+    append_policy_deployment_event(
+        observability_root,
+        proposal_id=proposal["proposal_id"],
+        event="POLICY_DEPLOYED",
+        created_at="2026-03-11T22:32:00Z",
+        operator_note="deployment recorded",
+    )
+
+    live = read_live_policy(runtime_root)
+
+    assert version["policy_component"] == "auto_retry_threshold"
+    assert version["previous_value"] == 0.70
+    assert version["new_value"] == 0.80
+    assert version["status"] == "ACTIVE"
+    assert live["current_value"] == 0.80
+    assert live["policy_version_id"] == version["policy_version_id"]
     assert POLICY_COMPONENTS["auto_retry_threshold"] == 0.70

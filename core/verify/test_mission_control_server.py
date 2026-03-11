@@ -3218,6 +3218,103 @@ def test_policy_proposals_endpoints_create_list_and_detail(tmp_path, monkeypatch
     assert detail["proposal"]["simulation_reference"] == "/api/policy/tuning-preview?success_threshold=0.8"
 
 
+def test_policy_proposal_approve_reject_and_deploy_lifecycle(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("policy deployment must not trigger execution")),
+    )
+
+    proposal = client.post(
+        "/api/policy/proposals",
+        json={"policy_component": "auto_retry_threshold", "proposed_value": 0.80},
+    ).json()["proposal"]
+
+    approve_response = client.post(
+        f"/api/policy/proposals/{proposal['proposal_id']}/approve",
+        json={"operator_note": "approved after review"},
+    )
+    assert approve_response.status_code == 200
+    assert approve_response.json()["status"] == "APPROVED_FOR_IMPLEMENTATION"
+
+    detail_response = client.get(f"/api/policy/proposals/{proposal['proposal_id']}")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["proposal"]["status"] == "APPROVED_FOR_IMPLEMENTATION"
+
+    deploy_response = client.post(
+        f"/api/policy/proposals/{proposal['proposal_id']}/deploy",
+        json={"operator_note": "deploy approved threshold"},
+    )
+    assert deploy_response.status_code == 200
+    deployed = deploy_response.json()
+    assert deployed["ok"] is True
+    assert deployed["policy_component"] == "auto_retry_threshold"
+    assert deployed["previous_value"] == 0.70
+    assert deployed["new_value"] == 0.80
+    assert deployed["status"] == "ACTIVE"
+    assert deployed["policy_version_id"].startswith("policy_version_")
+
+    live_response = client.get("/api/policy/version")
+    assert live_response.status_code == 200
+    live = live_response.json()
+    assert live["current_value"] == 0.80
+    assert live["proposal_id"] == proposal["proposal_id"]
+    assert live["policy_version_id"] == deployed["policy_version_id"]
+
+    versions_response = client.get("/api/policy/versions")
+    assert versions_response.status_code == 200
+    versions = versions_response.json()
+    assert versions["count"] == 1
+    assert versions["items"][0]["proposal_id"] == proposal["proposal_id"]
+
+    rejected = client.post(
+        "/api/policy/proposals",
+        json={"policy_component": "auto_retry_threshold", "proposed_value": 0.85},
+    ).json()["proposal"]
+    reject_response = client.post(
+        f"/api/policy/proposals/{rejected['proposal_id']}/reject",
+        json={"operator_note": "reject higher threshold"},
+    )
+    assert reject_response.status_code == 200
+    assert reject_response.json()["status"] == "REJECTED"
+
+
+def test_policy_proposal_deploy_rejects_non_approved_state(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("proposal deploy must not trigger execution")),
+    )
+
+    proposal = client.post(
+        "/api/policy/proposals",
+        json={"policy_component": "auto_retry_threshold", "proposed_value": 0.80},
+    ).json()["proposal"]
+
+    deploy_response = client.post(f"/api/policy/proposals/{proposal['proposal_id']}/deploy", json={})
+
+    assert deploy_response.status_code == 409
+    assert deploy_response.json()["error"] == "proposal_not_approved_for_implementation"
+
+
 def test_policy_auto_lane_unfreeze_requires_frozen_state_and_appends_audit(tmp_path, monkeypatch) -> None:
     client = TestClient(mission_control_server.app)
     repo_root = tmp_path / "repo"

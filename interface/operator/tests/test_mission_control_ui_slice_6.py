@@ -83,7 +83,15 @@ def _policy_proposals_subsection() -> str:
     section = _decision_desk_section()
     marker = 'id="policy-proposals-panel"'
     start = section.index(marker)
-    end = section.index('<div class="policy-controls">', start)
+    end = section.index('id="policy-version-panel"', start)
+    return section[start:end]
+
+
+def _policy_version_subsection() -> str:
+    section = _decision_desk_section()
+    marker = 'id="policy-version-panel"'
+    start = section.index(marker)
+    end = section.index("</div>", start)
     return section[start:end]
 
 
@@ -126,6 +134,9 @@ def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
     assert "fetch('/api/policy/review')" in TEMPLATE
     assert "fetch('/api/policy/tuning-preview" in TEMPLATE
     assert "fetch('/api/policy/proposals')" in TEMPLATE
+    assert "fetch('/api/policy/proposals/' + encodeURIComponent(proposalId) + '/' + action" in TEMPLATE
+    assert "fetch('/api/policy/proposals/' + encodeURIComponent(proposalId) + '/deploy'" in TEMPLATE
+    assert "fetch('/api/policy/version')" in TEMPLATE
     assert "fetch('/api/policy/auto-lane/unfreeze'" in TEMPLATE
     assert "fetch(endpoint, {" in TEMPLATE
     assert "/api/decisions/latest/approve" in TEMPLATE
@@ -311,7 +322,7 @@ def test_decision_desk_policy_tuning_panel_is_sandbox_only() -> None:
 
 
 def test_decision_desk_policy_proposals_panel_is_append_only_review_surface() -> None:
-    section = _decision_desk_section()
+    section = _policy_proposals_subsection()
 
     assert 'id="policy-proposals-panel"' in section
     assert 'id="policy-proposals-status"' in section
@@ -321,6 +332,10 @@ def test_decision_desk_policy_proposals_panel_is_append_only_review_surface() ->
     assert 'id="policy-proposal-create"' in section
     assert 'id="policy-proposals-list"' in section
     assert 'id="policy-proposal-detail-fields"' in section
+    assert 'id="policy-proposal-action-note"' in section
+    assert 'id="policy-proposal-approve"' in section
+    assert 'id="policy-proposal-reject"' in section
+    assert 'id="policy-proposal-deploy"' in section
     assert 'data-field="proposal_id"' in section
     assert 'data-field="policy_component"' in section
     assert 'data-field="current_value"' in section
@@ -329,7 +344,31 @@ def test_decision_desk_policy_proposals_panel_is_append_only_review_surface() ->
     assert 'data-field="created_at"' in section
     assert "Create Proposal" in section
     assert "submitPolicyProposal()" in TEMPLATE
+    assert "submitPolicyProposalAction('approve')" in TEMPLATE
+    assert "submitPolicyProposalAction('reject')" in TEMPLATE
+    assert "submitPolicyProposalDeploy()" in TEMPLATE
     assert "refreshPolicyProposals()" in TEMPLATE
+    assert "refreshPolicyVersion()" in TEMPLATE
     assert "loadPolicyProposalDetail" in TEMPLATE
     assert "fetch('/api/policy/proposals/'" in TEMPLATE
-    assert "apply policy" not in section.lower()
+    assert "Deploy Policy Change" in section
+    assert "apply automatically" not in section.lower()
+
+
+def test_decision_desk_live_policy_version_panel_is_read_only_deployment_surface() -> None:
+    section = _policy_version_subsection()
+
+    assert 'id="policy-version-panel"' in section
+    assert 'id="policy-version-status"' in section
+    assert 'id="policy-version-fields"' in section
+    assert 'data-field="policy_component"' in section
+    assert 'data-field="current_value"' in section
+    assert 'data-field="policy_version_id"' in section
+    assert 'data-field="deployed_at"' in section
+    assert 'data-field="proposal_id"' in section
+    assert "Live Policy Version" in section
+    assert "Live policy version loaded from explicit operator deployment." in TEMPLATE
+    assert "No live policy version deployed beyond the default threshold." in TEMPLATE
+    assert "renderPolicyVersion(payload)" in TEMPLATE
+    assert "refreshPolicyVersion()" in TEMPLATE
+    assert "<button" not in section
