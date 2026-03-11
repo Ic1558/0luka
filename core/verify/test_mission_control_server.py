@@ -3170,6 +3170,54 @@ def test_policy_tuning_preview_endpoint_returns_expected_structure(tmp_path, mon
     assert "expected_success_gain" in payload["difference"]
 
 
+def test_policy_proposals_endpoints_create_list_and_detail(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("policy proposals must not trigger execution")),
+    )
+
+    create_response = client.post(
+        "/api/policy/proposals",
+        json={
+            "policy_component": "auto_retry_threshold",
+            "proposed_value": 0.80,
+            "operator_note": "raise threshold after sandbox review",
+        },
+    )
+
+    assert create_response.status_code == 200
+    created = create_response.json()
+    assert created["ok"] is True
+    proposal = created["proposal"]
+    assert proposal["policy_component"] == "auto_retry_threshold"
+    assert proposal["current_value"] == 0.70
+    assert proposal["proposed_value"] == 0.80
+    assert proposal["status"] == "PROPOSED"
+
+    list_response = client.get("/api/policy/proposals")
+    assert list_response.status_code == 200
+    listing = list_response.json()
+    assert listing["count"] == 1
+    assert listing["items"][0]["proposal_id"] == proposal["proposal_id"]
+
+    detail_response = client.get(f"/api/policy/proposals/{proposal['proposal_id']}")
+    assert detail_response.status_code == 200
+    detail = detail_response.json()
+    assert detail["ok"] is True
+    assert detail["proposal"]["proposal_id"] == proposal["proposal_id"]
+    assert detail["proposal"]["simulation_reference"] == "/api/policy/tuning-preview?success_threshold=0.8"
+
+
 def test_policy_auto_lane_unfreeze_requires_frozen_state_and_appends_audit(tmp_path, monkeypatch) -> None:
     client = TestClient(mission_control_server.app)
     repo_root = tmp_path / "repo"

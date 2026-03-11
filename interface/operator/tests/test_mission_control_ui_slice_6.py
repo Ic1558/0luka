@@ -79,6 +79,14 @@ def _policy_tuning_subsection() -> str:
     return section[start:end]
 
 
+def _policy_proposals_subsection() -> str:
+    section = _decision_desk_section()
+    marker = 'id="policy-proposals-panel"'
+    start = section.index(marker)
+    end = section.index('<div class="policy-controls">', start)
+    return section[start:end]
+
+
 def test_decision_desk_section_renders_pending_fields() -> None:
     section = _decision_desk_section()
 
@@ -117,6 +125,7 @@ def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
     assert "fetch('/api/policy/stats')" in TEMPLATE
     assert "fetch('/api/policy/review')" in TEMPLATE
     assert "fetch('/api/policy/tuning-preview" in TEMPLATE
+    assert "fetch('/api/policy/proposals')" in TEMPLATE
     assert "fetch('/api/policy/auto-lane/unfreeze'" in TEMPLATE
     assert "fetch(endpoint, {" in TEMPLATE
     assert "/api/decisions/latest/approve" in TEMPLATE
@@ -298,4 +307,29 @@ def test_decision_desk_policy_tuning_panel_is_sandbox_only() -> None:
     assert "Run Simulation" in section
     assert "runPolicyTuningPreview()" in TEMPLATE
     assert "Sandbox preview only. Live policy remains unchanged." in TEMPLATE
+    assert "apply policy" not in section.lower()
+
+
+def test_decision_desk_policy_proposals_panel_is_append_only_review_surface() -> None:
+    section = _decision_desk_section()
+
+    assert 'id="policy-proposals-panel"' in section
+    assert 'id="policy-proposals-status"' in section
+    assert 'id="policy-proposal-component"' in section
+    assert 'id="policy-proposal-value"' in section
+    assert 'id="policy-proposal-note"' in section
+    assert 'id="policy-proposal-create"' in section
+    assert 'id="policy-proposals-list"' in section
+    assert 'id="policy-proposal-detail-fields"' in section
+    assert 'data-field="proposal_id"' in section
+    assert 'data-field="policy_component"' in section
+    assert 'data-field="current_value"' in section
+    assert 'data-field="proposed_value"' in section
+    assert 'data-field="status"' in section
+    assert 'data-field="created_at"' in section
+    assert "Create Proposal" in section
+    assert "submitPolicyProposal()" in TEMPLATE
+    assert "refreshPolicyProposals()" in TEMPLATE
+    assert "loadPolicyProposalDetail" in TEMPLATE
+    assert "fetch('/api/policy/proposals/'" in TEMPLATE
     assert "apply policy" not in section.lower()
