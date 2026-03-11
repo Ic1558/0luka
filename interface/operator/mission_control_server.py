@@ -47,6 +47,7 @@ from tools.ops.control_plane_execution_bridge import (
 from tools.ops.control_plane_suggestions import load_latest_suggestion
 from tools.ops.control_plane_policy import load_latest_policy
 from tools.ops.control_plane_auto_lane_review import derive_auto_lane_review
+from tools.ops.control_plane_auto_lane_queue import load_auto_lane_candidate_queue
 from tools.ops.control_plane_policy_change_proposals import (
     PolicyProposalError,
     append_policy_deployment_event,
@@ -785,6 +786,14 @@ def load_auto_lane_review_payload() -> dict[str, Any]:
     return derive_auto_lane_review(latest if isinstance(latest, dict) else None, load_decision_policy())
 
 
+def load_auto_lane_candidates_payload(*, limit: int = 10) -> dict[str, Any]:
+    return load_auto_lane_candidate_queue(
+        observability_root=_observability_root(),
+        repo_root=ROOT,
+        item_limit=limit,
+    )
+
+
 def load_policy_stats_payload() -> dict[str, Any]:
     return load_policy_stats(
         observability_root=_observability_root(),
@@ -1393,6 +1402,15 @@ async def decisions_latest_policy_endpoint(request) -> JSONResponse:
 
 async def decisions_latest_auto_lane_review_endpoint(request) -> JSONResponse:
     return JSONResponse(load_auto_lane_review_payload())
+
+
+async def decisions_auto_lane_candidates_endpoint(request) -> JSONResponse:
+    raw_limit = request.query_params.get("limit", "10")
+    try:
+        limit = max(1, min(int(raw_limit), 50))
+    except (TypeError, ValueError):
+        limit = 10
+    return JSONResponse(load_auto_lane_candidates_payload(limit=limit))
 
 
 async def policy_stats_endpoint(request) -> JSONResponse:
@@ -2272,6 +2290,7 @@ def create_app():
         app.add_api_route("/api/decisions/latest/suggestion-feedback", decisions_latest_suggestion_feedback_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest/policy", decisions_latest_policy_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest/auto-lane-review", decisions_latest_auto_lane_review_endpoint, methods=["GET"])
+        app.add_api_route("/api/decisions/auto-lane-candidates", decisions_auto_lane_candidates_endpoint, methods=["GET"])
         app.add_api_route("/api/policy/stats", policy_stats_endpoint, methods=["GET"])
         app.add_api_route("/api/policy/review", policy_review_endpoint, methods=["GET"])
         app.add_api_route("/api/policy/tuning-preview", policy_tuning_preview_endpoint, methods=["GET"])
@@ -2329,6 +2348,7 @@ def create_app():
             Route("/api/decisions/latest/suggestion-feedback", decisions_latest_suggestion_feedback_endpoint),
             Route("/api/decisions/latest/policy", decisions_latest_policy_endpoint),
             Route("/api/decisions/latest/auto-lane-review", decisions_latest_auto_lane_review_endpoint),
+            Route("/api/decisions/auto-lane-candidates", decisions_auto_lane_candidates_endpoint),
             Route("/api/policy/stats", policy_stats_endpoint),
             Route("/api/policy/review", policy_review_endpoint),
             Route("/api/policy/tuning-preview", policy_tuning_preview_endpoint),

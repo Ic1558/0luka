@@ -3221,6 +3221,115 @@ def test_auto_lane_review_endpoint_returns_safe_empty_surface_without_latest_dec
     assert payload["reasons"] == ["no_latest_decision"]
 
 
+def test_auto_lane_candidates_endpoint_returns_recent_items_and_top_blockers(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+    (observability_root / "logs").mkdir(parents=True, exist_ok=True)
+
+    rows = [
+        {
+            "event": "POLICY_EVALUATED",
+            "decision_id": "d1",
+            "trace_id": "t1",
+            "ts_utc": "2026-03-11T20:40:00Z",
+            "operator_status": "APPROVED",
+            "proposed_action": "QUARANTINE",
+            "evidence_refs": ["artifact://proof-1"],
+            "suggestion": "RETRY_RECOMMENDED",
+            "confidence_band": "HIGH",
+            "policy_verdict": "AUTO_ALLOWED",
+            "policy_reason": "high_confidence_retry_after_repeated_operator_alignment",
+            "alignment_count": 2,
+        },
+        {
+            "event": "EXECUTION_RETRY_REQUESTED",
+            "decision_id": "d1",
+            "trace_id": "t1",
+            "ts_utc": "2026-03-11T20:40:10Z",
+            "operator_status": "APPROVED",
+            "proposed_action": "QUARANTINE",
+            "evidence_refs": ["artifact://proof-1"],
+        },
+        {
+            "event": "POLICY_EVALUATED",
+            "decision_id": "d2",
+            "trace_id": "t2",
+            "ts_utc": "2026-03-11T20:41:00Z",
+            "operator_status": "APPROVED",
+            "proposed_action": "QUARANTINE",
+            "evidence_refs": ["artifact://proof-2"],
+            "suggestion": "RETRY_RECOMMENDED",
+            "confidence_band": "HIGH",
+            "policy_verdict": "HUMAN_APPROVAL_REQUIRED",
+            "policy_reason": "retry_recommended_but_not_auto_eligible",
+            "alignment_count": 1,
+        },
+        {
+            "event": "EXECUTION_RETRY_REQUESTED",
+            "decision_id": "d2",
+            "trace_id": "t2",
+            "ts_utc": "2026-03-11T20:41:10Z",
+            "operator_status": "APPROVED",
+            "proposed_action": "QUARANTINE",
+            "evidence_refs": ["artifact://proof-2"],
+        },
+    ]
+    (observability_root / "logs" / "decision_log.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    (repo_root / "observability" / "artifacts" / "router_audit").mkdir(parents=True, exist_ok=True)
+    (repo_root / "observability" / "artifacts" / "router_audit" / "decision_exec_d1_retry_1.json").write_text(
+        json.dumps({"decision": "error"}),
+        encoding="utf-8",
+    )
+    (repo_root / "observability" / "artifacts" / "router_audit" / "decision_exec_d2_retry_1.json").write_text(
+        json.dumps({"decision": "error"}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("candidate queue must stay read-only")),
+    )
+    response = client.get("/api/decisions/auto-lane-candidates?limit=10")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["summary"]["eligible_count"] == 1
+    assert payload["summary"]["blocked_count"] == 1
+    assert all(item["candidate_lane"] == "SUPERVISED_RETRY" for item in payload["items"])
+    assert any(item["category"] == "ELIGIBLE" for item in payload["items"])
+    assert any(item["category"] == "BLOCKED_MULTI" for item in payload["items"])
+    assert payload["summary"]["top_blockers"][0]["reason"] == "policy_verdict_not_auto_allowed"
+
+
+def test_auto_lane_candidates_endpoint_returns_safe_empty_queue(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/auto-lane-candidates")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["items"] == []
+    assert payload["summary"] == {"eligible_count": 0, "blocked_count": 0, "top_blockers": []}
+
+
 def test_policy_tuning_preview_endpoint_returns_expected_structure(tmp_path, monkeypatch) -> None:
     client = TestClient(mission_control_server.app)
     repo_root = tmp_path / "repo"

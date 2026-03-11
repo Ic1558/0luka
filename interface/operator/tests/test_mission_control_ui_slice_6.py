@@ -79,6 +79,14 @@ def _auto_lane_review_subsection() -> str:
     return section[start:end]
 
 
+def _auto_lane_candidates_subsection() -> str:
+    section = _decision_desk_section()
+    marker = 'id="auto-lane-candidates-panel"'
+    start = section.index(marker)
+    end = section.index("</div>", start)
+    return section[start:end]
+
+
 def _policy_tuning_subsection() -> str:
     section = _decision_desk_section()
     marker = 'id="policy-tuning-panel"'
@@ -138,6 +146,7 @@ def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
     assert "fetch('/api/decisions/latest/suggestion')" in TEMPLATE
     assert "fetch('/api/decisions/latest/policy')" in TEMPLATE
     assert "fetch('/api/decisions/latest/auto-lane-review')" in TEMPLATE
+    assert "fetch('/api/decisions/auto-lane-candidates')" in TEMPLATE
     assert "fetch('/api/decisions/latest/suggestion-feedback')" in TEMPLATE
     assert "fetch('/api/policy/stats')" in TEMPLATE
     assert "fetch('/api/policy/review')" in TEMPLATE
@@ -329,6 +338,26 @@ def test_decision_desk_auto_lane_review_panel_is_visibility_only() -> None:
     assert "renderAutoLaneReview(payload)" in TEMPLATE
     assert "refreshAutoLaneReview()" in TEMPLATE
     assert "fetch('/api/decisions/latest/auto-lane-review')" in TEMPLATE
+    assert "<button" not in section
+
+
+def test_decision_desk_auto_lane_candidates_panel_is_review_only() -> None:
+    section = _auto_lane_candidates_subsection()
+
+    assert 'id="auto-lane-candidates-panel"' in section
+    assert 'id="auto-lane-candidates-status"' in section
+    assert 'id="auto-lane-candidates-fields"' in section
+    assert 'data-field="eligible_count"' in section
+    assert 'data-field="blocked_count"' in section
+    assert 'id="auto-lane-candidates-items"' in section
+    assert 'id="auto-lane-candidates-top-blockers"' in section
+    assert "Recent auto-lane candidates are shown for operator review only." in TEMPLATE
+    assert "No recent auto-lane candidates available." in TEMPLATE
+    assert "No candidate cases available." in TEMPLATE
+    assert "No top blocking conditions available." in TEMPLATE
+    assert "renderAutoLaneCandidates(payload)" in TEMPLATE
+    assert "refreshAutoLaneCandidates()" in TEMPLATE
+    assert "fetch('/api/decisions/auto-lane-candidates')" in TEMPLATE
     assert "<button" not in section
 
 
