@@ -371,6 +371,9 @@
               <dt>Confidence Score</dt><dd data-field="confidence_score">0.20</dd>
               <dt>Reason</dt><dd data-field="reason">No latest decision available.</dd>
               <dt>Hint</dt><dd data-field="root_cause_hint">No latest decision available for suggestion analysis.</dd>
+              <dt>Policy</dt><dd data-field="policy_verdict">Manual Only</dd>
+              <dt>Lane</dt><dd data-field="policy_safe_lane">None</dd>
+              <dt>Policy Reason</dt><dd data-field="policy_reason">no_latest_decision</dd>
             </dl>
             <div class="policy-controls">
               <button id="decision-ignore-suggestion" type="button" onclick="submitSuggestionIgnore()" disabled>Ignore Suggestion</button>
@@ -839,6 +842,20 @@
       return raw.toFixed(2);
     }
 
+    function policyVerdictLabel(payload) {
+      const verdict = payload && payload.policy_verdict ? String(payload.policy_verdict) : 'MANUAL_ONLY';
+      if (verdict === 'AUTO_ALLOWED') return 'Auto Allowed';
+      if (verdict === 'HUMAN_APPROVAL_REQUIRED') return 'Human Approval Required';
+      return 'Manual Only';
+    }
+
+    function policySafeLaneLabel(payload) {
+      const lane = payload && payload.policy_safe_lane ? String(payload.policy_safe_lane) : 'NONE';
+      if (lane === 'SUPERVISED_RETRY') return 'Supervised Retry';
+      if (lane === 'SUPERVISED_ESCALATION') return 'Supervised Escalation';
+      return 'None';
+    }
+
     function renderDecisionSuggestion(payload) {
       const panel = document.getElementById('decision-suggestion-fields');
       if (!panel) return;
@@ -848,6 +865,9 @@
         confidence_score: suggestionConfidenceScoreLabel(payload),
         reason: suggestionReasonLabel(payload),
         root_cause_hint: payload && payload.root_cause_hint ? String(payload.root_cause_hint) : 'No latest decision available for suggestion analysis.',
+        policy_verdict: policyVerdictLabel(payload),
+        policy_safe_lane: policySafeLaneLabel(payload),
+        policy_reason: payload && payload.policy_reason ? String(payload.policy_reason) : 'no_latest_decision',
       };
       panel.querySelectorAll('[data-field]').forEach((node) => {
         const field = node.getAttribute('data-field') || '';
@@ -987,13 +1007,17 @@
 
     async function refreshDecisionSuggestion() {
       try {
-        const response = await fetch('/api/decisions/latest/suggestion');
-        if (!response.ok) {
+        const [suggestionResponse, policyResponse] = await Promise.all([
+          fetch('/api/decisions/latest/suggestion'),
+          fetch('/api/decisions/latest/policy'),
+        ]);
+        if (!suggestionResponse.ok || !policyResponse.ok) {
           renderDecisionSuggestion(null);
           return;
         }
-        const payload = await response.json();
-        renderDecisionSuggestion(payload);
+        const suggestionPayload = await suggestionResponse.json();
+        const policyPayload = await policyResponse.json();
+        renderDecisionSuggestion({ ...suggestionPayload, ...policyPayload });
       } catch (error) {
         renderDecisionSuggestion(null);
       }
