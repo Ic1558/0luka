@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from tools.ops.control_plane_policy_guard import derive_auto_lane_guard
+from tools.ops.control_plane_policy_guard import derive_auto_lane_guard, latest_auto_lane_lifecycle
 from tools.ops.control_plane_persistence import DecisionPersistenceError, read_decision_history
 
 
@@ -98,7 +98,7 @@ def derive_policy_stats(rows: list[dict[str, Any]], *, repo_root: Path) -> dict[
         "policy_state": policy_state,
         "warning": "Policy reliability degraded. Review recommended." if policy_state == "POLICY_DEGRADED" else None,
     }
-    payload.update(derive_auto_lane_guard(payload))
+    payload.update(derive_auto_lane_guard(payload, lifecycle_event=latest_auto_lane_lifecycle(rows)))
     return payload
 
 

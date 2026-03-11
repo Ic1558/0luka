@@ -1309,6 +1309,20 @@ async def policy_stats_endpoint(request) -> JSONResponse:
     return JSONResponse(load_policy_stats_payload())
 
 
+async def policy_auto_lane_unfreeze_endpoint(request) -> JSONResponse:
+    try:
+        payload = await _optional_request_json(request)
+        operator_note = payload.get("operator_note")
+        if operator_note is not None and not isinstance(operator_note, str):
+            raise RuntimeError("invalid_operator_note")
+        result, error = _unfreeze_policy_auto_lane(operator_note=operator_note)
+        if error:
+            return JSONResponse({"ok": False, "error": error}, status_code=409)
+        return JSONResponse(result)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
 async def system_model_endpoint(request) -> JSONResponse:
     try:
         payload = load_system_model()
@@ -1730,6 +1744,58 @@ def _ignore_latest_suggestion() -> tuple[dict[str, Any] | None, str | None]:
     }, None
 
 
+def _policy_audit_context() -> tuple[dict[str, Any] | None, str | None]:
+    latest, error = _load_latest_decision_state()
+    if error or latest is None:
+        return None, "latest_decision_missing"
+    return latest, None
+
+
+def _unfreeze_policy_auto_lane(*, operator_note: str | None) -> tuple[dict[str, Any] | None, str | None]:
+    stats = load_policy_stats_payload()
+    if stats.get("auto_lane_state") != "AUTO_LANE_FROZEN":
+        return None, "auto_lane_not_frozen"
+
+    context, error = _policy_audit_context()
+    if error or context is None:
+        return None, error or "auto_lane_audit_context_missing"
+
+    base_event = {
+        "decision_id": context.get("decision_id"),
+        "trace_id": context.get("trace_id"),
+        "ts_utc": context.get("ts_utc"),
+        "signal_received": context.get("signal_received"),
+        "proposed_action": context.get("proposed_action"),
+        "evidence_refs": context.get("evidence_refs"),
+        "operator_status": context.get("operator_status"),
+        "operator_note": operator_note,
+        "policy_reason": "manual_policy_review_completed",
+    }
+    try:
+        append_decision_event(
+            _observability_root(),
+            {
+                "event": "POLICY_AUTO_LANE_UNFREEZE_REQUESTED",
+                **base_event,
+            },
+        )
+        append_decision_event(
+            _observability_root(),
+            {
+                "event": "POLICY_AUTO_LANE_UNFROZEN",
+                **base_event,
+            },
+        )
+    except DecisionPersistenceError as exc:
+        return None, str(exc)
+    return {
+        "ok": True,
+        "auto_lane_state": "AUTO_LANE_ACTIVE",
+        "reason": "manual_policy_review_completed",
+        "operator_note": operator_note,
+    }, None
+
+
 async def decisions_latest_approve_endpoint(request) -> JSONResponse:
     try:
         payload = await _optional_request_json(request)
@@ -1928,6 +1994,7 @@ def create_app():
         app.add_api_route("/api/decisions/latest/suggestion-feedback", decisions_latest_suggestion_feedback_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest/policy", decisions_latest_policy_endpoint, methods=["GET"])
         app.add_api_route("/api/policy/stats", policy_stats_endpoint, methods=["GET"])
+        app.add_api_route("/api/policy/auto-lane/unfreeze", policy_auto_lane_unfreeze_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/history", decisions_history_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
@@ -1972,6 +2039,7 @@ def create_app():
             Route("/api/decisions/latest/suggestion-feedback", decisions_latest_suggestion_feedback_endpoint),
             Route("/api/decisions/latest/policy", decisions_latest_policy_endpoint),
             Route("/api/policy/stats", policy_stats_endpoint),
+            Route("/api/policy/auto-lane/unfreeze", policy_auto_lane_unfreeze_endpoint, methods=["POST"]),
             Route("/api/decisions/history", decisions_history_endpoint),
             Route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"]),
             Route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"]),

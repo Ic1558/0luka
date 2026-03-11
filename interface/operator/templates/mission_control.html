@@ -396,8 +396,15 @@
               <dt>Policy State</dt><dd data-field="policy_state">POLICY_HEALTHY</dd>
               <dt>Auto Lane State</dt><dd data-field="auto_lane_state">AUTO_LANE_ACTIVE</dd>
               <dt>Freeze Reason</dt><dd data-field="auto_lane_reason">n/a</dd>
+              <dt>Lifecycle Event</dt><dd data-field="auto_lane_lifecycle_event">n/a</dd>
+              <dt>Review Note</dt><dd data-field="auto_lane_operator_note">n/a</dd>
               <dt>Warning</dt><dd data-field="warning">n/a</dd>
             </dl>
+            <div class="policy-controls">
+              <textarea id="policy-auto-lane-note" placeholder="optional review note" rows="2" disabled></textarea>
+              <button id="policy-auto-lane-unfreeze" type="button" onclick="submitPolicyAutoLaneUnfreeze()" disabled>Re-enable Auto Retry Lane</button>
+            </div>
+            <p id="policy-auto-lane-status" class="approval-status">Auto retry lane follows current policy guard state.</p>
           </div>
           <div class="policy-controls">
             <textarea id="decision-operator-note" placeholder="optional operator note" rows="3" disabled></textarea>
@@ -914,6 +921,9 @@
     function renderPolicyStats(payload) {
       const statusNode = document.getElementById('policy-stats-status');
       const panel = document.getElementById('policy-stats-fields');
+      const actionStatus = document.getElementById('policy-auto-lane-status');
+      const noteNode = document.getElementById('policy-auto-lane-note');
+      const unfreezeButton = document.getElementById('policy-auto-lane-unfreeze');
       if (!statusNode || !panel) return;
       const values = {
         auto_retry_triggered: payload && typeof payload.auto_retry_triggered === 'number' ? String(payload.auto_retry_triggered) : '0',
@@ -923,15 +933,60 @@
         policy_state: payload && payload.policy_state ? String(payload.policy_state) : 'POLICY_HEALTHY',
         auto_lane_state: payload && payload.auto_lane_state ? String(payload.auto_lane_state) : 'AUTO_LANE_FROZEN',
         auto_lane_reason: payload && payload.auto_lane_reason ? String(payload.auto_lane_reason) : 'policy_stats_unavailable',
+        auto_lane_lifecycle_event: payload && payload.auto_lane_lifecycle_event ? String(payload.auto_lane_lifecycle_event) : 'n/a',
+        auto_lane_operator_note: payload && payload.auto_lane_operator_note ? String(payload.auto_lane_operator_note) : 'n/a',
         warning: payload && payload.warning ? String(payload.warning) : 'n/a',
       };
       panel.querySelectorAll('[data-field]').forEach((node) => {
         const field = node.getAttribute('data-field') || '';
         node.textContent = values[field] || 'n/a';
       });
-      statusNode.textContent = values.auto_lane_state === 'AUTO_LANE_FROZEN'
+      const isFrozen = values.auto_lane_state === 'AUTO_LANE_FROZEN';
+      statusNode.textContent = isFrozen
         ? 'Policy reliability degraded. Review recommended. Auto retry is frozen; manual retry remains available.'
-        : 'Policy reliability is within configured bounds. Auto retry lane remains active.';
+        : (values.auto_lane_reason === 'manual_policy_review_completed'
+          ? 'Auto retry lane was re-enabled by operator review. This changes lane availability only.'
+          : 'Policy reliability is within configured bounds. Auto retry lane remains active.');
+      if (actionStatus) {
+        actionStatus.textContent = isFrozen
+          ? 'Manual review required to re-enable the narrow auto-retry lane. Re-enable does not execute any task.'
+          : 'Auto retry lane is active. Re-enable control is disabled.';
+      }
+      if (noteNode) {
+        noteNode.disabled = !isFrozen;
+        if (!isFrozen) noteNode.value = '';
+      }
+      if (unfreezeButton) {
+        unfreezeButton.disabled = !isFrozen;
+      }
+    }
+
+    async function submitPolicyAutoLaneUnfreeze() {
+      const noteNode = document.getElementById('policy-auto-lane-note');
+      const statusNode = document.getElementById('policy-auto-lane-status');
+      const payload = {};
+      if (noteNode && noteNode.value.trim()) {
+        payload.operator_note = noteNode.value.trim();
+      }
+      if (statusNode) statusNode.textContent = 'Submitting manual auto-lane review...';
+      try {
+        const response = await fetch('/api/policy/auto-lane/unfreeze', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) {
+          throw new Error(result && result.error ? String(result.error) : 'auto_lane_unfreeze_failed');
+        }
+        if (statusNode) statusNode.textContent = 'Auto retry lane re-enabled after manual review. No execution was triggered.';
+        if (noteNode) noteNode.value = '';
+        refreshPolicyStats();
+        refreshDecisionSuggestion();
+        refreshDecisionDesk();
+      } catch (error) {
+        if (statusNode) statusNode.textContent = 'Unable to re-enable auto retry lane: ' + String(error.message || error);
+      }
     }
 
     function renderDecisionDesk(payload) {

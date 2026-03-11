@@ -2973,6 +2973,108 @@ def test_policy_stats_endpoint_returns_aggregates_and_drift_warning(tmp_path, mo
     assert payload["warning"] == "Policy reliability degraded. Review recommended."
 
 
+def test_policy_auto_lane_unfreeze_requires_frozen_state_and_appends_audit(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    outbox_dir = repo_root / "interface" / "outbox" / "tasks"
+    audit_dir = repo_root / "observability" / "artifacts" / "router_audit"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+    outbox_dir.mkdir(parents=True, exist_ok=True)
+    audit_dir.mkdir(parents=True, exist_ok=True)
+
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-unfreeze",
+        ts_utc="2026-03-11T19:00:00Z",
+        signal_received="INCONSISTENT",
+        proposed_action="QUARANTINE",
+        operator_status="APPROVED",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_RETRY_REQUESTED",
+        decision_id="decision_a",
+        trace_id="trace-a",
+        ts_utc="2026-03-11T18:05:00Z",
+        proposed_action="QUARANTINE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="AUTO_RETRY_TRIGGERED",
+        decision_id="decision_a",
+        trace_id="trace-a",
+        ts_utc="2026-03-11T18:05:01Z",
+        proposed_action="QUARANTINE",
+        confidence_band="HIGH",
+        policy_reason="high_confidence_retry_after_repeated_operator_alignment",
+        alignment_count=2,
+    )
+    (audit_dir / "decision_exec_decision_a_retry_1.json").write_text(json.dumps({"decision": "error"}), encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("unfreeze must not trigger execution")),
+    )
+
+    response = client.post(
+        "/api/policy/auto-lane/unfreeze",
+        json={"operator_note": "manual review completed; re-enable narrow retry lane"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["auto_lane_state"] == "AUTO_LANE_ACTIVE"
+    assert payload["reason"] == "manual_policy_review_completed"
+
+    stats = client.get("/api/policy/stats").json()
+    assert stats["auto_lane_state"] == "AUTO_LANE_ACTIVE"
+    assert stats["auto_lane_reason"] == "manual_policy_review_completed"
+    assert stats["auto_lane_lifecycle_event"] == "POLICY_AUTO_LANE_UNFROZEN"
+    assert stats["auto_lane_operator_note"] == "manual review completed; re-enable narrow retry lane"
+
+    rows = [
+        json.loads(line)
+        for line in (observability_root / "logs" / "decision_log.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert any(row["event"] == "POLICY_AUTO_LANE_UNFREEZE_REQUESTED" for row in rows)
+    assert any(row["event"] == "POLICY_AUTO_LANE_UNFROZEN" for row in rows)
+    assert rows[-1]["decision_id"] == decision_id
+
+
+def test_policy_auto_lane_unfreeze_fails_closed_when_not_frozen(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+
+    _write_latest_decision(
+        runtime_root,
+        trace_id="trace-not-frozen",
+        ts_utc="2026-03-11T19:10:00Z",
+        signal_received="INCONSISTENT",
+        proposed_action="QUARANTINE",
+        operator_status="APPROVED",
+    )
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.post("/api/policy/auto-lane/unfreeze", json={})
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "auto_lane_not_frozen"
+
+
 def test_retry_records_suggestion_accepted_feedback(tmp_path, monkeypatch) -> None:
     client = TestClient(mission_control_server.app)
     repo_root = tmp_path / "repo"
