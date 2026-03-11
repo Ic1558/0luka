@@ -3095,6 +3095,81 @@ def test_policy_review_endpoint_surfaces_flags_and_reason_breakdown(tmp_path, mo
     assert payload["reason_breakdown"][0]["failure_count"] == 3
 
 
+def test_policy_tuning_preview_endpoint_returns_expected_structure(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    outbox_dir = repo_root / "interface" / "outbox" / "tasks"
+    audit_dir = repo_root / "observability" / "artifacts" / "router_audit"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+    outbox_dir.mkdir(parents=True, exist_ok=True)
+    audit_dir.mkdir(parents=True, exist_ok=True)
+
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_RETRY_REQUESTED",
+        decision_id="decision_1",
+        trace_id="trace-1",
+        ts_utc="2026-03-11T21:01:00Z",
+        proposed_action="QUARANTINE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="AUTO_RETRY_TRIGGERED",
+        decision_id="decision_1",
+        trace_id="trace-1",
+        ts_utc="2026-03-11T21:01:10Z",
+        proposed_action="QUARANTINE",
+        policy_reason="reason_a",
+        confidence_band="HIGH",
+        alignment_count=2,
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_RETRY_REQUESTED",
+        decision_id="decision_2",
+        trace_id="trace-2",
+        ts_utc="2026-03-11T21:02:00Z",
+        proposed_action="QUARANTINE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="AUTO_RETRY_TRIGGERED",
+        decision_id="decision_2",
+        trace_id="trace-2",
+        ts_utc="2026-03-11T21:02:10Z",
+        proposed_action="QUARANTINE",
+        policy_reason="reason_b",
+        confidence_band="HIGH",
+        alignment_count=2,
+    )
+    (outbox_dir / "decision_exec_decision_1_retry_1.result.json").write_text(json.dumps({"status": "success"}), encoding="utf-8")
+    (audit_dir / "decision_exec_decision_2_retry_1.json").write_text(json.dumps({"decision": "error"}), encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("policy tuning preview must stay read-only")),
+    )
+
+    response = client.get("/api/policy/tuning-preview?success_threshold=0.80")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["baseline_threshold"] == 0.70
+    assert payload["simulated_threshold"] == 0.80
+    assert payload["baseline_retry_count"] >= payload["simulated_retry_count"]
+    assert "baseline_success_rate" in payload
+    assert "simulated_success_rate" in payload
+    assert "difference" in payload
+    assert "retry_reduction" in payload["difference"]
+    assert "expected_success_gain" in payload["difference"]
+
+
 def test_policy_auto_lane_unfreeze_requires_frozen_state_and_appends_audit(tmp_path, monkeypatch) -> None:
     client = TestClient(mission_control_server.app)
     repo_root = tmp_path / "repo"
