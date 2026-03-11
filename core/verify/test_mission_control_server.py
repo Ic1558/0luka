@@ -3096,6 +3096,14 @@ def test_policy_review_endpoint_surfaces_flags_and_reason_breakdown(tmp_path, mo
     assert payload["reason_breakdown"][0]["failure_count"] == 3
 
 
+def test_policy_review_endpoint_is_get_only() -> None:
+    client = TestClient(mission_control_server.app)
+
+    response = client.post("/api/policy/review", json={})
+
+    assert response.status_code == 405
+
+
 def test_auto_lane_review_endpoint_returns_explicit_block_reasons(tmp_path, monkeypatch) -> None:
     client = TestClient(mission_control_server.app)
     repo_root = tmp_path / "repo"
@@ -3330,17 +3338,76 @@ def test_auto_lane_candidates_endpoint_returns_safe_empty_queue(tmp_path, monkey
     assert payload["summary"] == {"eligible_count": 0, "blocked_count": 0, "top_blockers": []}
 
 
+def test_auto_lane_readiness_endpoint_returns_bounded_read_only_summary(monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    monkeypatch.setattr(
+        mission_control_server,
+        "load_auto_lane_readiness_payload",
+        lambda recent_cases=20: {
+            "window": {"recent_cases": recent_cases, "cases_observed": 4},
+            "counts": {"eligible": 1, "blocked": 3},
+            "trend": {
+                "eligible_ratio": 0.25,
+                "top_blockers": [
+                    {
+                        "reason": "trust_alignment_count_below_threshold",
+                        "count": 2,
+                        "trend": "STABLE",
+                    }
+                ],
+            },
+            "readiness": {
+                "band": "NOT_READY",
+                "reason": "trust_alignment_count_below_threshold dominates recent blocked cases",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("auto-lane readiness must stay read-only")),
+    )
+
+    response = client.get("/api/decisions/auto-lane-readiness?recent_cases=12")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["window"]["recent_cases"] == 12
+    assert payload["counts"] == {"eligible": 1, "blocked": 3}
+    assert payload["trend"]["eligible_ratio"] == 0.25
+    assert payload["readiness"]["band"] == "NOT_READY"
+
+
+def test_auto_lane_readiness_endpoint_is_get_only() -> None:
+    client = TestClient(mission_control_server.app)
+
+    response = client.post("/api/decisions/auto-lane-readiness", json={})
+
+    assert response.status_code == 405
+
+
 def test_policy_tuning_preview_endpoint_returns_expected_structure(tmp_path, monkeypatch) -> None:
     client = TestClient(mission_control_server.app)
     repo_root = tmp_path / "repo"
     runtime_root = tmp_path / "runtime"
     observability_root = repo_root / "observability"
-    outbox_dir = repo_root / "interface" / "outbox" / "tasks"
     audit_dir = repo_root / "observability" / "artifacts" / "router_audit"
     (runtime_root / "state").mkdir(parents=True, exist_ok=True)
-    outbox_dir.mkdir(parents=True, exist_ok=True)
     audit_dir.mkdir(parents=True, exist_ok=True)
 
+    _write_decision_event(
+        observability_root,
+        event="POLICY_EVALUATED",
+        decision_id="decision_1",
+        trace_id="trace-1",
+        ts_utc="2026-03-11T21:00:50Z",
+        proposed_action="QUARANTINE",
+        suggestion="RETRY_RECOMMENDED",
+        confidence_band="HIGH",
+        policy_verdict="AUTO_ALLOWED",
+        policy_reason="high_confidence_retry_after_repeated_operator_alignment",
+        alignment_count=2,
+    )
     _write_decision_event(
         observability_root,
         event="EXECUTION_RETRY_REQUESTED",
@@ -3351,14 +3418,16 @@ def test_policy_tuning_preview_endpoint_returns_expected_structure(tmp_path, mon
     )
     _write_decision_event(
         observability_root,
-        event="AUTO_RETRY_TRIGGERED",
-        decision_id="decision_1",
-        trace_id="trace-1",
-        ts_utc="2026-03-11T21:01:10Z",
+        event="POLICY_EVALUATED",
+        decision_id="decision_2",
+        trace_id="trace-2",
+        ts_utc="2026-03-11T21:01:50Z",
         proposed_action="QUARANTINE",
-        policy_reason="reason_a",
+        suggestion="RETRY_RECOMMENDED",
         confidence_band="HIGH",
-        alignment_count=2,
+        policy_verdict="HUMAN_APPROVAL_REQUIRED",
+        policy_reason="retry_recommended_but_not_auto_eligible",
+        alignment_count=1,
     )
     _write_decision_event(
         observability_root,
@@ -3368,18 +3437,7 @@ def test_policy_tuning_preview_endpoint_returns_expected_structure(tmp_path, mon
         ts_utc="2026-03-11T21:02:00Z",
         proposed_action="QUARANTINE",
     )
-    _write_decision_event(
-        observability_root,
-        event="AUTO_RETRY_TRIGGERED",
-        decision_id="decision_2",
-        trace_id="trace-2",
-        ts_utc="2026-03-11T21:02:10Z",
-        proposed_action="QUARANTINE",
-        policy_reason="reason_b",
-        confidence_band="HIGH",
-        alignment_count=2,
-    )
-    (outbox_dir / "decision_exec_decision_1_retry_1.result.json").write_text(json.dumps({"status": "success"}), encoding="utf-8")
+    (audit_dir / "decision_exec_decision_1_retry_1.json").write_text(json.dumps({"decision": "error"}), encoding="utf-8")
     (audit_dir / "decision_exec_decision_2_retry_1.json").write_text(json.dumps({"decision": "error"}), encoding="utf-8")
 
     monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
@@ -3391,18 +3449,25 @@ def test_policy_tuning_preview_endpoint_returns_expected_structure(tmp_path, mon
         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("policy tuning preview must stay read-only")),
     )
 
-    response = client.get("/api/policy/tuning-preview?success_threshold=0.80")
+    response = client.get("/api/policy/tuning-preview?alignment_threshold=1&confidence_requirement=HIGH")
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["baseline_threshold"] == 0.70
-    assert payload["simulated_threshold"] == 0.80
-    assert payload["baseline_retry_count"] >= payload["simulated_retry_count"]
-    assert "baseline_success_rate" in payload
-    assert "simulated_success_rate" in payload
-    assert "difference" in payload
-    assert "retry_reduction" in payload["difference"]
-    assert "expected_success_gain" in payload["difference"]
+    assert payload["baseline"]["alignment_threshold"] == 2
+    assert payload["simulation"]["alignment_threshold"] == 1
+    assert payload["baseline"]["eligible_count"] == 1
+    assert payload["simulation"]["eligible_count"] == 2
+    assert payload["difference"]["eligible_delta"] == 1
+    assert payload["blocker_shift"][0]["reason"] == "trust_alignment_count_below_threshold"
+    assert "simulation reduced trust-alignment blocking" in payload["notes"]
+
+
+def test_policy_tuning_preview_endpoint_is_get_only() -> None:
+    client = TestClient(mission_control_server.app)
+
+    response = client.post("/api/policy/tuning-preview", json={})
+
+    assert response.status_code == 405
 
 
 def test_policy_proposals_endpoints_create_list_and_detail(tmp_path, monkeypatch) -> None:

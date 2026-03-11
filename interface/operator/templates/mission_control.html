@@ -454,24 +454,56 @@
               <li class="muted">No top blocking conditions available.</li>
             </ul>
           </div>
+          <div id="auto-lane-readiness-panel" class="lane-block">
+            <h3>Auto-Lane Readiness</h3>
+            <p id="auto-lane-readiness-status" class="proof-meta">No recent readiness summary available.</p>
+            <dl id="auto-lane-readiness-fields">
+              <dt>Recent Window</dt><dd data-field="recent_cases">20</dd>
+              <dt>Eligible Cases</dt><dd data-field="eligible">0</dd>
+              <dt>Blocked Cases</dt><dd data-field="blocked">0</dd>
+              <dt>Eligible Ratio</dt><dd data-field="eligible_ratio">0%</dd>
+              <dt>Readiness</dt><dd data-field="band">NOT_READY</dd>
+              <dt>Reason</dt><dd data-field="reason">insufficient recent evidence for bounded readiness scoring</dd>
+            </dl>
+            <ul id="auto-lane-readiness-top-blockers" class="proof-list">
+              <li class="muted">No blocker trend summary available.</li>
+            </ul>
+          </div>
           <div id="policy-tuning-panel" class="lane-block">
             <h3>Policy Tuning Preview</h3>
             <p id="policy-tuning-status" class="proof-meta">No policy tuning preview available.</p>
             <dl id="policy-tuning-fields">
-              <dt>Current Retry Threshold</dt><dd data-field="baseline_threshold">0.70</dd>
-              <dt>Simulated Threshold</dt><dd data-field="simulated_threshold">0.80</dd>
-              <dt>Baseline Retry Count</dt><dd data-field="baseline_retry_count">0</dd>
-              <dt>Simulated Retry Count</dt><dd data-field="simulated_retry_count">0</dd>
-              <dt>Baseline Success Rate</dt><dd data-field="baseline_success_rate">0%</dd>
-              <dt>Simulated Success Rate</dt><dd data-field="simulated_success_rate">0%</dd>
-              <dt>Retry Reduction</dt><dd data-field="retry_reduction">0</dd>
-              <dt>Expected Success Gain</dt><dd data-field="expected_success_gain">0%</dd>
+              <dt>Baseline Alignment</dt><dd data-field="baseline_alignment_threshold">2</dd>
+              <dt>Simulated Alignment</dt><dd data-field="simulation_alignment_threshold">2</dd>
+              <dt>Baseline Confidence</dt><dd data-field="baseline_confidence_requirement">HIGH</dd>
+              <dt>Simulated Confidence</dt><dd data-field="simulation_confidence_requirement">HIGH</dd>
+              <dt>Baseline Eligible</dt><dd data-field="baseline_eligible_count">0</dd>
+              <dt>Simulated Eligible</dt><dd data-field="simulation_eligible_count">0</dd>
+              <dt>Baseline Blocked</dt><dd data-field="baseline_blocked_count">0</dd>
+              <dt>Simulated Blocked</dt><dd data-field="simulation_blocked_count">0</dd>
+              <dt>Eligible Ratio Delta</dt><dd data-field="eligible_ratio_delta">0%</dd>
+              <dt>Baseline Readiness</dt><dd data-field="baseline_readiness_band">NOT_READY</dd>
+              <dt>Simulated Readiness</dt><dd data-field="simulation_readiness_band">NOT_READY</dd>
             </dl>
             <div class="policy-controls">
-              <label for="policy-tuning-threshold">Threshold</label>
-              <input id="policy-tuning-threshold" type="range" min="0.50" max="0.95" step="0.05" value="0.80">
-              <span id="policy-tuning-threshold-label">0.80</span>
+              <label for="policy-tuning-alignment-threshold">Alignment Threshold</label>
+              <select id="policy-tuning-alignment-threshold">
+                <option value="1">1</option>
+                <option value="2" selected>2</option>
+                <option value="3">3</option>
+              </select>
+              <label for="policy-tuning-confidence-requirement">Confidence Requirement</label>
+              <select id="policy-tuning-confidence-requirement">
+                <option value="HIGH" selected>HIGH</option>
+                <option value="MEDIUM">RELAXED_TO_MEDIUM</option>
+              </select>
               <button id="policy-tuning-run" type="button" onclick="runPolicyTuningPreview()">Run Simulation</button>
+              <ul id="policy-tuning-blocker-shift" class="proof-list">
+                <li class="muted">No blocker shift summary available.</li>
+              </ul>
+              <ul id="policy-tuning-notes" class="proof-list">
+                <li class="muted">Sandbox preview only. Live policy remains unchanged.</li>
+              </ul>
             </div>
           </div>
           <div id="policy-proposals-panel" class="lane-block">
@@ -1163,6 +1195,12 @@
       return mapping[reason] || reason.replaceAll('_', ' ');
     }
 
+    function autoLaneReadinessBandLabel(value) {
+      if (value === 'READY') return 'READY';
+      if (value === 'MARGINAL') return 'MARGINAL';
+      return 'NOT_READY';
+    }
+
     function renderAutoLaneReview(payload) {
       const statusNode = document.getElementById('auto-lane-review-status');
       const fieldNode = document.getElementById('auto-lane-review-fields');
@@ -1239,35 +1277,85 @@
         : '<li class="muted">No top blocking conditions available.</li>';
     }
 
-    function renderPolicyTuningPreview(payload) {
-      const statusNode = document.getElementById('policy-tuning-status');
-      const fieldNode = document.getElementById('policy-tuning-fields');
-      const labelNode = document.getElementById('policy-tuning-threshold-label');
-      const sliderNode = document.getElementById('policy-tuning-threshold');
-      if (!statusNode || !fieldNode) return;
+    function renderAutoLaneReadiness(payload) {
+      const statusNode = document.getElementById('auto-lane-readiness-status');
+      const fieldNode = document.getElementById('auto-lane-readiness-fields');
+      const blockersNode = document.getElementById('auto-lane-readiness-top-blockers');
+      if (!statusNode || !fieldNode || !blockersNode) return;
 
-      const baselineThreshold = payload && typeof payload.baseline_threshold === 'number' ? payload.baseline_threshold : 0.70;
-      const simulatedThreshold = payload && typeof payload.simulated_threshold === 'number' ? payload.simulated_threshold : 0.80;
+      const windowPayload = payload && payload.window && typeof payload.window === 'object' ? payload.window : {};
+      const counts = payload && payload.counts && typeof payload.counts === 'object' ? payload.counts : {};
+      const trend = payload && payload.trend && typeof payload.trend === 'object' ? payload.trend : {};
+      const readiness = payload && payload.readiness && typeof payload.readiness === 'object' ? payload.readiness : {};
+      const eligibleRatio = typeof trend.eligible_ratio === 'number' ? trend.eligible_ratio : 0;
       const values = {
-        baseline_threshold: baselineThreshold.toFixed(2),
-        simulated_threshold: simulatedThreshold.toFixed(2),
-        baseline_retry_count: payload && typeof payload.baseline_retry_count === 'number' ? String(payload.baseline_retry_count) : '0',
-        simulated_retry_count: payload && typeof payload.simulated_retry_count === 'number' ? String(payload.simulated_retry_count) : '0',
-        baseline_success_rate: payload && typeof payload.baseline_success_rate === 'number' ? Math.round(payload.baseline_success_rate * 100) + '%' : '0%',
-        simulated_success_rate: payload && typeof payload.simulated_success_rate === 'number' ? Math.round(payload.simulated_success_rate * 100) + '%' : '0%',
-        retry_reduction: payload && payload.difference && typeof payload.difference.retry_reduction === 'number' ? String(payload.difference.retry_reduction) : '0',
-        expected_success_gain: payload && payload.difference && typeof payload.difference.expected_success_gain === 'number' ? Math.round(payload.difference.expected_success_gain * 100) + '%' : '0%',
+        recent_cases: typeof windowPayload.recent_cases === 'number' ? String(windowPayload.recent_cases) : '20',
+        eligible: typeof counts.eligible === 'number' ? String(counts.eligible) : '0',
+        blocked: typeof counts.blocked === 'number' ? String(counts.blocked) : '0',
+        eligible_ratio: Math.round(eligibleRatio * 100) + '%',
+        band: autoLaneReadinessBandLabel(readiness.band ? String(readiness.band) : 'NOT_READY'),
+        reason: readiness.reason ? String(readiness.reason) : 'insufficient recent evidence for bounded readiness scoring',
       };
       fieldNode.querySelectorAll('[data-field]').forEach((node) => {
         const field = node.getAttribute('data-field') || '';
         node.textContent = values[field] || 'n/a';
       });
-      if (labelNode) labelNode.textContent = simulatedThreshold.toFixed(2);
-      if (sliderNode && document.activeElement !== sliderNode) {
-        sliderNode.value = simulatedThreshold.toFixed(2);
-      }
+
+      const blockers = Array.isArray(trend.top_blockers) ? trend.top_blockers : [];
+      statusNode.textContent = blockers.length
+        ? 'Readiness reflects recent bounded eligibility patterns only. No autonomy change is implied.'
+        : 'Sparse or missing evidence keeps readiness bounded and conservative.';
+      blockersNode.innerHTML = blockers.length
+        ? blockers.map((item) => (
+          '<li><span class="proof-label">' + escapeHtml(autoLaneReasonLabel(String(item.reason || 'unknown'))) +
+          '</span><span class="proof-meta"> count=' + escapeHtml(String(item.count ?? 0)) +
+          '; trend=' + escapeHtml(String(item.trend || 'STABLE')) + '</span></li>'
+        )).join('')
+        : '<li class="muted">No blocker trend summary available.</li>';
+    }
+
+    function renderPolicyTuningPreview(payload) {
+      const statusNode = document.getElementById('policy-tuning-status');
+      const fieldNode = document.getElementById('policy-tuning-fields');
+      const blockerNode = document.getElementById('policy-tuning-blocker-shift');
+      const notesNode = document.getElementById('policy-tuning-notes');
+      if (!statusNode || !fieldNode || !blockerNode || !notesNode) return;
+
+      const baseline = payload && payload.baseline && typeof payload.baseline === 'object' ? payload.baseline : {};
+      const simulation = payload && payload.simulation && typeof payload.simulation === 'object' ? payload.simulation : {};
+      const difference = payload && payload.difference && typeof payload.difference === 'object' ? payload.difference : {};
+      const values = {
+        baseline_alignment_threshold: typeof baseline.alignment_threshold === 'number' ? String(baseline.alignment_threshold) : '2',
+        simulation_alignment_threshold: typeof simulation.alignment_threshold === 'number' ? String(simulation.alignment_threshold) : '2',
+        baseline_confidence_requirement: baseline.confidence_requirement ? String(baseline.confidence_requirement) : 'HIGH',
+        simulation_confidence_requirement: simulation.confidence_requirement ? String(simulation.confidence_requirement) : 'HIGH',
+        baseline_eligible_count: typeof baseline.eligible_count === 'number' ? String(baseline.eligible_count) : '0',
+        simulation_eligible_count: typeof simulation.eligible_count === 'number' ? String(simulation.eligible_count) : '0',
+        baseline_blocked_count: typeof baseline.blocked_count === 'number' ? String(baseline.blocked_count) : '0',
+        simulation_blocked_count: typeof simulation.blocked_count === 'number' ? String(simulation.blocked_count) : '0',
+        eligible_ratio_delta: typeof difference.eligible_ratio_delta === 'number' ? Math.round(difference.eligible_ratio_delta * 100) + '%' : '0%',
+        baseline_readiness_band: baseline.readiness_band ? String(baseline.readiness_band) : 'NOT_READY',
+        simulation_readiness_band: simulation.readiness_band ? String(simulation.readiness_band) : 'NOT_READY',
+      };
+      fieldNode.querySelectorAll('[data-field]').forEach((node) => {
+        const field = node.getAttribute('data-field') || '';
+        node.textContent = values[field] || 'n/a';
+      });
+
+      const shifts = payload && Array.isArray(payload.blocker_shift) ? payload.blocker_shift : [];
+      const notes = payload && Array.isArray(payload.notes) ? payload.notes : [];
+      blockerNode.innerHTML = shifts.length
+        ? shifts.map((item) => (
+          '<li><span class="proof-label">' + escapeHtml(autoLaneReasonLabel(String(item.reason || 'unknown'))) +
+          '</span><span class="proof-meta"> baseline=' + escapeHtml(String(item.baseline_count ?? 0)) +
+          '; simulated=' + escapeHtml(String(item.simulated_count ?? 0)) + '</span></li>'
+        )).join('')
+        : '<li class="muted">No blocker shift summary available.</li>';
+      notesNode.innerHTML = notes.length
+        ? notes.map((note) => '<li><span class="proof-label">' + escapeHtml(String(note)) + '</span></li>').join('')
+        : '<li class="muted">Sandbox preview only. Live policy remains unchanged.</li>';
       statusNode.textContent = payload && payload.stats_available
-        ? 'Sandbox preview only. Live policy remains unchanged.'
+        ? 'Sandbox preview compares recent bounded eligibility under simulated settings only.'
         : 'Insufficient evidence for strong tuning simulation conclusions.';
     }
 
@@ -1628,6 +1716,7 @@
         refreshPolicyReview();
         refreshAutoLaneReview();
         refreshAutoLaneCandidates();
+        refreshAutoLaneReadiness();
         refreshDecisionSuggestion();
         refreshDecisionDesk();
       } catch (error) {
@@ -1835,21 +1924,37 @@
       }
     }
 
-    async function runPolicyTuningPreview() {
-      const sliderNode = document.getElementById('policy-tuning-threshold');
-      const labelNode = document.getElementById('policy-tuning-threshold-label');
-      const statusNode = document.getElementById('policy-tuning-status');
-      const rawValue = sliderNode ? String(sliderNode.value || '0.80') : '0.80';
-      if (labelNode) labelNode.textContent = rawValue;
+    async function refreshAutoLaneReadiness() {
       try {
-        const response = await fetch('/api/policy/tuning-preview?success_threshold=' + encodeURIComponent(rawValue));
+        const response = await fetch('/api/decisions/auto-lane-readiness');
+        if (!response.ok) {
+          renderAutoLaneReadiness(null);
+          return;
+        }
+        renderAutoLaneReadiness(await response.json());
+      } catch (_error) {
+        renderAutoLaneReadiness(null);
+      }
+    }
+
+    async function runPolicyTuningPreview() {
+      const alignmentNode = document.getElementById('policy-tuning-alignment-threshold');
+      const confidenceNode = document.getElementById('policy-tuning-confidence-requirement');
+      const statusNode = document.getElementById('policy-tuning-status');
+      const rawAlignment = alignmentNode ? String(alignmentNode.value || '2') : '2';
+      const rawConfidence = confidenceNode ? String(confidenceNode.value || 'HIGH') : 'HIGH';
+      try {
+        const response = await fetch(
+          '/api/policy/tuning-preview?alignment_threshold=' + encodeURIComponent(rawAlignment) +
+          '&confidence_requirement=' + encodeURIComponent(rawConfidence)
+        );
         const payload = await response.json();
         if (!response.ok) {
           throw new Error(payload && payload.error ? String(payload.error) : 'policy_tuning_preview_failed');
         }
         renderPolicyTuningPreview(payload);
         if (statusNode) statusNode.textContent = payload.stats_available
-          ? 'Sandbox preview only. Live policy remains unchanged.'
+          ? 'Sandbox preview compares recent bounded eligibility under simulated settings only.'
           : 'Insufficient evidence for strong tuning simulation conclusions.';
       } catch (error) {
         if (statusNode) statusNode.textContent = 'Unable to run sandbox tuning preview: ' + String(error.message || error);
@@ -1929,6 +2034,7 @@
           refreshPolicyReview();
           refreshAutoLaneReview();
           refreshAutoLaneCandidates();
+          refreshAutoLaneReadiness();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = action + ' failed: request_error';
@@ -1958,6 +2064,7 @@
           refreshPolicyReview();
           refreshAutoLaneReview();
           refreshAutoLaneCandidates();
+          refreshAutoLaneReadiness();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'execute failed: request_error';
@@ -1987,6 +2094,7 @@
           refreshPolicyReview();
           refreshAutoLaneReview();
           refreshAutoLaneCandidates();
+          refreshAutoLaneReadiness();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'retry failed: request_error';
@@ -2016,6 +2124,7 @@
           refreshPolicyReview();
           refreshAutoLaneReview();
           refreshAutoLaneCandidates();
+          refreshAutoLaneReadiness();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'escalation failed: request_error';
@@ -2043,6 +2152,7 @@
           refreshPolicyReview();
           refreshAutoLaneReview();
           refreshAutoLaneCandidates();
+          refreshAutoLaneReadiness();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'ignore failed: request_error';
@@ -2507,6 +2617,7 @@
     refreshPolicyReview();
     refreshAutoLaneReview();
     refreshAutoLaneCandidates();
+    refreshAutoLaneReadiness();
     runPolicyTuningPreview();
     refreshPolicyProposals();
     refreshPolicyVersion();

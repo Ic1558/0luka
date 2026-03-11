@@ -11,6 +11,13 @@ from tools.ops.control_plane_policy_observability import load_policy_stats
 from tools.ops.execution_outcome_reconciler import reconcile_execution_outcome
 
 
+def _sorted_reason_counts(counter: Counter[str], *, limit: int) -> list[dict[str, Any]]:
+    return [
+        {"reason": reason, "count": count}
+        for reason, count in sorted(counter.items(), key=lambda item: (-item[1], item[0]))[:limit]
+    ]
+
+
 def _category(review: dict[str, Any]) -> str:
     if review.get("eligibility_verdict") == "ELIGIBLE":
         return "ELIGIBLE"
@@ -74,26 +81,22 @@ def _decision_payload(row: dict[str, Any], *, repo_root: Path, observability_roo
     return payload
 
 
-def load_auto_lane_candidate_queue(
+def load_auto_lane_candidate_contexts(
     *,
     observability_root: Path,
     repo_root: Path,
     item_limit: int = 10,
-) -> dict[str, Any]:
+) -> list[dict[str, Any]]:
     try:
         rows = read_decision_history(observability_root, limit=200)
     except DecisionPersistenceError:
-        return {
-            "items": [],
-            "summary": {"eligible_count": 0, "blocked_count": 0, "top_blockers": []},
-        }
+        return []
 
     stats = load_policy_stats(observability_root=observability_root, repo_root=repo_root)
     guard = derive_auto_lane_guard(stats)
     auto_lane_state = str(guard.get("auto_lane_state") or "AUTO_LANE_FROZEN")
 
     items: list[dict[str, Any]] = []
-    blocker_counts: Counter[str] = Counter()
 
     for row in _latest_rows_by_decision(rows, limit=item_limit):
         decision_id = str(row.get("decision_id") or "")
@@ -101,27 +104,67 @@ def load_auto_lane_candidate_queue(
         policy_payload = _policy_payload_for_decision(rows, decision_id, auto_lane_state)
         review = derive_auto_lane_review(decision_payload, policy_payload)
         category = _category(review)
-        for reason in review.get("reasons") or []:
-            blocker_counts[str(reason)] += 1
+        items.append(
+            {
+                "decision_id": review.get("decision_id"),
+                "trace_id": review.get("trace_id"),
+                "latest_decision": decision_payload,
+                "policy_payload": policy_payload,
+                "review": review,
+                "category": category,
+            }
+        )
+    return items
+
+
+def load_auto_lane_candidate_reviews(
+    *,
+    observability_root: Path,
+    repo_root: Path,
+    item_limit: int = 10,
+) -> list[dict[str, Any]]:
+    contexts = load_auto_lane_candidate_contexts(
+        observability_root=observability_root,
+        repo_root=repo_root,
+        item_limit=item_limit,
+    )
+    items: list[dict[str, Any]] = []
+    for context in contexts:
+        review = context.get("review") if isinstance(context.get("review"), dict) else {}
         items.append(
             {
                 "decision_id": review.get("decision_id"),
                 "trace_id": review.get("trace_id"),
                 "candidate_lane": review.get("candidate_lane"),
                 "eligibility_verdict": review.get("eligibility_verdict"),
-                "category": category,
+                "category": context.get("category"),
                 "effective_lane_state": review.get("effective_lane_state"),
                 "reasons": review.get("reasons", []),
                 "summary": review.get("summary"),
             }
         )
+    return items
+
+
+def load_auto_lane_candidate_queue(
+    *,
+    observability_root: Path,
+    repo_root: Path,
+    item_limit: int = 10,
+) -> dict[str, Any]:
+    items = load_auto_lane_candidate_reviews(
+        observability_root=observability_root,
+        repo_root=repo_root,
+        item_limit=item_limit,
+    )
+    blocker_counts: Counter[str] = Counter()
+    for item in items:
+        for reason in item.get("reasons") or []:
+            blocker_counts[str(reason)] += 1
 
     summary = {
         "eligible_count": sum(1 for item in items if item.get("eligibility_verdict") == "ELIGIBLE"),
         "blocked_count": sum(1 for item in items if item.get("eligibility_verdict") == "BLOCKED"),
-        "top_blockers": [
-            {"reason": reason, "count": count}
-            for reason, count in blocker_counts.most_common(5)
-        ],
+        "top_blockers": _sorted_reason_counts(blocker_counts, limit=5),
     }
     return {"items": items, "summary": summary}
