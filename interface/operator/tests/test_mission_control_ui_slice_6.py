@@ -139,6 +139,7 @@ def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
     assert "fetch('/api/policy/version')" in TEMPLATE
     assert "fetch('/api/policy/versions')" in TEMPLATE
     assert "fetch('/api/policy/versions/' + encodeURIComponent(policyVersionId) + '/rollback'" in TEMPLATE
+    assert "fetch('/api/policy/preflight?component='" in TEMPLATE
     assert "fetch('/api/policy/auto-lane/unfreeze'" in TEMPLATE
     assert "fetch(endpoint, {" in TEMPLATE
     assert "/api/decisions/latest/approve" in TEMPLATE
@@ -344,6 +345,8 @@ def test_decision_desk_policy_proposals_panel_is_append_only_review_surface() ->
     assert 'data-field="proposed_value"' in section
     assert 'data-field="status"' in section
     assert 'data-field="created_at"' in section
+    assert 'data-field="preflight_status"' in section
+    assert 'data-field="preflight_reason"' in section
     assert "Create Proposal" in section
     assert "submitPolicyProposal()" in TEMPLATE
     assert "submitPolicyProposalAction('approve')" in TEMPLATE
@@ -354,6 +357,8 @@ def test_decision_desk_policy_proposals_panel_is_append_only_review_surface() ->
     assert "loadPolicyProposalDetail" in TEMPLATE
     assert "fetch('/api/policy/proposals/'" in TEMPLATE
     assert "Deploy Policy Change" in section
+    assert "PASS" in TEMPLATE
+    assert "BLOCKED" in TEMPLATE
     assert "apply automatically" not in section.lower()
 
 
@@ -369,6 +374,7 @@ def test_decision_desk_live_policy_version_panel_is_read_only_deployment_surface
     assert 'data-field="deployed_at"' in section
     assert 'data-field="proposal_id"' in section
     assert 'data-field="rollback_of_version_id"' in section
+    assert 'id="policy-version-preflight-status"' in section
     assert 'id="policy-version-history-status"' in section
     assert 'id="policy-version-history-list"' in section
     assert 'id="policy-version-rollback-note"' in section
@@ -378,6 +384,7 @@ def test_decision_desk_live_policy_version_panel_is_read_only_deployment_surface
     assert "Rollback creates a new active version using a previous value." in TEMPLATE
     assert "Rollback to This Version" in TEMPLATE
     assert "Current Active Version" in TEMPLATE
+    assert "Rollback preflight is evaluated per historical version before rollback is allowed." in TEMPLATE
     assert "renderPolicyVersion(payload)" in TEMPLATE
     assert "refreshPolicyVersion()" in TEMPLATE
     assert "renderPolicyVersions(payload)" in TEMPLATE

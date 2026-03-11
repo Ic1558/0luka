@@ -58,6 +58,7 @@ from tools.ops.control_plane_policy_change_proposals import (
 from tools.ops.control_plane_policy_learning_review import load_policy_learning_review
 from tools.ops.control_plane_policy_observability import load_policy_stats
 from tools.ops.control_plane_policy_tuning_simulator import load_policy_tuning_preview
+from tools.ops.control_plane_policy_preflight import load_policy_preflight
 from tools.ops.control_plane_policy_versions import (
     deploy_policy_version,
     get_policy_version,
@@ -835,6 +836,14 @@ def load_policy_versions_payload(*, limit: int = 50) -> dict[str, Any]:
     return {"items": items, "count": len(items)}
 
 
+def load_policy_preflight_payload(*, component: str, target_value: Any) -> dict[str, Any]:
+    return load_policy_preflight(
+        runtime_root=_runtime_root(),
+        policy_component=component,
+        target_value=target_value,
+    )
+
+
 def load_remediation_queue() -> dict[str, Any]:
     return remediation_queue.list_queue(runtime_root=_runtime_root())
 
@@ -1391,6 +1400,15 @@ async def policy_tuning_preview_endpoint(request) -> JSONResponse:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
 
 
+async def policy_preflight_endpoint(request) -> JSONResponse:
+    component = str(request.query_params.get("component", "") or "")
+    target_value = request.query_params.get("target_value")
+    try:
+        return JSONResponse(load_policy_preflight_payload(component=component, target_value=target_value))
+    except (PolicyProposalError, RuntimeError) as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
 async def policy_proposals_endpoint(request) -> JSONResponse:
     if request.method == "GET":
         raw_limit = request.query_params.get("limit", "50")
@@ -1479,6 +1497,12 @@ async def policy_proposal_deploy_endpoint(request) -> JSONResponse:
             raise PolicyProposalError("proposal_not_found")
         if str(proposal.get("status") or "") != "APPROVED_FOR_IMPLEMENTATION":
             raise PolicyProposalError("proposal_not_approved_for_implementation")
+        preflight = load_policy_preflight_payload(
+            component=str(proposal["policy_component"]),
+            target_value=proposal["proposed_value"],
+        )
+        if not preflight.get("is_valid"):
+            return JSONResponse({"ok": False, "error": "policy preflight failed", "preflight": preflight}, status_code=409)
         timestamp = _utc_now_iso()
         append_policy_deployment_event(
             _observability_root(),
@@ -1530,6 +1554,12 @@ async def policy_version_rollback_endpoint(request) -> JSONResponse:
         target = get_policy_version(_observability_root(), policy_version_id)
         if target is None:
             raise PolicyProposalError("rollback_target_version_not_found")
+        preflight = load_policy_preflight_payload(
+            component=str(target["policy_component"]),
+            target_value=target["new_value"],
+        )
+        if not preflight.get("is_valid"):
+            return JSONResponse({"ok": False, "error": "policy preflight failed", "preflight": preflight}, status_code=409)
         result = rollback_policy_version(
             _runtime_root(),
             _observability_root(),
@@ -2233,6 +2263,7 @@ def create_app():
         app.add_api_route("/api/policy/stats", policy_stats_endpoint, methods=["GET"])
         app.add_api_route("/api/policy/review", policy_review_endpoint, methods=["GET"])
         app.add_api_route("/api/policy/tuning-preview", policy_tuning_preview_endpoint, methods=["GET"])
+        app.add_api_route("/api/policy/preflight", policy_preflight_endpoint, methods=["GET"])
         app.add_api_route("/api/policy/proposals", policy_proposals_endpoint, methods=["GET", "POST"])
         app.add_api_route("/api/policy/proposals/{proposal_id}", policy_proposal_detail_endpoint, methods=["GET"])
         app.add_api_route("/api/policy/proposals/{proposal_id}/approve", policy_proposal_approve_endpoint, methods=["POST"])
@@ -2288,6 +2319,7 @@ def create_app():
             Route("/api/policy/stats", policy_stats_endpoint),
             Route("/api/policy/review", policy_review_endpoint),
             Route("/api/policy/tuning-preview", policy_tuning_preview_endpoint),
+            Route("/api/policy/preflight", policy_preflight_endpoint),
             Route("/api/policy/proposals", policy_proposals_endpoint, methods=["GET", "POST"]),
             Route("/api/policy/proposals/{proposal_id}", policy_proposal_detail_endpoint),
             Route("/api/policy/proposals/{proposal_id}/approve", policy_proposal_approve_endpoint, methods=["POST"]),

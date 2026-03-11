@@ -16,6 +16,7 @@ from tools.ops.control_plane_policy_change_proposals import (
 )
 from tools.ops.control_plane_policy_versions import deploy_policy_version, read_live_policy
 from tools.ops.control_plane_policy_versions import get_policy_version, list_policy_versions, rollback_policy_version
+from tools.ops.control_plane_policy_preflight import validate_policy_target
 
 
 def test_policy_change_proposal_creation_and_append_only_listing(tmp_path) -> None:
@@ -262,3 +263,48 @@ def test_policy_rollback_restores_previous_value_via_new_active_version(tmp_path
     assert rolled_back["rollback_target_version_id"] == first["policy_version_id"]
     assert rolled_back["current_value"] == 0.80
     assert live["current_value"] == 0.80
+
+
+def test_policy_preflight_accepts_valid_threshold_and_blocks_unsafe_values() -> None:
+    valid = validate_policy_target(
+        policy_component="auto_retry_threshold",
+        target_value=0.80,
+        current_value=0.70,
+    )
+    too_low = validate_policy_target(
+        policy_component="auto_retry_threshold",
+        target_value=0.40,
+        current_value=0.70,
+    )
+    too_high = validate_policy_target(
+        policy_component="auto_retry_threshold",
+        target_value=1.10,
+        current_value=0.70,
+    )
+    too_large_delta = validate_policy_target(
+        policy_component="auto_retry_threshold",
+        target_value=0.95,
+        current_value=0.70,
+    )
+
+    assert valid["is_valid"] is True
+    assert valid["reason"] == "ok"
+    assert valid["checks"] == {"type_valid": True, "range_valid": True, "delta_valid": True}
+    assert too_low["is_valid"] is False
+    assert too_low["reason"] == "target_value_outside_safe_policy_envelope"
+    assert too_high["is_valid"] is False
+    assert too_high["reason"] == "target_value_outside_safe_policy_envelope"
+    assert too_large_delta["is_valid"] is False
+    assert too_large_delta["reason"] == "target_value_delta_exceeds_safe_step"
+
+
+def test_policy_preflight_blocks_non_numeric_values() -> None:
+    result = validate_policy_target(
+        policy_component="auto_retry_threshold",
+        target_value="not-a-number",
+        current_value=0.70,
+    )
+
+    assert result["is_valid"] is False
+    assert result["checks"]["type_valid"] is False
+    assert result["reason"] == "target_value_not_numeric"

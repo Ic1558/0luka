@@ -471,6 +471,8 @@
               <dt>Evidence Summary</dt><dd data-field="evidence_summary">n/a</dd>
               <dt>Simulation Reference</dt><dd data-field="simulation_reference">n/a</dd>
               <dt>Operator Note</dt><dd data-field="operator_note">n/a</dd>
+              <dt>Preflight</dt><dd data-field="preflight_status">UNKNOWN</dd>
+              <dt>Preflight Reason</dt><dd data-field="preflight_reason">n/a</dd>
             </dl>
             <div class="policy-controls">
               <textarea id="policy-proposal-action-note" placeholder="optional approval/deployment note" rows="2"></textarea>
@@ -490,6 +492,7 @@
               <dt>Source Proposal ID</dt><dd data-field="proposal_id">n/a</dd>
               <dt>Rollback Of Version</dt><dd data-field="rollback_of_version_id">n/a</dd>
             </dl>
+            <p id="policy-version-preflight-status" class="proof-meta">Rollback preflight unavailable.</p>
             <p id="policy-version-history-status" class="proof-meta">No historical policy versions available.</p>
             <ul id="policy-version-history-list" class="proof-list">
               <li class="muted">No version history available</li>
@@ -1145,6 +1148,8 @@
         evidence_summary: proposal && proposal.evidence_summary ? String(proposal.evidence_summary) : 'n/a',
         simulation_reference: proposal && proposal.simulation_reference ? String(proposal.simulation_reference) : 'n/a',
         operator_note: proposal && proposal.operator_note ? String(proposal.operator_note) : 'n/a',
+        preflight_status: 'UNKNOWN',
+        preflight_reason: 'n/a',
       };
       panel.querySelectorAll('[data-field]').forEach((node) => {
         const field = node.getAttribute('data-field') || '';
@@ -1157,6 +1162,19 @@
       if (rejectButton) rejectButton.disabled = !canReview;
       if (deployButton) deployButton.disabled = !canDeploy;
       if (noteNode) noteNode.disabled = !(canReview || canDeploy);
+    }
+
+    function applyProposalPreflight(preflight, proposal) {
+      const panel = document.getElementById('policy-proposal-detail-fields');
+      const deployButton = document.getElementById('policy-proposal-deploy');
+      if (!panel) return;
+      const statusNode = panel.querySelector('[data-field="preflight_status"]');
+      const reasonNode = panel.querySelector('[data-field="preflight_reason"]');
+      const isDeployEligible = proposal && proposal.status === 'APPROVED_FOR_IMPLEMENTATION';
+      const isValid = !!(preflight && preflight.is_valid);
+      if (statusNode) statusNode.textContent = isValid ? 'PASS' : 'BLOCKED';
+      if (reasonNode) reasonNode.textContent = preflight && preflight.reason ? String(preflight.reason) : 'preflight_unavailable';
+      if (deployButton) deployButton.disabled = !(isDeployEligible && isValid);
     }
 
     function renderPolicyProposals(payload) {
@@ -1185,7 +1203,7 @@
         '</div>' +
         '</li>'
       )).join('');
-      renderPolicyProposalDetail(items[items.length - 1]);
+      loadPolicyProposalDetail(String(items[items.length - 1].proposal_id || ''));
     }
 
     async function refreshPolicyProposals() {
@@ -1211,6 +1229,11 @@
           throw new Error(payload && payload.error ? String(payload.error) : 'proposal_not_found');
         }
         renderPolicyProposalDetail(payload.proposal);
+        if (payload.proposal && payload.proposal.policy_component) {
+          const preflightResponse = await fetch('/api/policy/preflight?component=' + encodeURIComponent(String(payload.proposal.policy_component || '')) + '&target_value=' + encodeURIComponent(String(payload.proposal.proposed_value || '')));
+          const preflightPayload = preflightResponse.ok ? await preflightResponse.json() : null;
+          applyProposalPreflight(preflightPayload, payload.proposal);
+        }
         if (statusNode) statusNode.textContent = 'Loaded proposal detail for ' + String(payload.proposal.proposal_id || proposalId) + '.';
       } catch (error) {
         if (statusNode) statusNode.textContent = 'Unable to load proposal detail: ' + String(error.message || error);
@@ -1320,6 +1343,7 @@
       const statusNode = document.getElementById('policy-version-history-status');
       const listNode = document.getElementById('policy-version-history-list');
       const rollbackNoteNode = document.getElementById('policy-version-rollback-note');
+      const preflightNode = document.getElementById('policy-version-preflight-status');
       const currentVersionNode = document.querySelector('#policy-version-fields [data-field="policy_version_id"]');
       if (!statusNode || !listNode) return;
       const items = payload && Array.isArray(payload.items) ? payload.items : [];
@@ -1328,6 +1352,7 @@
         statusNode.textContent = 'No historical policy versions available.';
         listNode.innerHTML = '<li class="muted">No version history available</li>';
         if (rollbackNoteNode) rollbackNoteNode.disabled = true;
+        if (preflightNode) preflightNode.textContent = 'Rollback preflight unavailable.';
         return;
       }
       if (rollbackNoteNode) rollbackNoteNode.disabled = false;
@@ -1336,20 +1361,25 @@
         const versionId = String(item.policy_version_id || 'n/a');
         const isCurrent = currentVersionId && versionId === currentVersionId;
         const currentLabel = isCurrent ? ' current-active' : '';
+        const preflight = item.preflight && typeof item.preflight === 'object' ? item.preflight : null;
+        const rollbackAllowed = !isCurrent && !!(preflight && preflight.is_valid);
         const rollbackButton = isCurrent
           ? '<button type="button" disabled>Current Active Version</button>'
-          : '<button type="button" onclick="submitPolicyRollback(\'' + escapeHtml(versionId) + '\')">Rollback to This Version</button>';
+          : '<button type="button" onclick="submitPolicyRollback(\'' + escapeHtml(versionId) + '\')" ' + (rollbackAllowed ? '' : 'disabled') + '>Rollback to This Version</button>';
         return (
           '<li>' +
           '<div><strong>' + escapeHtml(versionId) + '</strong>' + currentLabel + '</div>' +
           '<div class="proof-meta">deployed=' + escapeHtml(String(item.deployed_at || 'n/a')) +
           '; value=' + escapeHtml(typeof item.new_value === 'number' ? item.new_value.toFixed(2) : 'n/a') +
           '; proposal=' + escapeHtml(String(item.proposal_id || 'n/a')) +
-          '; rollback_of=' + escapeHtml(String(item.rollback_of_version_id || 'n/a')) + '</div>' +
+          '; rollback_of=' + escapeHtml(String(item.rollback_of_version_id || 'n/a')) +
+          '; preflight=' + escapeHtml(preflight && preflight.is_valid ? 'PASS' : 'BLOCKED') +
+          '; reason=' + escapeHtml(String(preflight && preflight.reason || 'preflight_unavailable')) + '</div>' +
           rollbackButton +
           '</li>'
         );
       }).join('');
+      if (preflightNode) preflightNode.textContent = 'Rollback preflight is evaluated per historical version before rollback is allowed.';
     }
 
     async function refreshPolicyVersions() {
@@ -1359,7 +1389,21 @@
           renderPolicyVersions({ items: [], count: 0 });
           return;
         }
-        renderPolicyVersions(await response.json());
+        const payload = await response.json();
+        if (payload && Array.isArray(payload.items)) {
+          payload.items = await Promise.all(payload.items.map(async (item) => {
+            const component = String(item.policy_component || '');
+            const targetValue = String(item.new_value ?? '');
+            try {
+              const preflightResponse = await fetch('/api/policy/preflight?component=' + encodeURIComponent(component) + '&target_value=' + encodeURIComponent(targetValue));
+              const preflightPayload = preflightResponse.ok ? await preflightResponse.json() : null;
+              return { ...item, preflight: preflightPayload };
+            } catch (_error) {
+              return { ...item, preflight: null };
+            }
+          }));
+        }
+        renderPolicyVersions(payload);
       } catch (_error) {
         renderPolicyVersions({ items: [], count: 0 });
       }
