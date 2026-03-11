@@ -28,8 +28,10 @@ if str(ROOT) not in sys.path:
 from tools.ops import approval_presets, approval_write, remediation_queue
 from tools.ops.control_plane_persistence import (
     DecisionPersistenceError,
+    append_suggestion_feedback,
     read_decision_history,
     read_latest_decision,
+    read_suggestion_feedback,
     record_operator_decision,
 )
 from tools.ops.control_plane_execution_bridge import (
@@ -703,6 +705,32 @@ def load_decision_suggestion() -> dict[str, Any]:
     )
 
 
+def load_decision_suggestion_feedback(limit: int = 20) -> dict[str, Any]:
+    try:
+        latest = read_latest_decision(_runtime_root())
+    except DecisionPersistenceError:
+        latest = None
+    decision_id = latest.get("decision_id") if isinstance(latest, dict) else None
+    try:
+        rows = read_suggestion_feedback(_observability_root(), decision_id=decision_id, limit=limit)
+    except DecisionPersistenceError:
+        return {"items": [], "count": 0}
+    items = [
+        {
+            "decision_id": row.get("decision_id"),
+            "trace_id": row.get("trace_id"),
+            "event": row.get("event"),
+            "timestamp": row.get("ts_utc"),
+            "suggestion": row.get("suggestion"),
+            "confidence_band": row.get("confidence_band"),
+            "operator_action": row.get("operator_action"),
+            "alignment": row.get("alignment"),
+        }
+        for row in rows
+    ]
+    return {"items": items, "count": len(items)}
+
+
 def load_remediation_queue() -> dict[str, Any]:
     return remediation_queue.list_queue(runtime_root=_runtime_root())
 
@@ -1227,6 +1255,10 @@ async def decisions_latest_suggestion_endpoint(request) -> JSONResponse:
     return JSONResponse(load_decision_suggestion())
 
 
+async def decisions_latest_suggestion_feedback_endpoint(request) -> JSONResponse:
+    return JSONResponse(load_decision_suggestion_feedback())
+
+
 async def system_model_endpoint(request) -> JSONResponse:
     try:
         payload = load_system_model()
@@ -1295,6 +1327,44 @@ def _execute_latest_decision() -> tuple[dict[str, Any] | None, str | None]:
         return None, str(exc)
 
 
+def _record_suggestion_feedback(
+    latest: dict[str, Any],
+    *,
+    operator_action: str,
+    suggestion_payload: dict[str, Any],
+) -> None:
+    suggestion = str(suggestion_payload.get("suggestion") or "NO_ACTION_RECOMMENDED")
+    if operator_action == "IGNORE_SUGGESTION":
+        event = "SUGGESTION_IGNORED"
+        alignment = "IGNORED_SUGGESTION"
+    else:
+        matched = (
+            (operator_action == "RETRY_EXECUTION" and suggestion == "RETRY_RECOMMENDED")
+            or (operator_action == "ESCALATE_ISSUE" and suggestion == "ESCALATION_RECOMMENDED")
+        )
+        event = "SUGGESTION_ACCEPTED" if matched else "SUGGESTION_OVERRIDDEN"
+        alignment = "MATCHED_SUGGESTION" if matched else "OVERRIDDEN"
+
+    append_suggestion_feedback(
+        _observability_root(),
+        {
+            "event": event,
+            "decision_id": latest.get("decision_id"),
+            "trace_id": latest.get("trace_id"),
+            "ts_utc": latest.get("ts_utc"),
+            "signal_received": latest.get("signal_received"),
+            "proposed_action": latest.get("proposed_action"),
+            "evidence_refs": latest.get("evidence_refs"),
+            "operator_status": latest.get("operator_status"),
+            "operator_note": latest.get("operator_note"),
+            "suggestion": suggestion,
+            "confidence_band": suggestion_payload.get("confidence_band"),
+            "operator_action": operator_action,
+            "alignment": alignment,
+        },
+    )
+
+
 def _retryable_latest_decision_state() -> tuple[dict[str, Any] | None, str | None]:
     latest, error = _load_latest_decision_state()
     if error:
@@ -1327,16 +1397,18 @@ def _retry_latest_decision() -> tuple[dict[str, Any] | None, str | None]:
         return None, error
     execution = latest.get("execution") or {}
     retry_count = int(execution.get("retry_count") or 0) + 1
+    suggestion_payload = load_decision_suggestion()
     try:
-        return (
-            retry_approved_decision(
-                latest,
-                observability_root=_observability_root(),
-                retry_count=retry_count,
-            ),
-            None,
+        result = retry_approved_decision(
+            latest,
+            observability_root=_observability_root(),
+            retry_count=retry_count,
         )
+        _record_suggestion_feedback(latest, operator_action="RETRY_EXECUTION", suggestion_payload=suggestion_payload)
+        return result, None
     except ExecutionBridgeError as exc:
+        return None, str(exc)
+    except DecisionPersistenceError as exc:
         return None, str(exc)
 
 
@@ -1347,18 +1419,43 @@ def _escalate_latest_decision() -> tuple[dict[str, Any] | None, str | None]:
     execution = latest.get("execution") or {}
     escalation_count = int(execution.get("escalation_count") or 0) + 1
     outcome_status = str(execution.get("outcome_status") or "").replace("EXECUTION_", "").lower() or "unknown"
+    suggestion_payload = load_decision_suggestion()
     try:
-        return (
-            escalate_approved_decision(
-                latest,
-                observability_root=_observability_root(),
-                escalation_count=escalation_count,
-                reason=f"execution {outcome_status}",
-            ),
-            None,
+        result = escalate_approved_decision(
+            latest,
+            observability_root=_observability_root(),
+            escalation_count=escalation_count,
+            reason=f"execution {outcome_status}",
         )
+        _record_suggestion_feedback(latest, operator_action="ESCALATE_ISSUE", suggestion_payload=suggestion_payload)
+        return result, None
     except ExecutionBridgeError as exc:
         return None, str(exc)
+    except DecisionPersistenceError as exc:
+        return None, str(exc)
+
+
+def _ignore_latest_suggestion() -> tuple[dict[str, Any] | None, str | None]:
+    latest, error = _load_latest_decision_state()
+    if error:
+        return None, error
+    if latest is None:
+        return None, "latest_decision_missing"
+    suggestion_payload = load_decision_suggestion()
+    try:
+        _record_suggestion_feedback(latest, operator_action="IGNORE_SUGGESTION", suggestion_payload=suggestion_payload)
+    except DecisionPersistenceError as exc:
+        return None, str(exc)
+    return {
+        "ok": True,
+        "feedback": {
+            "decision_id": latest.get("decision_id"),
+            "suggestion": suggestion_payload.get("suggestion"),
+            "confidence_band": suggestion_payload.get("confidence_band"),
+            "operator_action": "IGNORE_SUGGESTION",
+            "alignment": "IGNORED_SUGGESTION",
+        },
+    }, None
 
 
 async def decisions_latest_approve_endpoint(request) -> JSONResponse:
@@ -1405,6 +1502,13 @@ async def decisions_latest_retry_endpoint(request) -> JSONResponse:
 
 async def decisions_latest_escalate_endpoint(request) -> JSONResponse:
     result, error = _escalate_latest_decision()
+    if error:
+        return JSONResponse({"ok": False, "error": error}, status_code=409)
+    return JSONResponse(result)
+
+
+async def decisions_latest_suggestion_ignore_endpoint(request) -> JSONResponse:
+    result, error = _ignore_latest_suggestion()
     if error:
         return JSONResponse({"ok": False, "error": error}, status_code=409)
     return JSONResponse(result)
@@ -1549,12 +1653,14 @@ def create_app():
         app.add_api_route("/api/decision_preview", decision_preview_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest", decisions_latest_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest/suggestion", decisions_latest_suggestion_endpoint, methods=["GET"])
+        app.add_api_route("/api/decisions/latest/suggestion-feedback", decisions_latest_suggestion_feedback_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/history", decisions_history_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/retry", decisions_latest_retry_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/escalate", decisions_latest_escalate_endpoint, methods=["POST"])
+        app.add_api_route("/api/decisions/latest/suggestion-feedback/ignore", decisions_latest_suggestion_ignore_endpoint, methods=["POST"])
         app.add_api_route("/api/system_model", system_model_endpoint, methods=["GET"])
         app.add_api_route("/api/approval_log", approval_log_endpoint, methods=["GET"])
         app.add_api_route("/api/runtime_decisions", runtime_decisions_endpoint, methods=["GET"])
@@ -1589,12 +1695,14 @@ def create_app():
             Route("/api/decision_preview", decision_preview_endpoint),
             Route("/api/decisions/latest", decisions_latest_endpoint),
             Route("/api/decisions/latest/suggestion", decisions_latest_suggestion_endpoint),
+            Route("/api/decisions/latest/suggestion-feedback", decisions_latest_suggestion_feedback_endpoint),
             Route("/api/decisions/history", decisions_history_endpoint),
             Route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"]),
             Route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"]),
             Route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"]),
             Route("/api/decisions/latest/retry", decisions_latest_retry_endpoint, methods=["POST"]),
             Route("/api/decisions/latest/escalate", decisions_latest_escalate_endpoint, methods=["POST"]),
+            Route("/api/decisions/latest/suggestion-feedback/ignore", decisions_latest_suggestion_ignore_endpoint, methods=["POST"]),
             Route("/api/system_model", system_model_endpoint),
             Route("/api/approval_log", approval_log_endpoint),
             Route("/api/runtime_decisions", runtime_decisions_endpoint),
