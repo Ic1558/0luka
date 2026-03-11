@@ -86,7 +86,7 @@
     },
     {
       "path": "core/governance/secrets_policy.md",
-      "sha256": "89692168cb1aa40222f5633dce390e3f493a46bc630ea889392e64714c552a19"
+      "sha256": "5a2030749b34e72c16c5fe30e9bca52766c5618d92854787f841dc9c47e6e04a"
     },
     {
       "path": "core/governance/separation_of_powers.yaml",
@@ -189,6 +189,6 @@
       "sha256": "5d1149dcb7acfdb4485f1b69cd462a3a441020a4c31256fe2a99f338aa5d888a"
     }
   ],
-  "generated_at_utc": "2026-03-11T16:05:29Z",
+  "generated_at_utc": "2026-03-11T16:29:18Z",
   "required_label": "governance-change"
 }
