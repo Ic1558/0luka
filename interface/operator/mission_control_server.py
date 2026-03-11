@@ -34,7 +34,10 @@ from tools.ops.control_plane_persistence import (
 )
 from tools.ops.control_plane_execution_bridge import (
     ExecutionBridgeError,
+    RETRYABLE_OUTCOMES,
+    escalate_approved_decision,
     handoff_approved_decision,
+    retry_approved_decision,
 )
 from tools.ops.execution_outcome_reconciler import reconcile_execution_outcome
 from tools.ops.decision_engine import classify_once
@@ -661,6 +664,9 @@ def _history_event_type(value: str) -> str:
         "OPERATOR_APPROVED": "OPERATOR_APPROVED",
         "OPERATOR_REJECTED": "OPERATOR_REJECTED",
         "PROPOSAL_SUPERSEDED": "PROPOSAL_SUPERSEDED",
+        "EXECUTION_HANDOFF_ACCEPTED": "EXECUTION_HANDOFF_ACCEPTED",
+        "EXECUTION_RETRY_REQUESTED": "EXECUTION_RETRY_REQUESTED",
+        "EXECUTION_ESCALATION_REQUESTED": "EXECUTION_ESCALATION_REQUESTED",
     }
     return mapping.get(value, "UNKNOWN")
 
@@ -1256,15 +1262,88 @@ def _resolve_latest_decision(
     return _sanitize_decision_payload(updated), None
 
 
-def _execute_latest_decision() -> tuple[dict[str, Any] | None, str | None]:
+def _load_latest_decision_state() -> tuple[dict[str, Any] | None, str | None]:
     try:
         latest = read_latest_decision(_runtime_root())
     except DecisionPersistenceError:
         return None, "decision_state_unreadable"
     if latest is None:
         return None, "latest_decision_missing"
+    return latest, None
+
+
+def _execute_latest_decision() -> tuple[dict[str, Any] | None, str | None]:
+    latest, error = _load_latest_decision_state()
+    if error:
+        return None, error
     try:
         return handoff_approved_decision(latest, observability_root=_observability_root()), None
+    except ExecutionBridgeError as exc:
+        return None, str(exc)
+
+
+def _retryable_latest_decision_state() -> tuple[dict[str, Any] | None, str | None]:
+    latest, error = _load_latest_decision_state()
+    if error:
+        return None, error
+    if latest is None:
+        return None, "latest_decision_missing"
+    if latest.get("operator_status") != "APPROVED":
+        return None, "latest_decision_not_approved"
+
+    execution = reconcile_execution_outcome(
+        latest,
+        repo_root=ROOT,
+        observability_root=_observability_root(),
+    )
+    if not isinstance(execution, dict):
+        return None, "execution_outcome_not_retryable"
+
+    outcome_status = str(execution.get("outcome_status") or "")
+    if outcome_status not in RETRYABLE_OUTCOMES:
+        return None, "execution_outcome_not_retryable"
+
+    latest_with_execution = dict(latest)
+    latest_with_execution["execution"] = execution
+    return latest_with_execution, None
+
+
+def _retry_latest_decision() -> tuple[dict[str, Any] | None, str | None]:
+    latest, error = _retryable_latest_decision_state()
+    if error:
+        return None, error
+    execution = latest.get("execution") or {}
+    retry_count = int(execution.get("retry_count") or 0) + 1
+    try:
+        return (
+            retry_approved_decision(
+                latest,
+                observability_root=_observability_root(),
+                retry_count=retry_count,
+            ),
+            None,
+        )
+    except ExecutionBridgeError as exc:
+        return None, str(exc)
+
+
+def _escalate_latest_decision() -> tuple[dict[str, Any] | None, str | None]:
+    latest, error = _retryable_latest_decision_state()
+    if error:
+        return None, error
+    execution = latest.get("execution") or {}
+    escalation_count = int(execution.get("escalation_count") or 0) + 1
+    outcome_status = str(execution.get("outcome_status") or "").replace("EXECUTION_", "").lower() or "unknown"
+    try:
+        return (
+            escalate_approved_decision(
+                latest,
+                observability_root=_observability_root(),
+                escalation_count=escalation_count,
+                reason=f"execution {outcome_status}",
+            ),
+            None,
+        )
     except ExecutionBridgeError as exc:
         return None, str(exc)
 
@@ -1299,6 +1378,20 @@ async def decisions_latest_reject_endpoint(request) -> JSONResponse:
 
 async def decisions_latest_execute_endpoint(request) -> JSONResponse:
     result, error = _execute_latest_decision()
+    if error:
+        return JSONResponse({"ok": False, "error": error}, status_code=409)
+    return JSONResponse(result)
+
+
+async def decisions_latest_retry_endpoint(request) -> JSONResponse:
+    result, error = _retry_latest_decision()
+    if error:
+        return JSONResponse({"ok": False, "error": error}, status_code=409)
+    return JSONResponse(result)
+
+
+async def decisions_latest_escalate_endpoint(request) -> JSONResponse:
+    result, error = _escalate_latest_decision()
     if error:
         return JSONResponse({"ok": False, "error": error}, status_code=409)
     return JSONResponse(result)
@@ -1446,6 +1539,8 @@ def create_app():
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"])
+        app.add_api_route("/api/decisions/latest/retry", decisions_latest_retry_endpoint, methods=["POST"])
+        app.add_api_route("/api/decisions/latest/escalate", decisions_latest_escalate_endpoint, methods=["POST"])
         app.add_api_route("/api/system_model", system_model_endpoint, methods=["GET"])
         app.add_api_route("/api/approval_log", approval_log_endpoint, methods=["GET"])
         app.add_api_route("/api/runtime_decisions", runtime_decisions_endpoint, methods=["GET"])
@@ -1483,6 +1578,8 @@ def create_app():
             Route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"]),
             Route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"]),
             Route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"]),
+            Route("/api/decisions/latest/retry", decisions_latest_retry_endpoint, methods=["POST"]),
+            Route("/api/decisions/latest/escalate", decisions_latest_escalate_endpoint, methods=["POST"]),
             Route("/api/system_model", system_model_endpoint),
             Route("/api/approval_log", approval_log_endpoint),
             Route("/api/runtime_decisions", runtime_decisions_endpoint),

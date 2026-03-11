@@ -21,6 +21,8 @@ INTENT_BY_ACTION = {
     "ESCALATE": "control.escalate",
 }
 
+RETRYABLE_OUTCOMES = {"EXECUTION_FAILED", "EXECUTION_UNKNOWN"}
+
 
 class ExecutionBridgeError(RuntimeError):
     pass
@@ -51,6 +53,15 @@ def _require_evidence_refs(value: Any) -> list[str]:
 
 
 def build_execution_request(decision: dict[str, Any]) -> dict[str, Any]:
+    return build_execution_request_with_action(decision, requested_action=None, source="mission_control_approved_decision")
+
+
+def build_execution_request_with_action(
+    decision: dict[str, Any],
+    *,
+    requested_action: str | None,
+    source: str,
+) -> dict[str, Any]:
     if not isinstance(decision, dict):
         raise ExecutionBridgeError("invalid_decision")
 
@@ -59,23 +70,24 @@ def build_execution_request(decision: dict[str, Any]) -> dict[str, Any]:
         raise ExecutionBridgeError("latest_decision_not_approved")
 
     proposed_action = _require_text(decision.get("proposed_action"), "proposed_action")
-    if proposed_action == "NO_ACTION":
+    action = requested_action or proposed_action
+    if action == "NO_ACTION":
         raise ExecutionBridgeError("no_action_not_executable")
-    requested_action = EXECUTABLE_ACTIONS.get(proposed_action)
-    if requested_action is None:
+    mapped_action = EXECUTABLE_ACTIONS.get(action)
+    if mapped_action is None:
         raise ExecutionBridgeError("unsupported_proposed_action")
 
     return {
         "decision_id": _require_text(decision.get("decision_id"), "decision_id"),
         "trace_id": _require_text(decision.get("trace_id"), "trace_id"),
         "ts_utc": _require_text(decision.get("ts_utc"), "ts_utc"),
-        "requested_action": requested_action,
+        "requested_action": mapped_action,
         "evidence_refs": _require_evidence_refs(decision.get("evidence_refs")),
-        "source": "mission_control_approved_decision",
+        "source": source,
     }
 
 
-def _build_execution_task(request: dict[str, Any]) -> tuple[dict[str, Any], str]:
+def _build_execution_task(request: dict[str, Any], *, task_suffix: str = "") -> tuple[dict[str, Any], str]:
     requested_action = _require_text(request.get("requested_action"), "requested_action")
     intent = INTENT_BY_ACTION.get(requested_action)
     if intent is None:
@@ -85,7 +97,7 @@ def _build_execution_task(request: dict[str, Any]) -> tuple[dict[str, Any], str]
     trace_id = _require_text(request.get("trace_id"), "trace_id")
     ts_utc = _require_text(request.get("ts_utc"), "ts_utc")
     evidence_refs = _require_evidence_refs(request.get("evidence_refs"))
-    task_id = f"decision_exec_{decision_id}"
+    task_id = f"decision_exec_{decision_id}{task_suffix}"
     payload_json = json.dumps(request, sort_keys=True)
 
     task = {
@@ -110,25 +122,35 @@ def _build_execution_task(request: dict[str, Any]) -> tuple[dict[str, Any], str]
     return task, task_id
 
 
-def handoff_approved_decision(
+def _handoff_request(
     decision: dict[str, Any],
     *,
     observability_root,
+    requested_action: str | None,
+    source: str,
+    task_suffix: str,
+    ledger_event: str,
+    response_key: str,
+    response_body: dict[str, Any],
 ) -> dict[str, Any]:
-    request = build_execution_request(decision)
-    task, task_id = _build_execution_task(request)
+    request = build_execution_request_with_action(
+        decision,
+        requested_action=requested_action,
+        source=source,
+    )
+    task, task_id = _build_execution_task(request, task_suffix=task_suffix)
     receipt = _submit_task(task, task_id=task_id)
 
     try:
         append_decision_event(
             observability_root,
             {
-                "event": "EXECUTION_HANDOFF_ACCEPTED",
+                "event": ledger_event,
                 "decision_id": decision.get("decision_id"),
                 "trace_id": decision.get("trace_id"),
                 "ts_utc": decision.get("ts_utc"),
                 "signal_received": decision.get("signal_received"),
-                "proposed_action": decision.get("proposed_action"),
+                "proposed_action": request["requested_action"],
                 "evidence_refs": decision.get("evidence_refs"),
                 "operator_status": decision.get("operator_status"),
                 "operator_note": decision.get("operator_note"),
@@ -139,10 +161,79 @@ def handoff_approved_decision(
 
     return {
         "ok": True,
-        "bridge_status": "HANDOFF_ACCEPTED",
-        "decision_id": request["decision_id"],
-        "trace_id": request["trace_id"],
-        "requested_action": request["requested_action"],
-        "task_id": receipt.get("task_id"),
-        "inbox_path": receipt.get("inbox_path"),
+        response_key: {
+            **response_body,
+            "decision_id": request["decision_id"],
+            "trace_id": request["trace_id"],
+            "requested_action": request["requested_action"],
+            "task_id": receipt.get("task_id"),
+            "inbox_path": receipt.get("inbox_path"),
+        },
     }
+
+
+def handoff_approved_decision(
+    decision: dict[str, Any],
+    *,
+    observability_root,
+) -> dict[str, Any]:
+    payload = _handoff_request(
+        decision,
+        observability_root=observability_root,
+        requested_action=None,
+        source="mission_control_approved_decision",
+        task_suffix="",
+        ledger_event="EXECUTION_HANDOFF_ACCEPTED",
+        response_key="handoff",
+        response_body={"bridge_status": "HANDOFF_ACCEPTED"},
+    )["handoff"]
+    return {
+        "ok": True,
+        "bridge_status": payload["bridge_status"],
+        "decision_id": payload["decision_id"],
+        "trace_id": payload["trace_id"],
+        "requested_action": payload["requested_action"],
+        "task_id": payload["task_id"],
+        "inbox_path": payload["inbox_path"],
+    }
+
+
+def retry_approved_decision(
+    decision: dict[str, Any],
+    *,
+    observability_root,
+    retry_count: int,
+) -> dict[str, Any]:
+    if retry_count < 1:
+        raise ExecutionBridgeError("invalid_retry_count")
+    return _handoff_request(
+        decision,
+        observability_root=observability_root,
+        requested_action=None,
+        source="mission_control_retry",
+        task_suffix=f"_retry_{retry_count}",
+        ledger_event="EXECUTION_RETRY_REQUESTED",
+        response_key="retry",
+        response_body={"retry_count": retry_count},
+    )
+
+
+def escalate_approved_decision(
+    decision: dict[str, Any],
+    *,
+    observability_root,
+    escalation_count: int,
+    reason: str,
+) -> dict[str, Any]:
+    if escalation_count < 1:
+        raise ExecutionBridgeError("invalid_escalation_count")
+    return _handoff_request(
+        decision,
+        observability_root=observability_root,
+        requested_action="ESCALATE",
+        source="mission_control_escalation",
+        task_suffix=f"_escalate_{escalation_count}",
+        ledger_event="EXECUTION_ESCALATION_REQUESTED",
+        response_key="escalation",
+        response_body={"reason": reason, "escalation_count": escalation_count},
+    )

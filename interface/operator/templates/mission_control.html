@@ -361,12 +361,15 @@
             <dt>Bridge Status</dt><dd data-field="execution_bridge_status">n/a</dd>
             <dt>Outcome Status</dt><dd data-field="execution_outcome_status">n/a</dd>
             <dt>Outcome Ref</dt><dd data-field="execution_outcome_ref">n/a</dd>
+            <dt>Retry Count</dt><dd data-field="execution_retry_count">0</dd>
           </dl>
           <div class="policy-controls">
             <textarea id="decision-operator-note" placeholder="optional operator note" rows="3" disabled></textarea>
             <button id="decision-approve" type="button" onclick="submitDecisionResolution('approve')" disabled>Approve</button>
             <button id="decision-reject" type="button" onclick="submitDecisionResolution('reject')" disabled>Reject</button>
             <button id="decision-execute" type="button" onclick="submitDecisionExecution()" disabled>Execute Approved Decision</button>
+            <button id="decision-retry" type="button" onclick="submitDecisionRetry()" disabled>Retry Execution</button>
+            <button id="decision-escalate" type="button" onclick="submitDecisionEscalation()" disabled>Escalate Issue</button>
           </div>
           <p id="decision-desk-action-status" class="approval-status">Read-only until a pending decision is available.</p>
         </div>
@@ -759,15 +762,26 @@
       const approveNode = document.getElementById('decision-approve');
       const rejectNode = document.getElementById('decision-reject');
       const executeNode = document.getElementById('decision-execute');
+      const retryNode = document.getElementById('decision-retry');
+      const escalateNode = document.getElementById('decision-escalate');
       if (noteNode) noteNode.disabled = !enabled;
       if (approveNode) approveNode.disabled = !enabled;
       if (rejectNode) rejectNode.disabled = !enabled;
       if (executeNode) executeNode.disabled = true;
+      if (retryNode) retryNode.disabled = true;
+      if (escalateNode) escalateNode.disabled = true;
     }
 
     function setDecisionExecuteState(enabled) {
       const executeNode = document.getElementById('decision-execute');
       if (executeNode) executeNode.disabled = !enabled;
+    }
+
+    function setDecisionRecoveryState(enabled) {
+      const retryNode = document.getElementById('decision-retry');
+      const escalateNode = document.getElementById('decision-escalate');
+      if (retryNode) retryNode.disabled = !enabled;
+      if (escalateNode) escalateNode.disabled = !enabled;
     }
 
     function renderDecisionDesk(payload) {
@@ -792,9 +806,10 @@
         badge.textContent = 'NO_ACTION';
         setDecisionActionState(false);
         setDecisionExecuteState(false);
+        setDecisionRecoveryState(false);
         if (noteNode) noteNode.value = '';
         panel.querySelectorAll('[data-field]').forEach((node) => {
-          node.textContent = 'n/a';
+          node.textContent = node.getAttribute('data-field') === 'execution_retry_count' ? '0' : 'n/a';
         });
         return;
       }
@@ -808,12 +823,15 @@
         actionStatus.textContent = 'Approve or reject to resolve the current pending decision.';
         setDecisionActionState(true);
         setDecisionExecuteState(false);
+        setDecisionRecoveryState(false);
       } else if (operatorStatus === 'APPROVED' && action !== 'NO_ACTION') {
         statusNode.textContent = 'Approved decision available for explicit execution handoff.';
         if (latest.execution && latest.execution.outcome_status === 'HANDOFF_ONLY') {
           actionStatus.textContent = 'Handoff accepted. Waiting for confirmed outcome.';
         } else if (latest.execution && latest.execution.outcome_status === 'EXECUTION_SUCCEEDED') {
           actionStatus.textContent = 'Execution succeeded.';
+        } else if (latest.execution && (latest.execution.outcome_status === 'EXECUTION_FAILED' || latest.execution.outcome_status === 'EXECUTION_UNKNOWN')) {
+          actionStatus.textContent = 'Operator may retry or escalate this outcome.';
         } else if (latest.execution && latest.execution.outcome_status === 'EXECUTION_FAILED') {
           actionStatus.textContent = 'Execution failed.';
         } else if (latest.execution && latest.execution.outcome_status === 'EXECUTION_UNKNOWN') {
@@ -822,17 +840,20 @@
           actionStatus.textContent = 'Execution handoff only. Completion is not implied in this phase.';
         }
         setDecisionActionState(false);
-        setDecisionExecuteState(true);
+        setDecisionExecuteState(!(latest.execution && latest.execution.bridge_status === 'HANDOFF_ACCEPTED'));
+        setDecisionRecoveryState(Boolean(latest.execution && (latest.execution.outcome_status === 'EXECUTION_FAILED' || latest.execution.outcome_status === 'EXECUTION_UNKNOWN')));
       } else if (operatorStatus === 'APPROVED') {
         statusNode.textContent = 'Approved decision is non-executable in this phase.';
         actionStatus.textContent = 'NO_ACTION decisions cannot cross the execution boundary.';
         setDecisionActionState(false);
         setDecisionExecuteState(false);
+        setDecisionRecoveryState(false);
       } else {
         statusNode.textContent = 'Latest decision is not actionable.';
         actionStatus.textContent = 'Only APPROVED executable decisions can request execution handoff.';
         setDecisionActionState(false);
         setDecisionExecuteState(false);
+        setDecisionRecoveryState(false);
       }
       const values = {
         decision_id: latest.decision_id,
@@ -848,6 +869,7 @@
           : 'n/a',
         execution_outcome_status: executionOutcomeLabel(latest.execution),
         execution_outcome_ref: latest.execution ? latest.execution.outcome_ref : null,
+        execution_retry_count: latest.execution ? latest.execution.retry_count : 0,
       };
       panel.querySelectorAll('[data-field]').forEach((node) => {
         const field = node.getAttribute('data-field') || '';
@@ -962,6 +984,52 @@
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'execute failed: request_error';
+      }
+    }
+
+    async function submitDecisionRetry() {
+      const statusNode = document.getElementById('decision-desk-action-status');
+      try {
+        const response = await fetch('/api/decisions/latest/retry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        const result = await response.json();
+        if (statusNode) {
+          statusNode.textContent = result.ok
+            ? 'retry requested: ' + String(result.retry && result.retry.requested_action || 'n/a')
+            : 'retry failed: ' + String(result.error || 'unknown_error');
+        }
+        if (response.ok) {
+          refreshDecisionDesk();
+          refreshDecisionHistory();
+        }
+      } catch (error) {
+        if (statusNode) statusNode.textContent = 'retry failed: request_error';
+      }
+    }
+
+    async function submitDecisionEscalation() {
+      const statusNode = document.getElementById('decision-desk-action-status');
+      try {
+        const response = await fetch('/api/decisions/latest/escalate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        const result = await response.json();
+        if (statusNode) {
+          statusNode.textContent = result.ok
+            ? 'escalation requested: ' + String(result.escalation && result.escalation.requested_action || 'n/a')
+            : 'escalation failed: ' + String(result.error || 'unknown_error');
+        }
+        if (response.ok) {
+          refreshDecisionDesk();
+          refreshDecisionHistory();
+        }
+      } catch (error) {
+        if (statusNode) statusNode.textContent = 'escalation failed: request_error';
       }
     }
 
