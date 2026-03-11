@@ -45,6 +45,9 @@ Antigravity must not introduce module-local exceptions for:
 - startup wrappers must not log secret material
 - runtime crash logs and observability outputs must redact or avoid secrets
 - deploy scripts must reference secret injection tools, not embed secret values
+- bounded service bootstrap contracts must document variable names only and must
+  not include secret values, examples with live values, or alternate secret
+  sources outside kernel-owned runtime wrappers
 
 ## Repository Safety Rules
 
@@ -59,3 +62,15 @@ Antigravity must not introduce module-local exceptions for:
 During Antigravity kernelization, any secret-bearing deploy/runtime convention
 must be re-homed under 0luka governance/runtime ownership before new feature
 work resumes.
+
+## Antigravity Bootstrap Standard
+
+For Antigravity specifically:
+
+- `runtime/services/antigravity_bootstrap/` owns the bootstrap contract
+- `runtime/services/antigravity_bootstrap/env_contract.md` is the non-secret
+  variable-name contract for runtime startup
+- `runtime/services/antigravity_bootstrap/bootstrap_contract.md` is the
+  canonical startup convention reference
+- legacy repo-local bootstrap flows are delegated only and must not override
+  this governance-owned standard
