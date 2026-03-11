@@ -1,0 +1,56 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+
+TEMPLATE = Path("/Users/icmini/0luka/interface/operator/templates/mission_control.html").read_text(encoding="utf-8")
+
+
+def _system_model_section() -> str:
+    marker = "<h2>System Model</h2>"
+    start = TEMPLATE.index(marker)
+    end = TEMPLATE.index("</section>", start)
+    return TEMPLATE[start:end]
+
+
+def test_system_model_section_renders_read_only_panel() -> None:
+    section = _system_model_section()
+
+    assert "System Model" in section
+    assert 'id="system-model-panel"' in section
+    assert 'id="system-model-status"' in section
+    assert 'id="system-model-fields"' in section
+    assert "System model unavailable" in section
+    assert 'data-field="current_phase"' in section
+    assert 'data-field="system_classification"' in section
+    assert 'data-field="eligibility_to_act"' in section
+    assert 'data-field="eligibility_reason"' in section
+    assert 'data-field="repos_qs_boundary"' in section
+    assert 'data-field="control_plane_enabled"' in section
+    assert 'data-field="autonomy_enabled"' in section
+    assert 'data-field="decision_memory_present"' in section
+
+
+def test_system_model_fetch_wiring_is_present() -> None:
+    assert "fetch('/api/system_model')" in TEMPLATE
+    assert "renderSystemModel(payload);" in TEMPLATE
+    assert "renderSystemModel(null);" in TEMPLATE
+    assert "System model loaded" in TEMPLATE
+
+
+def test_system_model_section_remains_read_only_and_has_no_controls() -> None:
+    section = _system_model_section()
+
+    assert "<button" not in section
+    assert "<input" not in section
+    assert "enqueueRemediationItem" not in section
+    assert "submitApprovalAction" not in section
+    assert "submitApprovalExpiry" not in section
+
+
+def test_system_model_section_has_no_repos_qs_dependency() -> None:
+    section = _system_model_section()
+
+    assert "repos/qs Boundary" in section
+    assert "fetch('/api/qs_runs" not in section
+    assert "proof-artifact-panel" not in section
