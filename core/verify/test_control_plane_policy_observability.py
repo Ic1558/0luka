@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from tools.ops.control_plane_policy_learning_review import derive_policy_review, load_policy_learning_review
 from tools.ops.control_plane_policy_observability import derive_policy_stats, load_policy_stats
 
 
@@ -109,3 +110,58 @@ def test_manual_unfreeze_event_overrides_degraded_auto_lane_state(tmp_path) -> N
     assert payload["auto_lane_reason"] == "manual_policy_review_completed"
     assert payload["auto_lane_lifecycle_event"] == "POLICY_AUTO_LANE_UNFROZEN"
     assert payload["auto_lane_operator_note"] == "manual review completed; re-enable narrow retry lane"
+
+
+def test_policy_learning_review_returns_safe_sparse_surface(tmp_path) -> None:
+    repo_root = tmp_path / "repo"
+    observability_root = repo_root / "observability"
+
+    payload = load_policy_learning_review(observability_root=observability_root, repo_root=repo_root)
+
+    assert payload["review_flags"] == ["review_insufficient_evidence"]
+    assert payload["reason_breakdown"] == []
+    assert payload["review_summary"] == "insufficient evidence for strong review conclusions"
+
+
+def test_policy_learning_review_flags_threshold_alignment_frozen_and_reason_cluster(tmp_path) -> None:
+    repo_root = tmp_path / "repo"
+    outbox_dir = repo_root / "interface" / "outbox" / "tasks"
+    audit_dir = repo_root / "observability" / "artifacts" / "router_audit"
+    outbox_dir.mkdir(parents=True, exist_ok=True)
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    rows = [
+        {"event": "POLICY_EVALUATED", "decision_id": "d1", "policy_reason": "high_confidence_retry_after_repeated_operator_alignment"},
+        {"event": "POLICY_EVALUATED", "decision_id": "d2", "policy_reason": "high_confidence_retry_after_repeated_operator_alignment"},
+        {"event": "POLICY_EVALUATED", "decision_id": "d3", "policy_reason": "high_confidence_retry_after_repeated_operator_alignment"},
+        {"event": "POLICY_EVALUATED", "decision_id": "d4", "policy_reason": "high_confidence_retry_after_repeated_operator_alignment"},
+        {"event": "EXECUTION_RETRY_REQUESTED", "decision_id": "d1"},
+        {"event": "AUTO_RETRY_TRIGGERED", "decision_id": "d1", "policy_reason": "high_confidence_retry_after_repeated_operator_alignment"},
+        {"event": "EXECUTION_RETRY_REQUESTED", "decision_id": "d2"},
+        {"event": "AUTO_RETRY_TRIGGERED", "decision_id": "d2", "policy_reason": "high_confidence_retry_after_repeated_operator_alignment"},
+        {"event": "EXECUTION_RETRY_REQUESTED", "decision_id": "d3"},
+        {"event": "AUTO_RETRY_TRIGGERED", "decision_id": "d3", "policy_reason": "high_confidence_retry_after_repeated_operator_alignment"},
+        {"event": "EXECUTION_RETRY_REQUESTED", "decision_id": "d4"},
+        {"event": "AUTO_RETRY_TRIGGERED", "decision_id": "d4", "policy_reason": "high_confidence_retry_after_repeated_operator_alignment"},
+        {"event": "POLICY_ALIGNMENT_MATCHED", "decision_id": "d1"},
+        {"event": "POLICY_ALIGNMENT_MISMATCHED", "decision_id": "d2"},
+        {"event": "POLICY_ALIGNMENT_MISMATCHED", "decision_id": "d3"},
+        {"event": "POLICY_ALIGNMENT_MISMATCHED", "decision_id": "d4"},
+    ]
+    (audit_dir / "decision_exec_d1_retry_1.json").write_text(json.dumps({"decision": "error"}), encoding="utf-8")
+    (audit_dir / "decision_exec_d2_retry_1.json").write_text(json.dumps({"decision": "error"}), encoding="utf-8")
+    (audit_dir / "decision_exec_d3_retry_1.json").write_text(json.dumps({"decision": "error"}), encoding="utf-8")
+    (outbox_dir / "decision_exec_d4_retry_1.result.json").write_text(json.dumps({"status": "success"}), encoding="utf-8")
+
+    stats = derive_policy_stats(rows, repo_root=repo_root)
+    payload = derive_policy_review(rows, repo_root=repo_root, stats=stats)
+
+    assert payload["policy_state"] == "POLICY_DEGRADED"
+    assert payload["auto_lane_state"] == "AUTO_LANE_FROZEN"
+    assert payload["rates"]["auto_retry_success_rate"] == 0.25
+    assert payload["rates"]["operator_alignment_rate"] == 0.25
+    assert "review_auto_retry_threshold" in payload["review_flags"]
+    assert "review_alignment_drift" in payload["review_flags"]
+    assert "review_frozen_lane" in payload["review_flags"]
+    assert "review_reason_failure_cluster" in payload["review_flags"]
+    assert payload["reason_breakdown"][0]["policy_reason"] == "high_confidence_retry_after_repeated_operator_alignment"
+    assert payload["reason_breakdown"][0]["failure_count"] == 3

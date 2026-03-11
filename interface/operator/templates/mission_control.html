@@ -406,6 +406,24 @@
             </div>
             <p id="policy-auto-lane-status" class="approval-status">Auto retry lane follows current policy guard state.</p>
           </div>
+          <div id="policy-review-panel" class="lane-block">
+            <h3>Policy Review</h3>
+            <p id="policy-review-status" class="proof-meta">No policy review available.</p>
+            <dl id="policy-review-fields">
+              <dt>Policy State</dt><dd data-field="policy_state">POLICY_HEALTHY</dd>
+              <dt>Auto Lane State</dt><dd data-field="auto_lane_state">AUTO_LANE_ACTIVE</dd>
+              <dt>Total Evaluations</dt><dd data-field="policy_evaluations">0</dd>
+              <dt>Auto Retry Success Rate</dt><dd data-field="auto_retry_success_rate">0%</dd>
+              <dt>Operator Alignment Rate</dt><dd data-field="operator_alignment_rate">0%</dd>
+              <dt>Review Summary</dt><dd data-field="review_summary">insufficient evidence for strong review conclusions</dd>
+            </dl>
+            <ul id="policy-review-flags" class="proof-list">
+              <li class="muted">No review flags</li>
+            </ul>
+            <ul id="policy-review-reasons" class="proof-list">
+              <li class="muted">No policy reason breakdown available</li>
+            </ul>
+          </div>
           <div class="policy-controls">
             <textarea id="decision-operator-note" placeholder="optional operator note" rows="3" disabled></textarea>
             <button id="decision-approve" type="button" onclick="submitDecisionResolution('approve')" disabled>Approve</button>
@@ -961,6 +979,48 @@
       }
     }
 
+    function renderPolicyReview(payload) {
+      const statusNode = document.getElementById('policy-review-status');
+      const fieldNode = document.getElementById('policy-review-fields');
+      const flagNode = document.getElementById('policy-review-flags');
+      const reasonNode = document.getElementById('policy-review-reasons');
+      if (!statusNode || !fieldNode || !flagNode || !reasonNode) return;
+
+      const totals = payload && payload.totals && typeof payload.totals === 'object' ? payload.totals : {};
+      const rates = payload && payload.rates && typeof payload.rates === 'object' ? payload.rates : {};
+      const values = {
+        policy_state: payload && payload.policy_state ? String(payload.policy_state) : 'POLICY_HEALTHY',
+        auto_lane_state: payload && payload.auto_lane_state ? String(payload.auto_lane_state) : 'AUTO_LANE_FROZEN',
+        policy_evaluations: typeof totals.policy_evaluations === 'number' ? String(totals.policy_evaluations) : '0',
+        auto_retry_success_rate: typeof rates.auto_retry_success_rate === 'number' ? Math.round(rates.auto_retry_success_rate * 100) + '%' : '0%',
+        operator_alignment_rate: typeof rates.operator_alignment_rate === 'number' ? Math.round(rates.operator_alignment_rate * 100) + '%' : '0%',
+        review_summary: payload && payload.review_summary ? String(payload.review_summary) : 'insufficient evidence for strong review conclusions',
+      };
+      fieldNode.querySelectorAll('[data-field]').forEach((node) => {
+        const field = node.getAttribute('data-field') || '';
+        node.textContent = values[field] || 'n/a';
+      });
+
+      const flags = payload && Array.isArray(payload.review_flags) ? payload.review_flags : [];
+      const reasons = payload && Array.isArray(payload.reason_breakdown) ? payload.reason_breakdown : [];
+      statusNode.textContent = flags.length
+        ? 'Policy review highlights areas for operator review only.'
+        : 'Insufficient evidence for strong review conclusions.';
+      flagNode.innerHTML = flags.length
+        ? flags.map((flag) => '<li><span class="proof-label">' + escapeHtml(String(flag)) + '</span></li>').join('')
+        : '<li class="muted">No review flags</li>';
+      reasonNode.innerHTML = reasons.length
+        ? reasons.map((item) => (
+          '<li>' +
+          '<div class="proof-label">' + escapeHtml(String(item.policy_reason || 'unknown_policy_reason')) + '</div>' +
+          '<div class="proof-meta">count=' + escapeHtml(String(item.count ?? 0)) +
+          '; success=' + escapeHtml(String(item.success_count ?? 0)) +
+          '; failure=' + escapeHtml(String(item.failure_count ?? 0)) + '</div>' +
+          '</li>'
+        )).join('')
+        : '<li class="muted">No policy reason breakdown available</li>';
+    }
+
     async function submitPolicyAutoLaneUnfreeze() {
       const noteNode = document.getElementById('policy-auto-lane-note');
       const statusNode = document.getElementById('policy-auto-lane-status');
@@ -982,6 +1042,7 @@
         if (statusNode) statusNode.textContent = 'Auto retry lane re-enabled after manual review. No execution was triggered.';
         if (noteNode) noteNode.value = '';
         refreshPolicyStats();
+        refreshPolicyReview();
         refreshDecisionSuggestion();
         refreshDecisionDesk();
       } catch (error) {
@@ -1149,6 +1210,20 @@
       }
     }
 
+    async function refreshPolicyReview() {
+      try {
+        const response = await fetch('/api/policy/review');
+        if (!response.ok) {
+          renderPolicyReview(null);
+          return;
+        }
+        const payload = await response.json();
+        renderPolicyReview(payload);
+      } catch (error) {
+        renderPolicyReview(null);
+      }
+    }
+
     function renderDecisionHistory(payload) {
       const statusNode = document.getElementById('decision-history-status');
       const listNode = document.getElementById('decision-history-list');
@@ -1218,6 +1293,7 @@
           refreshDecisionSuggestion();
           refreshSuggestionFeedback();
           refreshPolicyStats();
+          refreshPolicyReview();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = action + ' failed: request_error';
@@ -1244,6 +1320,7 @@
           refreshDecisionSuggestion();
           refreshSuggestionFeedback();
           refreshPolicyStats();
+          refreshPolicyReview();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'execute failed: request_error';
@@ -1270,6 +1347,7 @@
           refreshDecisionSuggestion();
           refreshSuggestionFeedback();
           refreshPolicyStats();
+          refreshPolicyReview();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'retry failed: request_error';
@@ -1296,6 +1374,7 @@
           refreshDecisionSuggestion();
           refreshSuggestionFeedback();
           refreshPolicyStats();
+          refreshPolicyReview();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'escalation failed: request_error';
@@ -1320,6 +1399,7 @@
           refreshDecisionSuggestion();
           refreshSuggestionFeedback();
           refreshPolicyStats();
+          refreshPolicyReview();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'ignore failed: request_error';
@@ -1758,6 +1838,7 @@
     setInterval(refreshDecisionDesk, 5000);
     setInterval(refreshDecisionSuggestion, 5000);
     setInterval(refreshSuggestionFeedback, 5000);
+    setInterval(refreshPolicyReview, 5000);
     setInterval(refreshDecisionHistory, 5000);
     setInterval(refreshProofInventory, 5000);
     setInterval(refreshQsRuns, 5000);
@@ -1776,6 +1857,7 @@
     refreshDecisionSuggestion();
     refreshSuggestionFeedback();
     refreshPolicyStats();
+    refreshPolicyReview();
     refreshDecisionHistory();
     refreshProofInventory();
     refreshQsRuns();
