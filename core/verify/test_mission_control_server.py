@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from interface.operator import mission_control_server
 from tools.ops import control_plane_execution_bridge
 from tools.ops.control_plane_persistence import make_decision_id
+from tools.ops.control_plane_policy_versions import deploy_policy_version
 
 
 def test_health_endpoint_returns_ok() -> None:
@@ -3358,6 +3359,93 @@ def test_policy_version_rollback_fails_safely_for_missing_target(tmp_path, monke
 
     assert response.status_code == 409
     assert response.json()["error"] == "rollback_target_version_not_found"
+
+
+def test_policy_preflight_endpoint_returns_structured_result(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/policy/preflight?component=auto_retry_threshold&target_value=0.80")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["policy_component"] == "auto_retry_threshold"
+    assert payload["target_value"] == 0.80
+    assert payload["is_valid"] is True
+    assert payload["checks"] == {"type_valid": True, "range_valid": True, "delta_valid": True}
+
+
+def test_policy_proposal_deploy_blocks_invalid_preflight_value(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    proposal = client.post(
+        "/api/policy/proposals",
+        json={"policy_component": "auto_retry_threshold", "proposed_value": 0.95},
+    ).json()["proposal"]
+    client.post(f"/api/policy/proposals/{proposal['proposal_id']}/approve", json={})
+
+    deploy_response = client.post(f"/api/policy/proposals/{proposal['proposal_id']}/deploy", json={})
+
+    assert deploy_response.status_code == 409
+    payload = deploy_response.json()
+    assert payload["error"] == "policy preflight failed"
+    assert payload["preflight"]["is_valid"] is False
+    assert payload["preflight"]["reason"] == "target_value_delta_exceeds_safe_step"
+
+
+def test_policy_version_rollback_blocks_invalid_historical_target_value(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    historical = deploy_policy_version(
+        runtime_root,
+        observability_root,
+        proposal_id="proposal_history",
+        deployed_at="2026-03-11T23:10:00Z",
+        policy_component="auto_retry_threshold",
+        new_value=0.95,
+    )
+    deploy_policy_version(
+        runtime_root,
+        observability_root,
+        proposal_id="proposal_current",
+        deployed_at="2026-03-11T23:11:00Z",
+        policy_component="auto_retry_threshold",
+        new_value=0.70,
+    )
+
+    rollback_response = client.post(
+        f"/api/policy/versions/{historical['policy_version_id']}/rollback",
+        json={},
+    )
+
+    assert rollback_response.status_code == 409
+    payload = rollback_response.json()
+    assert payload["error"] == "policy preflight failed"
+    assert payload["preflight"]["is_valid"] is False
+    assert payload["preflight"]["reason"] == "target_value_delta_exceeds_safe_step"
 
 
 def test_policy_proposal_deploy_rejects_non_approved_state(tmp_path, monkeypatch) -> None:
