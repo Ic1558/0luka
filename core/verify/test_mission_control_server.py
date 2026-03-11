@@ -3288,6 +3288,78 @@ def test_policy_proposal_approve_reject_and_deploy_lifecycle(tmp_path, monkeypat
     assert reject_response.json()["status"] == "REJECTED"
 
 
+def test_policy_version_history_and_explicit_rollback_endpoint(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("policy rollback must not trigger execution")),
+    )
+
+    first = client.post(
+        "/api/policy/proposals",
+        json={"policy_component": "auto_retry_threshold", "proposed_value": 0.80},
+    ).json()["proposal"]
+    client.post(f"/api/policy/proposals/{first['proposal_id']}/approve", json={})
+    deploy_first = client.post(f"/api/policy/proposals/{first['proposal_id']}/deploy", json={}).json()
+
+    second = client.post(
+        "/api/policy/proposals",
+        json={"policy_component": "auto_retry_threshold", "proposed_value": 0.85},
+    ).json()["proposal"]
+    client.post(f"/api/policy/proposals/{second['proposal_id']}/approve", json={})
+    deploy_second = client.post(f"/api/policy/proposals/{second['proposal_id']}/deploy", json={}).json()
+
+    versions_before = client.get("/api/policy/versions").json()
+    assert versions_before["count"] == 2
+
+    rollback_response = client.post(
+        f"/api/policy/versions/{deploy_first['policy_version_id']}/rollback",
+        json={"operator_note": "restore previously stable threshold"},
+    )
+
+    assert rollback_response.status_code == 200
+    payload = rollback_response.json()
+    assert payload["ok"] is True
+    assert payload["rolled_back_from_version_id"] == deploy_second["policy_version_id"]
+    assert payload["rollback_target_version_id"] == deploy_first["policy_version_id"]
+    assert payload["current_value"] == 0.80
+
+    live = client.get("/api/policy/version").json()
+    assert live["current_value"] == 0.80
+    assert live["policy_version_id"] == payload["new_active_version_id"]
+    assert live["rollback_of_version_id"] == deploy_first["policy_version_id"]
+
+    versions_after = client.get("/api/policy/versions").json()
+    assert versions_after["count"] == 3
+    assert versions_after["items"][-1]["rollback_of_version_id"] == deploy_first["policy_version_id"]
+
+
+def test_policy_version_rollback_fails_safely_for_missing_target(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.post("/api/policy/versions/policy_version_missing/rollback", json={})
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "rollback_target_version_not_found"
+
+
 def test_policy_proposal_deploy_rejects_non_approved_state(tmp_path, monkeypatch) -> None:
     client = TestClient(mission_control_server.app)
     repo_root = tmp_path / "repo"

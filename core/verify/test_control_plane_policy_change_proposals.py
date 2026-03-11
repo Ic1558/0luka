@@ -15,6 +15,7 @@ from tools.ops.control_plane_policy_change_proposals import (
     reject_policy_change_proposal,
 )
 from tools.ops.control_plane_policy_versions import deploy_policy_version, read_live_policy
+from tools.ops.control_plane_policy_versions import get_policy_version, list_policy_versions, rollback_policy_version
 
 
 def test_policy_change_proposal_creation_and_append_only_listing(tmp_path) -> None:
@@ -160,3 +161,104 @@ def test_policy_change_proposal_deployment_records_version_without_mutating_poli
     assert live["current_value"] == 0.80
     assert live["policy_version_id"] == version["policy_version_id"]
     assert POLICY_COMPONENTS["auto_retry_threshold"] == 0.70
+
+
+def test_policy_version_history_and_explicit_rollback_are_append_only(tmp_path) -> None:
+    observability_root = tmp_path / "observability"
+    runtime_root = tmp_path / "runtime"
+    proposal = create_policy_change_proposal(
+        observability_root,
+        created_at="2026-03-11T22:40:00Z",
+        policy_component="auto_retry_threshold",
+        proposed_value=0.80,
+        evidence_summary="raise threshold after controlled review",
+        simulation_reference="/api/policy/tuning-preview?success_threshold=0.80",
+    )
+    approve_policy_change_proposal(
+        observability_root,
+        proposal_id=proposal["proposal_id"],
+        created_at="2026-03-11T22:41:00Z",
+    )
+    append_policy_deployment_event(
+        observability_root,
+        proposal_id=proposal["proposal_id"],
+        event="POLICY_DEPLOYMENT_REQUESTED",
+        created_at="2026-03-11T22:42:00Z",
+    )
+    deployed = deploy_policy_version(
+        runtime_root,
+        observability_root,
+        proposal_id=proposal["proposal_id"],
+        deployed_at="2026-03-11T22:42:00Z",
+        policy_component="auto_retry_threshold",
+        new_value=0.80,
+    )
+    append_policy_deployment_event(
+        observability_root,
+        proposal_id=proposal["proposal_id"],
+        event="POLICY_DEPLOYED",
+        created_at="2026-03-11T22:42:00Z",
+    )
+
+    second = deploy_policy_version(
+        runtime_root,
+        observability_root,
+        proposal_id="proposal_followup",
+        deployed_at="2026-03-11T22:42:30Z",
+        policy_component="auto_retry_threshold",
+        new_value=0.85,
+    )
+
+    rolled_back = rollback_policy_version(
+        runtime_root,
+        observability_root,
+        target_version_id=deployed["policy_version_id"],
+        rolled_back_at="2026-03-11T22:43:00Z",
+        operator_note="restore prior threshold",
+    )
+
+    live = read_live_policy(runtime_root)
+    versions = list_policy_versions(observability_root, limit=10)
+    rollback_record = get_policy_version(observability_root, rolled_back["new_active_version_id"])
+
+    assert live["current_value"] == 0.80
+    assert live["policy_version_id"] == rolled_back["new_active_version_id"]
+    assert len(versions) == 3
+    assert rollback_record is not None
+    assert rollback_record["rollback_of_version_id"] == deployed["policy_version_id"]
+    assert rollback_record["proposal_id"] is None
+    assert rolled_back["rolled_back_from_version_id"] == second["policy_version_id"]
+
+
+def test_policy_rollback_restores_previous_value_via_new_active_version(tmp_path) -> None:
+    observability_root = tmp_path / "observability"
+    runtime_root = tmp_path / "runtime"
+    first = deploy_policy_version(
+        runtime_root,
+        observability_root,
+        proposal_id="proposal_a",
+        deployed_at="2026-03-11T22:50:00Z",
+        policy_component="auto_retry_threshold",
+        new_value=0.80,
+    )
+    second = deploy_policy_version(
+        runtime_root,
+        observability_root,
+        proposal_id="proposal_b",
+        deployed_at="2026-03-11T22:51:00Z",
+        policy_component="auto_retry_threshold",
+        new_value=0.85,
+    )
+
+    rolled_back = rollback_policy_version(
+        runtime_root,
+        observability_root,
+        target_version_id=first["policy_version_id"],
+        rolled_back_at="2026-03-11T22:52:00Z",
+    )
+    live = read_live_policy(runtime_root)
+
+    assert rolled_back["rolled_back_from_version_id"] == second["policy_version_id"]
+    assert rolled_back["rollback_target_version_id"] == first["policy_version_id"]
+    assert rolled_back["current_value"] == 0.80
+    assert live["current_value"] == 0.80
