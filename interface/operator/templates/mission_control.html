@@ -298,6 +298,22 @@
         </dl>
       </section>
       <section class="card">
+        <h2>System Model</h2>
+        <div id="system-model-panel" class="proof-subpanel">
+          <p id="system-model-status" class="proof-meta">System model unavailable</p>
+          <dl id="system-model-fields">
+            <dt>Current Phase</dt><dd data-field="current_phase">n/a</dd>
+            <dt>Classification</dt><dd data-field="system_classification">n/a</dd>
+            <dt>Eligibility To Act</dt><dd data-field="eligibility_to_act">n/a</dd>
+            <dt>Eligibility Reason</dt><dd data-field="eligibility_reason">n/a</dd>
+            <dt>repos/qs Boundary</dt><dd data-field="repos_qs_boundary">n/a</dd>
+            <dt>Control Plane Enabled</dt><dd data-field="control_plane_enabled">n/a</dd>
+            <dt>Autonomy Enabled</dt><dd data-field="autonomy_enabled">n/a</dd>
+            <dt>Decision Memory Present</dt><dd data-field="decision_memory_present">n/a</dd>
+          </dl>
+        </div>
+      </section>
+      <section class="card">
         <h2>Activity</h2>
         <ul>
           ${activity_items}
@@ -589,6 +605,56 @@
         renderAlerts(payload.alerts);
       } catch (error) {
         // Leave the last rendered alert state intact on refresh failures.
+      }
+    }
+
+    function renderSystemModel(payload) {
+      const statusNode = document.getElementById('system-model-status');
+      const panel = document.getElementById('system-model-fields');
+      if (!statusNode || !panel) return;
+
+      const model = payload && payload.ok && payload.system_model && typeof payload.system_model === 'object'
+        ? payload.system_model
+        : null;
+
+      if (!model) {
+        statusNode.textContent = 'System model unavailable';
+        panel.querySelectorAll('[data-field]').forEach((node) => {
+          node.textContent = 'n/a';
+        });
+        return;
+      }
+
+      statusNode.textContent = 'System model loaded';
+      const fields = [
+        'current_phase',
+        'system_classification',
+        'eligibility_to_act',
+        'eligibility_reason',
+        'repos_qs_boundary',
+        'control_plane_enabled',
+        'autonomy_enabled',
+        'decision_memory_present',
+      ];
+      fields.forEach((field) => {
+        const node = panel.querySelector('[data-field="' + field + '"]');
+        if (!node) return;
+        const value = model[field];
+        node.textContent = value === undefined || value === null ? 'n/a' : String(value);
+      });
+    }
+
+    async function refreshSystemModel() {
+      try {
+        const response = await fetch('/api/system_model');
+        if (!response.ok) {
+          renderSystemModel(null);
+          return;
+        }
+        const payload = await response.json();
+        renderSystemModel(payload);
+      } catch (error) {
+        renderSystemModel(null);
       }
     }
 
@@ -1020,6 +1086,7 @@
     }
 
     setInterval(refreshAlerts, 5000);
+    setInterval(refreshSystemModel, 5000);
     setInterval(refreshProofInventory, 5000);
     setInterval(refreshQsRuns, 5000);
     setInterval(refreshRemediation, 5000);
@@ -1032,6 +1099,7 @@
     setInterval(refreshPolicyDrift, 5000);
     setInterval(refreshRemediationQueue, 5000);
     setInterval(refreshAutonomyPolicy, 5000);
+    refreshSystemModel();
     refreshProofInventory();
     refreshQsRuns();
   </script>
