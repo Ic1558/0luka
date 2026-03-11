@@ -137,6 +137,8 @@ def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
     assert "fetch('/api/policy/proposals/' + encodeURIComponent(proposalId) + '/' + action" in TEMPLATE
     assert "fetch('/api/policy/proposals/' + encodeURIComponent(proposalId) + '/deploy'" in TEMPLATE
     assert "fetch('/api/policy/version')" in TEMPLATE
+    assert "fetch('/api/policy/versions')" in TEMPLATE
+    assert "fetch('/api/policy/versions/' + encodeURIComponent(policyVersionId) + '/rollback'" in TEMPLATE
     assert "fetch('/api/policy/auto-lane/unfreeze'" in TEMPLATE
     assert "fetch(endpoint, {" in TEMPLATE
     assert "/api/decisions/latest/approve" in TEMPLATE
@@ -366,9 +368,18 @@ def test_decision_desk_live_policy_version_panel_is_read_only_deployment_surface
     assert 'data-field="policy_version_id"' in section
     assert 'data-field="deployed_at"' in section
     assert 'data-field="proposal_id"' in section
+    assert 'data-field="rollback_of_version_id"' in section
+    assert 'id="policy-version-history-status"' in section
+    assert 'id="policy-version-history-list"' in section
+    assert 'id="policy-version-rollback-note"' in section
     assert "Live Policy Version" in section
     assert "Live policy version loaded from explicit operator deployment." in TEMPLATE
     assert "No live policy version deployed beyond the default threshold." in TEMPLATE
+    assert "Rollback creates a new active version using a previous value." in TEMPLATE
+    assert "Rollback to This Version" in TEMPLATE
+    assert "Current Active Version" in TEMPLATE
     assert "renderPolicyVersion(payload)" in TEMPLATE
     assert "refreshPolicyVersion()" in TEMPLATE
-    assert "<button" not in section
+    assert "renderPolicyVersions(payload)" in TEMPLATE
+    assert "refreshPolicyVersions()" in TEMPLATE
+    assert "submitPolicyRollback(policyVersionId)" in TEMPLATE

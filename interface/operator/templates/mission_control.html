@@ -488,7 +488,16 @@
               <dt>Policy Version ID</dt><dd data-field="policy_version_id">n/a</dd>
               <dt>Deployed At</dt><dd data-field="deployed_at">n/a</dd>
               <dt>Source Proposal ID</dt><dd data-field="proposal_id">n/a</dd>
+              <dt>Rollback Of Version</dt><dd data-field="rollback_of_version_id">n/a</dd>
             </dl>
+            <p id="policy-version-history-status" class="proof-meta">No historical policy versions available.</p>
+            <ul id="policy-version-history-list" class="proof-list">
+              <li class="muted">No version history available</li>
+            </ul>
+            <div class="policy-controls">
+              <textarea id="policy-version-rollback-note" placeholder="optional rollback note" rows="2"></textarea>
+            </div>
+            <p class="proof-meta">Rollback creates a new active version using a previous value.</p>
           </div>
           <div class="policy-controls">
             <textarea id="decision-operator-note" placeholder="optional operator note" rows="3" disabled></textarea>
@@ -1283,6 +1292,7 @@
         policy_version_id: payload && payload.policy_version_id ? String(payload.policy_version_id) : 'n/a',
         deployed_at: payload && payload.deployed_at ? String(payload.deployed_at) : 'n/a',
         proposal_id: payload && payload.proposal_id ? String(payload.proposal_id) : 'n/a',
+        rollback_of_version_id: payload && payload.rollback_of_version_id ? String(payload.rollback_of_version_id) : 'n/a',
       };
       panel.querySelectorAll('[data-field]').forEach((node) => {
         const field = node.getAttribute('data-field') || '';
@@ -1303,6 +1313,79 @@
         renderPolicyVersion(await response.json());
       } catch (_error) {
         renderPolicyVersion(null);
+      }
+    }
+
+    function renderPolicyVersions(payload) {
+      const statusNode = document.getElementById('policy-version-history-status');
+      const listNode = document.getElementById('policy-version-history-list');
+      const rollbackNoteNode = document.getElementById('policy-version-rollback-note');
+      const currentVersionNode = document.querySelector('#policy-version-fields [data-field="policy_version_id"]');
+      if (!statusNode || !listNode) return;
+      const items = payload && Array.isArray(payload.items) ? payload.items : [];
+      const currentVersionId = currentVersionNode ? String(currentVersionNode.textContent || '').trim() : '';
+      if (!items.length) {
+        statusNode.textContent = 'No historical policy versions available.';
+        listNode.innerHTML = '<li class="muted">No version history available</li>';
+        if (rollbackNoteNode) rollbackNoteNode.disabled = true;
+        return;
+      }
+      if (rollbackNoteNode) rollbackNoteNode.disabled = false;
+      statusNode.textContent = 'Showing ' + String(payload.count || items.length) + ' version record(s).';
+      listNode.innerHTML = items.map((item) => {
+        const versionId = String(item.policy_version_id || 'n/a');
+        const isCurrent = currentVersionId && versionId === currentVersionId;
+        const currentLabel = isCurrent ? ' current-active' : '';
+        const rollbackButton = isCurrent
+          ? '<button type="button" disabled>Current Active Version</button>'
+          : '<button type="button" onclick="submitPolicyRollback(\'' + escapeHtml(versionId) + '\')">Rollback to This Version</button>';
+        return (
+          '<li>' +
+          '<div><strong>' + escapeHtml(versionId) + '</strong>' + currentLabel + '</div>' +
+          '<div class="proof-meta">deployed=' + escapeHtml(String(item.deployed_at || 'n/a')) +
+          '; value=' + escapeHtml(typeof item.new_value === 'number' ? item.new_value.toFixed(2) : 'n/a') +
+          '; proposal=' + escapeHtml(String(item.proposal_id || 'n/a')) +
+          '; rollback_of=' + escapeHtml(String(item.rollback_of_version_id || 'n/a')) + '</div>' +
+          rollbackButton +
+          '</li>'
+        );
+      }).join('');
+    }
+
+    async function refreshPolicyVersions() {
+      try {
+        const response = await fetch('/api/policy/versions');
+        if (!response.ok) {
+          renderPolicyVersions({ items: [], count: 0 });
+          return;
+        }
+        renderPolicyVersions(await response.json());
+      } catch (_error) {
+        renderPolicyVersions({ items: [], count: 0 });
+      }
+    }
+
+    async function submitPolicyRollback(policyVersionId) {
+      const statusNode = document.getElementById('policy-version-status');
+      const noteNode = document.getElementById('policy-version-rollback-note');
+      const payload = {};
+      if (noteNode && noteNode.value.trim()) payload.operator_note = noteNode.value.trim();
+      try {
+        const response = await fetch('/api/policy/versions/' + encodeURIComponent(policyVersionId) + '/rollback', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) {
+          throw new Error(result && result.error ? String(result.error) : 'policy_rollback_failed');
+        }
+        if (statusNode) statusNode.textContent = 'Rollback created new active version ' + String(result.new_active_version_id || 'n/a') + '.';
+        if (noteNode) noteNode.value = '';
+        await refreshPolicyVersion();
+        await refreshPolicyVersions();
+      } catch (error) {
+        if (statusNode) statusNode.textContent = 'Unable to roll back policy version: ' + String(error.message || error);
       }
     }
 
@@ -1329,6 +1412,7 @@
         if (statusNode) statusNode.textContent = 'Policy deployment recorded at version ' + String(result.policy_version_id || 'n/a') + '.';
         if (noteNode) noteNode.value = '';
         await refreshPolicyVersion();
+        await refreshPolicyVersions();
         await refreshPolicyProposals();
         await loadPolicyProposalDetail(proposalId);
       } catch (error) {
@@ -2179,6 +2263,7 @@
     setInterval(runPolicyTuningPreview, 5000);
     setInterval(refreshPolicyProposals, 5000);
     setInterval(refreshPolicyVersion, 5000);
+    setInterval(refreshPolicyVersions, 5000);
     setInterval(refreshDecisionHistory, 5000);
     setInterval(refreshProofInventory, 5000);
     setInterval(refreshQsRuns, 5000);
@@ -2201,6 +2286,7 @@
     runPolicyTuningPreview();
     refreshPolicyProposals();
     refreshPolicyVersion();
+    refreshPolicyVersions();
     refreshDecisionHistory();
     refreshProofInventory();
     refreshQsRuns();

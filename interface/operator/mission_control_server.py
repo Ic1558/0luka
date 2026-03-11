@@ -60,8 +60,10 @@ from tools.ops.control_plane_policy_observability import load_policy_stats
 from tools.ops.control_plane_policy_tuning_simulator import load_policy_tuning_preview
 from tools.ops.control_plane_policy_versions import (
     deploy_policy_version,
+    get_policy_version,
     list_policy_versions,
     read_live_policy,
+    rollback_policy_version,
 )
 from tools.ops.execution_outcome_reconciler import reconcile_execution_outcome
 from tools.ops.decision_engine import classify_once
@@ -1518,6 +1520,28 @@ async def policy_versions_endpoint(request) -> JSONResponse:
     return JSONResponse(load_policy_versions_payload(limit=limit))
 
 
+async def policy_version_rollback_endpoint(request) -> JSONResponse:
+    policy_version_id = str(request.path_params.get("policy_version_id") or "")
+    try:
+        payload = await _optional_request_json(request)
+        operator_note = payload.get("operator_note")
+        if operator_note is not None and not isinstance(operator_note, str):
+            raise RuntimeError("invalid_operator_note")
+        target = get_policy_version(_observability_root(), policy_version_id)
+        if target is None:
+            raise PolicyProposalError("rollback_target_version_not_found")
+        result = rollback_policy_version(
+            _runtime_root(),
+            _observability_root(),
+            target_version_id=policy_version_id,
+            rolled_back_at=_utc_now_iso(),
+            operator_note=operator_note,
+        )
+        return JSONResponse({"ok": True, **result})
+    except (PolicyProposalError, RuntimeError) as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=409)
+
+
 async def policy_auto_lane_unfreeze_endpoint(request) -> JSONResponse:
     try:
         payload = await _optional_request_json(request)
@@ -2216,6 +2240,7 @@ def create_app():
         app.add_api_route("/api/policy/proposals/{proposal_id}/deploy", policy_proposal_deploy_endpoint, methods=["POST"])
         app.add_api_route("/api/policy/version", policy_version_endpoint, methods=["GET"])
         app.add_api_route("/api/policy/versions", policy_versions_endpoint, methods=["GET"])
+        app.add_api_route("/api/policy/versions/{policy_version_id}/rollback", policy_version_rollback_endpoint, methods=["POST"])
         app.add_api_route("/api/policy/auto-lane/unfreeze", policy_auto_lane_unfreeze_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/history", decisions_history_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
@@ -2270,6 +2295,7 @@ def create_app():
             Route("/api/policy/proposals/{proposal_id}/deploy", policy_proposal_deploy_endpoint, methods=["POST"]),
             Route("/api/policy/version", policy_version_endpoint),
             Route("/api/policy/versions", policy_versions_endpoint),
+            Route("/api/policy/versions/{policy_version_id}/rollback", policy_version_rollback_endpoint, methods=["POST"]),
             Route("/api/policy/auto-lane/unfreeze", policy_auto_lane_unfreeze_endpoint, methods=["POST"]),
             Route("/api/decisions/history", decisions_history_endpoint),
             Route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"]),
