@@ -25,6 +25,25 @@ host of system survival.
 
 These remain discoverable in Phase A and are not removed in this migration pass.
 
+## Phase A.1 Runtime Wrapper Mapping
+
+0luka runtime now owns the first-hop service entrypoints:
+
+- `runtime/services/antigravity_scan/runner.zsh`
+  - delegates to `repos/option/src/antigravity_prod.py`
+- `runtime/services/antigravity_realtime/runner.zsh`
+  - delegates to `repos/option/src/live.js`
+
+Supervisor/bootstrap ownership should target the runtime wrapper first, then
+delegate into the legacy implementation.
+
+Current PM2 mapping:
+
+- `Antigravity-Monitor` -> `runtime/services/antigravity_scan/runner.zsh`
+- `OptionBugHunter` -> `runtime/services/antigravity_realtime/runner.zsh`
+- runtime bootstrap owner:
+  - `runtime/services/antigravity_bootstrap/pm2_start.zsh`
+
 ## Runtime Standard
 
 1. PM2/startup behavior is governed by 0luka runtime policy.
@@ -52,3 +71,9 @@ Disallowed:
 
 Phase A does not rewrite all Antigravity startup scripts into final kernel form.
 It establishes ownership and migration anchors only.
+
+Phase A.1 still defers:
+
+- relocating Python/Node implementation code out of `repos/option/src/`
+- broad PM2 topology redesign
+- full observability path rewiring for every Antigravity process

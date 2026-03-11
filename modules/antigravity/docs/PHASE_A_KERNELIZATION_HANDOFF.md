@@ -50,6 +50,28 @@ Phase A preserves these entrypoints and does not break runtime discoverability.
 - Antigravity feature growth
 - domain decision logic changes
 
+## Phase A.1 Runtime Entrypoint Relocation
+
+Phase A.1 introduces 0luka-owned runtime wrappers so service startup no longer
+points first at app-local source files.
+
+Old -> new first-hop ownership mapping:
+
+- `repos/option/src/antigravity_prod.py`
+  -> `runtime/services/antigravity_scan/runner.zsh`
+- `repos/option/src/live.js`
+  -> `runtime/services/antigravity_realtime/runner.zsh`
+
+The delegated implementation remains in `repos/option/src/` for now. Runtime
+ownership moves first; full code relocation is deferred.
+
+Bootstrap normalization added in Phase A.1:
+
+- legacy discoverable script remains:
+  - `repos/option/tools/deploy_prod.sh`
+- runtime-owned bootstrap path now exists:
+  - `runtime/services/antigravity_bootstrap/pm2_start.zsh`
+
 ## Freeze Rule
 
 Antigravity feature work is frozen during this migration except for:
