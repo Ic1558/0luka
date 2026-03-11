@@ -218,6 +218,26 @@ def retry_approved_decision(
     )
 
 
+def auto_retry_approved_decision(
+    decision: dict[str, Any],
+    *,
+    observability_root,
+    retry_count: int,
+) -> dict[str, Any]:
+    if retry_count < 1:
+        raise ExecutionBridgeError("invalid_retry_count")
+    return _handoff_request(
+        decision,
+        observability_root=observability_root,
+        requested_action=None,
+        source="policy_auto_retry",
+        task_suffix=f"_retry_{retry_count}",
+        ledger_event="EXECUTION_RETRY_REQUESTED",
+        response_key="retry",
+        response_body={"retry_count": retry_count},
+    )
+
+
 def escalate_approved_decision(
     decision: dict[str, Any],
     *,

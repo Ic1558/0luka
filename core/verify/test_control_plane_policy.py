@@ -81,11 +81,34 @@ def test_retry_high_confidence_with_prior_alignment_is_auto_allowed() -> None:
             "decision_state": "APPROVED",
             "execution_outcome": "EXECUTION_FAILED",
         },
-        [{"alignment": "MATCHED_SUGGESTION", "operator_action": "RETRY_EXECUTION"}],
+        [
+            {"alignment": "MATCHED_SUGGESTION", "operator_action": "RETRY_EXECUTION"},
+            {"alignment": "MATCHED_SUGGESTION", "operator_action": "RETRY_EXECUTION"},
+        ],
     )
 
     assert payload["policy_verdict"] == POLICY_AUTO_ALLOWED
     assert payload["policy_safe_lane"] == SAFE_LANE_SUPERVISED_RETRY
+    assert payload["alignment_count"] == 2
+
+
+def test_retry_high_confidence_with_single_alignment_is_not_auto_allowed() -> None:
+    payload = derive_policy_verdict(
+        {"decision_id": "d4b", "trace_id": "t4b"},
+        {
+            "decision_id": "d4b",
+            "trace_id": "t4b",
+            "suggestion": "RETRY_RECOMMENDED",
+            "confidence_band": "HIGH",
+            "decision_state": "APPROVED",
+            "execution_outcome": "EXECUTION_FAILED",
+        },
+        [{"alignment": "MATCHED_SUGGESTION", "operator_action": "RETRY_EXECUTION"}],
+    )
+
+    assert payload["policy_verdict"] == POLICY_HUMAN_APPROVAL_REQUIRED
+    assert payload["policy_safe_lane"] == SAFE_LANE_SUPERVISED_RETRY
+    assert payload["alignment_count"] == 1
 
 
 def test_missing_decision_is_manual_only() -> None:
