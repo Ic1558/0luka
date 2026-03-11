@@ -45,6 +45,7 @@ from tools.ops.control_plane_execution_bridge import (
 )
 from tools.ops.control_plane_suggestions import load_latest_suggestion
 from tools.ops.control_plane_policy import load_latest_policy
+from tools.ops.control_plane_policy_observability import load_policy_stats
 from tools.ops.execution_outcome_reconciler import reconcile_execution_outcome
 from tools.ops.decision_engine import classify_once
 from tools.ops.run_interpreter import interpret_run
@@ -757,6 +758,13 @@ def load_decision_policy() -> dict[str, Any]:
     )
 
 
+def load_policy_stats_payload() -> dict[str, Any]:
+    return load_policy_stats(
+        observability_root=_observability_root(),
+        repo_root=ROOT,
+    )
+
+
 def load_remediation_queue() -> dict[str, Any]:
     return remediation_queue.list_queue(runtime_root=_runtime_root())
 
@@ -1286,7 +1294,18 @@ async def decisions_latest_suggestion_feedback_endpoint(request) -> JSONResponse
 
 
 async def decisions_latest_policy_endpoint(request) -> JSONResponse:
-    return JSONResponse(load_decision_policy())
+    payload = load_decision_policy()
+    latest, _error = _load_latest_decision_state()
+    if isinstance(latest, dict):
+        try:
+            _record_policy_evaluation_if_needed(latest, payload)
+        except DecisionPersistenceError:
+            pass
+    return JSONResponse(payload)
+
+
+async def policy_stats_endpoint(request) -> JSONResponse:
+    return JSONResponse(load_policy_stats_payload())
 
 
 async def system_model_endpoint(request) -> JSONResponse:
@@ -1362,6 +1381,7 @@ def _record_suggestion_feedback(
     *,
     operator_action: str,
     suggestion_payload: dict[str, Any],
+    policy_payload: dict[str, Any] | None = None,
 ) -> None:
     suggestion = str(suggestion_payload.get("suggestion") or "NO_ACTION_RECOMMENDED")
     if operator_action == "IGNORE_SUGGESTION":
@@ -1391,6 +1411,104 @@ def _record_suggestion_feedback(
             "confidence_band": suggestion_payload.get("confidence_band"),
             "operator_action": operator_action,
             "alignment": alignment,
+        },
+    )
+    _record_policy_alignment_if_needed(
+        latest,
+        operator_action=operator_action,
+        policy_payload=policy_payload or load_decision_policy(),
+    )
+
+
+def _latest_policy_event_for_decision(decision_id: str, event_name: str) -> dict[str, Any] | None:
+    if not decision_id:
+        return None
+    try:
+        rows = read_decision_history(_observability_root(), limit=200)
+    except DecisionPersistenceError:
+        return None
+    latest: dict[str, Any] | None = None
+    for row in rows:
+        if row.get("decision_id") == decision_id and row.get("event") == event_name:
+            latest = row
+    return latest
+
+
+def _record_policy_evaluation_if_needed(latest: dict[str, Any], policy_payload: dict[str, Any]) -> None:
+    decision_id = str(latest.get("decision_id") or "")
+    if not decision_id:
+        return
+    existing = _latest_policy_event_for_decision(decision_id, "POLICY_EVALUATED")
+    signature = (
+        policy_payload.get("policy_verdict"),
+        policy_payload.get("suggestion"),
+        policy_payload.get("confidence_band"),
+        policy_payload.get("policy_reason"),
+    )
+    if existing is not None:
+        existing_signature = (
+            existing.get("policy_verdict"),
+            existing.get("suggestion"),
+            existing.get("confidence_band"),
+            existing.get("policy_reason"),
+        )
+        if existing_signature == signature:
+            return
+
+    append_decision_event(
+        _observability_root(),
+        {
+            "event": "POLICY_EVALUATED",
+            "decision_id": latest.get("decision_id"),
+            "trace_id": latest.get("trace_id"),
+            "ts_utc": latest.get("ts_utc"),
+            "signal_received": latest.get("signal_received"),
+            "proposed_action": latest.get("proposed_action"),
+            "evidence_refs": latest.get("evidence_refs"),
+            "operator_status": latest.get("operator_status"),
+            "operator_note": latest.get("operator_note"),
+            "suggestion": policy_payload.get("suggestion"),
+            "confidence_band": policy_payload.get("confidence_band"),
+            "policy_verdict": policy_payload.get("policy_verdict"),
+            "policy_reason": policy_payload.get("policy_reason"),
+            "alignment_count": int(policy_payload.get("alignment_count") or 0),
+        },
+    )
+
+
+def _record_policy_alignment_if_needed(
+    latest: dict[str, Any],
+    *,
+    operator_action: str,
+    policy_payload: dict[str, Any],
+) -> None:
+    lane = str(policy_payload.get("policy_safe_lane") or "NONE")
+    if operator_action == "RETRY_EXECUTION":
+        matched = lane == "SUPERVISED_RETRY"
+    elif operator_action == "ESCALATE_ISSUE":
+        matched = lane == "SUPERVISED_ESCALATION"
+    else:
+        matched = False
+    event_name = "POLICY_ALIGNMENT_MATCHED" if matched else "POLICY_ALIGNMENT_MISMATCHED"
+    append_decision_event(
+        _observability_root(),
+        {
+            "event": event_name,
+            "decision_id": latest.get("decision_id"),
+            "trace_id": latest.get("trace_id"),
+            "ts_utc": latest.get("ts_utc"),
+            "signal_received": latest.get("signal_received"),
+            "proposed_action": latest.get("proposed_action"),
+            "evidence_refs": latest.get("evidence_refs"),
+            "operator_status": latest.get("operator_status"),
+            "operator_note": latest.get("operator_note"),
+            "suggestion": policy_payload.get("suggestion"),
+            "confidence_band": policy_payload.get("confidence_band"),
+            "operator_action": operator_action,
+            "alignment": "MATCHED" if matched else "MISMATCHED",
+            "policy_verdict": policy_payload.get("policy_verdict"),
+            "policy_reason": policy_payload.get("policy_reason"),
+            "alignment_count": int(policy_payload.get("alignment_count") or 0),
         },
     )
 
@@ -1428,13 +1546,19 @@ def _retry_latest_decision() -> tuple[dict[str, Any] | None, str | None]:
     execution = latest.get("execution") or {}
     retry_count = int(execution.get("retry_count") or 0) + 1
     suggestion_payload = load_decision_suggestion()
+    policy_payload = load_decision_policy()
     try:
         result = retry_approved_decision(
             latest,
             observability_root=_observability_root(),
             retry_count=retry_count,
         )
-        _record_suggestion_feedback(latest, operator_action="RETRY_EXECUTION", suggestion_payload=suggestion_payload)
+        _record_suggestion_feedback(
+            latest,
+            operator_action="RETRY_EXECUTION",
+            suggestion_payload=suggestion_payload,
+            policy_payload=policy_payload,
+        )
         return result, None
     except ExecutionBridgeError as exc:
         return None, str(exc)
@@ -1478,6 +1602,7 @@ def _maybe_trigger_policy_auto_retry(latest: dict[str, Any]) -> dict[str, Any] |
         return None
 
     policy = load_decision_policy()
+    _record_policy_evaluation_if_needed(latest, policy)
     if (
         policy.get("policy_verdict") != "AUTO_ALLOWED"
         or policy.get("policy_safe_lane") != "SUPERVISED_RETRY"
@@ -1520,6 +1645,7 @@ def _escalate_latest_decision() -> tuple[dict[str, Any] | None, str | None]:
     escalation_count = int(execution.get("escalation_count") or 0) + 1
     outcome_status = str(execution.get("outcome_status") or "").replace("EXECUTION_", "").lower() or "unknown"
     suggestion_payload = load_decision_suggestion()
+    policy_payload = load_decision_policy()
     try:
         result = escalate_approved_decision(
             latest,
@@ -1527,7 +1653,12 @@ def _escalate_latest_decision() -> tuple[dict[str, Any] | None, str | None]:
             escalation_count=escalation_count,
             reason=f"execution {outcome_status}",
         )
-        _record_suggestion_feedback(latest, operator_action="ESCALATE_ISSUE", suggestion_payload=suggestion_payload)
+        _record_suggestion_feedback(
+            latest,
+            operator_action="ESCALATE_ISSUE",
+            suggestion_payload=suggestion_payload,
+            policy_payload=policy_payload,
+        )
         return result, None
     except ExecutionBridgeError as exc:
         return None, str(exc)
@@ -1542,8 +1673,14 @@ def _ignore_latest_suggestion() -> tuple[dict[str, Any] | None, str | None]:
     if latest is None:
         return None, "latest_decision_missing"
     suggestion_payload = load_decision_suggestion()
+    policy_payload = load_decision_policy()
     try:
-        _record_suggestion_feedback(latest, operator_action="IGNORE_SUGGESTION", suggestion_payload=suggestion_payload)
+        _record_suggestion_feedback(
+            latest,
+            operator_action="IGNORE_SUGGESTION",
+            suggestion_payload=suggestion_payload,
+            policy_payload=policy_payload,
+        )
     except DecisionPersistenceError as exc:
         return None, str(exc)
     return {
@@ -1755,6 +1892,7 @@ def create_app():
         app.add_api_route("/api/decisions/latest/suggestion", decisions_latest_suggestion_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest/suggestion-feedback", decisions_latest_suggestion_feedback_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest/policy", decisions_latest_policy_endpoint, methods=["GET"])
+        app.add_api_route("/api/policy/stats", policy_stats_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/history", decisions_history_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
@@ -1798,6 +1936,7 @@ def create_app():
             Route("/api/decisions/latest/suggestion", decisions_latest_suggestion_endpoint),
             Route("/api/decisions/latest/suggestion-feedback", decisions_latest_suggestion_feedback_endpoint),
             Route("/api/decisions/latest/policy", decisions_latest_policy_endpoint),
+            Route("/api/policy/stats", policy_stats_endpoint),
             Route("/api/decisions/history", decisions_history_endpoint),
             Route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"]),
             Route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"]),

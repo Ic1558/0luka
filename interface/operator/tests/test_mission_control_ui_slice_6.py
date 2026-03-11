@@ -98,6 +98,7 @@ def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
     assert "fetch('/api/decisions/latest/suggestion')" in TEMPLATE
     assert "fetch('/api/decisions/latest/policy')" in TEMPLATE
     assert "fetch('/api/decisions/latest/suggestion-feedback')" in TEMPLATE
+    assert "fetch('/api/policy/stats')" in TEMPLATE
     assert "fetch(endpoint, {" in TEMPLATE
     assert "/api/decisions/latest/approve" in TEMPLATE
     assert "/api/decisions/latest/reject" in TEMPLATE
@@ -205,3 +206,20 @@ def test_decision_desk_policy_panel_is_visibility_only() -> None:
     assert "NONE" not in section
     assert 'data-field="policy_reason"' in section
     assert "policySafeLaneLabel(payload)" in TEMPLATE
+
+
+def test_decision_desk_policy_stats_panel_is_observability_only() -> None:
+    section = _decision_desk_section()
+
+    assert 'id="policy-stats-panel"' in section
+    assert 'id="policy-stats-status"' in section
+    assert 'id="policy-stats-fields"' in section
+    assert 'data-field="auto_retry_triggered"' in section
+    assert 'data-field="success_rate"' in section
+    assert 'data-field="operator_alignment_rate"' in section
+    assert 'data-field="alignment_mismatch"' in section
+    assert 'data-field="policy_state"' in section
+    assert 'data-field="warning"' in section
+    assert "Policy reliability degraded. Review recommended." in TEMPLATE
+    assert "renderPolicyStats(payload)" in TEMPLATE
+    assert "refreshPolicyStats()" in TEMPLATE

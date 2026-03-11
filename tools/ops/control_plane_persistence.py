@@ -33,6 +33,9 @@ LEDGER_EVENTS = {
     "SUGGESTION_IGNORED",
     "SUGGESTION_OVERRIDDEN",
     "AUTO_RETRY_TRIGGERED",
+    "POLICY_EVALUATED",
+    "POLICY_ALIGNMENT_MATCHED",
+    "POLICY_ALIGNMENT_MISMATCHED",
 }
 
 SUGGESTION_VALUES = {
@@ -57,6 +60,14 @@ SUGGESTION_ALIGNMENT = {
     "MATCHED_SUGGESTION",
     "IGNORED_SUGGESTION",
     "OVERRIDDEN",
+    "MATCHED",
+    "MISMATCHED",
+}
+
+POLICY_VERDICTS = {
+    "MANUAL_ONLY",
+    "HUMAN_APPROVAL_REQUIRED",
+    "AUTO_ALLOWED",
 }
 
 RESOLUTION_EVENT_BY_STATUS = {
@@ -209,6 +220,7 @@ def _append_ledger_event(observability_root: str | Path, payload: dict[str, Any]
         "confidence_band": _optional_enum(payload.get("confidence_band"), "confidence_band", CONFIDENCE_BANDS),
         "operator_action": _optional_enum(payload.get("operator_action"), "operator_action", OPERATOR_ACTIONS),
         "alignment": _optional_enum(payload.get("alignment"), "alignment", SUGGESTION_ALIGNMENT),
+        "policy_verdict": _optional_enum(payload.get("policy_verdict"), "policy_verdict", POLICY_VERDICTS),
         "policy_reason": _normalize_operator_note(payload.get("policy_reason")),
         "alignment_count": _optional_non_negative_int(payload.get("alignment_count"), "alignment_count"),
     }
@@ -265,6 +277,7 @@ def read_decision_history(observability_root: str | Path, limit: int = 50) -> li
                 "confidence_band": _optional_enum(payload.get("confidence_band"), "confidence_band", CONFIDENCE_BANDS),
                 "operator_action": _optional_enum(payload.get("operator_action"), "operator_action", OPERATOR_ACTIONS),
                 "alignment": _optional_enum(payload.get("alignment"), "alignment", SUGGESTION_ALIGNMENT),
+                "policy_verdict": _optional_enum(payload.get("policy_verdict"), "policy_verdict", POLICY_VERDICTS),
                 "policy_reason": _normalize_operator_note(payload.get("policy_reason")),
                 "alignment_count": _optional_non_negative_int(payload.get("alignment_count"), "alignment_count"),
             }
@@ -286,6 +299,7 @@ def append_decision_event(observability_root: str | Path, payload: dict[str, Any
             "confidence_band": payload.get("confidence_band"),
             "operator_action": payload.get("operator_action"),
             "alignment": payload.get("alignment"),
+            "policy_verdict": payload.get("policy_verdict"),
             "policy_reason": payload.get("policy_reason"),
             "alignment_count": payload.get("alignment_count"),
         },
