@@ -520,6 +520,7 @@ def test_decisions_latest_returns_pending_structure_when_pending_exists(tmp_path
             "ts_utc": "2026-03-11T12:00:00Z",
             "operator_status": "PENDING",
             "operator_note": None,
+            "execution": None,
         },
         "latest": {
             "decision_id": decision_id,
@@ -530,6 +531,7 @@ def test_decisions_latest_returns_pending_structure_when_pending_exists(tmp_path
             "ts_utc": "2026-03-11T12:00:00Z",
             "operator_status": "PENDING",
             "operator_note": None,
+            "execution": None,
         },
     }
 
@@ -891,6 +893,7 @@ def test_decisions_latest_endpoint_returns_pending_only_current_state(tmp_path, 
             "ts_utc": "2026-03-11T12:23:00Z",
             "operator_status": "APPROVED",
             "operator_note": "reviewed",
+            "execution": None,
         },
     }
 
@@ -1356,3 +1359,276 @@ def test_execute_endpoint_does_not_allow_free_text_execution_or_other_hooks(tmp_
     assert isinstance(task, dict)
     assert "command" not in json.dumps(task, sort_keys=True)
     assert task["intent"] == "control.escalate"
+
+
+def test_latest_decision_has_null_execution_when_no_handoff_exists(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True)
+    observability_root.mkdir(parents=True)
+    decision_id = make_decision_id(
+        trace_id="trace-no-handoff",
+        ts_utc="2026-03-11T14:00:00Z",
+        signal_received="UNKNOWN",
+        proposed_action="ESCALATE",
+    )
+    (runtime_root / "state" / "decision_latest.json").write_text(
+        json.dumps(
+            {
+                "decision_id": decision_id,
+                "trace_id": "trace-no-handoff",
+                "signal_received": "UNKNOWN",
+                "proposed_action": "ESCALATE",
+                "evidence_refs": ["proof_pack:no_handoff"],
+                "ts_utc": "2026-03-11T14:00:00Z",
+                "operator_status": "APPROVED",
+                "operator_note": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/latest")
+
+    assert response.status_code == 200
+    assert response.json()["latest"]["execution"] is None
+
+
+def test_latest_decision_reconciles_handoff_only(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True)
+    (observability_root / "logs").mkdir(parents=True)
+    decision_id = make_decision_id(
+        trace_id="trace-handoff",
+        ts_utc="2026-03-11T14:01:00Z",
+        signal_received="MISSING_PROOF",
+        proposed_action="REVIEW_PROOF",
+    )
+    (runtime_root / "state" / "decision_latest.json").write_text(
+        json.dumps(
+            {
+                "decision_id": decision_id,
+                "trace_id": "trace-handoff",
+                "signal_received": "MISSING_PROOF",
+                "proposed_action": "REVIEW_PROOF",
+                "evidence_refs": ["proof_pack:handoff"],
+                "ts_utc": "2026-03-11T14:01:00Z",
+                "operator_status": "APPROVED",
+                "operator_note": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (observability_root / "logs" / "decision_log.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "EXECUTION_HANDOFF_ACCEPTED",
+                "decision_id": decision_id,
+                "trace_id": "trace-handoff",
+                "ts_utc": "2026-03-11T14:01:00Z",
+                "operator_status": "APPROVED",
+                "proposed_action": "REVIEW_PROOF",
+                "evidence_refs": ["proof_pack:handoff"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/latest")
+
+    assert response.status_code == 200
+    execution = response.json()["latest"]["execution"]
+    assert execution["bridge_status"] == "HANDOFF_ACCEPTED"
+    assert execution["outcome_status"] == "HANDOFF_ONLY"
+    assert execution["outcome_ref"] is None
+
+
+def test_latest_decision_reconciles_trustworthy_success(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    outbox_dir = repo_root / "interface" / "outbox" / "tasks"
+    (runtime_root / "state").mkdir(parents=True)
+    (observability_root / "logs").mkdir(parents=True)
+    outbox_dir.mkdir(parents=True)
+    decision_id = make_decision_id(
+        trace_id="trace-success",
+        ts_utc="2026-03-11T14:02:00Z",
+        signal_received="INCONSISTENT",
+        proposed_action="QUARANTINE",
+    )
+    task_id = f"decision_exec_{decision_id}"
+    (runtime_root / "state" / "decision_latest.json").write_text(
+        json.dumps(
+            {
+                "decision_id": decision_id,
+                "trace_id": "trace-success",
+                "signal_received": "INCONSISTENT",
+                "proposed_action": "QUARANTINE",
+                "evidence_refs": ["proof_pack:success"],
+                "ts_utc": "2026-03-11T14:02:00Z",
+                "operator_status": "APPROVED",
+                "operator_note": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (observability_root / "logs" / "decision_log.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "EXECUTION_HANDOFF_ACCEPTED",
+                "decision_id": decision_id,
+                "trace_id": "trace-success",
+                "ts_utc": "2026-03-11T14:02:00Z",
+                "operator_status": "APPROVED",
+                "proposed_action": "QUARANTINE",
+                "evidence_refs": ["proof_pack:success"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (outbox_dir / f"{task_id}.result.json").write_text(json.dumps({"status": "committed"}), encoding="utf-8")
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/latest")
+
+    assert response.status_code == 200
+    execution = response.json()["latest"]["execution"]
+    assert execution["outcome_status"] == "EXECUTION_SUCCEEDED"
+    assert execution["outcome_ref"] == f"interface/outbox/tasks/{task_id}.result.json"
+
+
+def test_latest_decision_reconciles_trustworthy_failure(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    audit_dir = observability_root / "artifacts" / "router_audit"
+    (runtime_root / "state").mkdir(parents=True)
+    (observability_root / "logs").mkdir(parents=True)
+    audit_dir.mkdir(parents=True)
+    decision_id = make_decision_id(
+        trace_id="trace-failed",
+        ts_utc="2026-03-11T14:03:00Z",
+        signal_received="UNKNOWN",
+        proposed_action="ESCALATE",
+    )
+    task_id = f"decision_exec_{decision_id}"
+    (runtime_root / "state" / "decision_latest.json").write_text(
+        json.dumps(
+            {
+                "decision_id": decision_id,
+                "trace_id": "trace-failed",
+                "signal_received": "UNKNOWN",
+                "proposed_action": "ESCALATE",
+                "evidence_refs": ["proof_pack:failed"],
+                "ts_utc": "2026-03-11T14:03:00Z",
+                "operator_status": "APPROVED",
+                "operator_note": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (observability_root / "logs" / "decision_log.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "EXECUTION_HANDOFF_ACCEPTED",
+                "decision_id": decision_id,
+                "trace_id": "trace-failed",
+                "ts_utc": "2026-03-11T14:03:00Z",
+                "operator_status": "APPROVED",
+                "proposed_action": "ESCALATE",
+                "evidence_refs": ["proof_pack:failed"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (audit_dir / f"{task_id}.json").write_text(json.dumps({"decision": "rejected"}), encoding="utf-8")
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/latest")
+
+    assert response.status_code == 200
+    execution = response.json()["latest"]["execution"]
+    assert execution["outcome_status"] == "EXECUTION_FAILED"
+    assert execution["outcome_ref"] == f"observability/artifacts/router_audit/{task_id}.json"
+
+
+def test_latest_decision_reconciles_malformed_downstream_result_as_unknown(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    outbox_dir = repo_root / "interface" / "outbox" / "tasks"
+    (runtime_root / "state").mkdir(parents=True)
+    (observability_root / "logs").mkdir(parents=True)
+    outbox_dir.mkdir(parents=True)
+    decision_id = make_decision_id(
+        trace_id="trace-unknown",
+        ts_utc="2026-03-11T14:04:00Z",
+        signal_received="MISSING_PROOF",
+        proposed_action="REVIEW_PROOF",
+    )
+    task_id = f"decision_exec_{decision_id}"
+    (runtime_root / "state" / "decision_latest.json").write_text(
+        json.dumps(
+            {
+                "decision_id": decision_id,
+                "trace_id": "trace-unknown",
+                "signal_received": "MISSING_PROOF",
+                "proposed_action": "REVIEW_PROOF",
+                "evidence_refs": ["proof_pack:unknown"],
+                "ts_utc": "2026-03-11T14:04:00Z",
+                "operator_status": "APPROVED",
+                "operator_note": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (observability_root / "logs" / "decision_log.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "EXECUTION_HANDOFF_ACCEPTED",
+                "decision_id": decision_id,
+                "trace_id": "trace-unknown",
+                "ts_utc": "2026-03-11T14:04:00Z",
+                "operator_status": "APPROVED",
+                "proposed_action": "REVIEW_PROOF",
+                "evidence_refs": ["proof_pack:unknown"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (outbox_dir / f"{task_id}.result.json").write_text("{bad json", encoding="utf-8")
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(mission_control_server, "enqueue_remediation_queue", lambda **_: (_ for _ in ()).throw(AssertionError("no remediation queue")))
+    monkeypatch.setattr(mission_control_server, "apply_approval_action", lambda **_: (_ for _ in ()).throw(AssertionError("no approval flow")))
+
+    response = client.get("/api/decisions/latest")
+
+    assert response.status_code == 200
+    execution = response.json()["latest"]["execution"]
+    assert execution["outcome_status"] == "EXECUTION_UNKNOWN"
+    assert execution["outcome_ref"] == f"interface/outbox/tasks/{task_id}.result.json"
