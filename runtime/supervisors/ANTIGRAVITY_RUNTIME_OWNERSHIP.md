@@ -44,6 +44,26 @@ Current PM2 mapping:
 - runtime bootstrap owner:
   - `runtime/services/antigravity_bootstrap/pm2_start.zsh`
 
+## Phase A.2 Log / State Ownership Mapping
+
+Canonical log ownership:
+
+- `observability/logs/antigravity/antigravity.log`
+- `observability/logs/antigravity/antigravity_monitor.out.log`
+- `observability/logs/antigravity/antigravity_monitor.err.log`
+- `observability/logs/antigravity/option_bug_hunter.out.log`
+- `observability/logs/antigravity/option_bug_hunter.err.log`
+
+Canonical runtime state ownership:
+
+- `runtime/state/antigravity/bootstrap_state.json`
+- `runtime/state/antigravity/antigravity_scan_runtime.json`
+- `runtime/state/antigravity/antigravity_realtime_runtime.json`
+
+Legacy app-local `repos/option/logs/` remains a compatibility path only. The
+runtime wrappers normalize it toward the canonical 0luka-owned observability
+path.
+
 ## Runtime Standard
 
 1. PM2/startup behavior is governed by 0luka runtime policy.

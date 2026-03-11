@@ -72,6 +72,29 @@ Bootstrap normalization added in Phase A.1:
 - runtime-owned bootstrap path now exists:
   - `runtime/services/antigravity_bootstrap/pm2_start.zsh`
 
+## Phase A.2 Log / State Path Normalization
+
+Old -> new ownership mapping:
+
+- `repos/option/logs/antigravity.log`
+  -> `observability/logs/antigravity/antigravity.log`
+- PM2 stdout/stderr for `Antigravity-Monitor`
+  -> `observability/logs/antigravity/antigravity_monitor.out.log`
+  -> `observability/logs/antigravity/antigravity_monitor.err.log`
+- PM2 stdout/stderr for `OptionBugHunter`
+  -> `observability/logs/antigravity/option_bug_hunter.out.log`
+  -> `observability/logs/antigravity/option_bug_hunter.err.log`
+- startup/runtime wrapper state
+  -> `runtime/state/antigravity/bootstrap_state.json`
+  -> `runtime/state/antigravity/antigravity_scan_runtime.json`
+  -> `runtime/state/antigravity/antigravity_realtime_runtime.json`
+
+Legacy repo-local log paths may still exist as transitional compatibility adapters,
+but they are no longer the primary operational truth.
+
+Phase A.2 does not relocate domain code or redesign trading behavior. It only
+normalizes runtime evidence and current-state ownership toward 0luka.
+
 ## Freeze Rule
 
 Antigravity feature work is frozen during this migration except for:
