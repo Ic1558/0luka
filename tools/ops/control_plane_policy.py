@@ -20,10 +20,11 @@ SAFE_LANE_SUPERVISED_RETRY = "SUPERVISED_RETRY"
 SAFE_LANE_SUPERVISED_ESCALATION = "SUPERVISED_ESCALATION"
 
 
-def _has_prior_alignment(rows: list[dict[str, Any]], *, operator_action: str) -> bool:
-    return any(
-        row.get("alignment") == "MATCHED_SUGGESTION" and row.get("operator_action") == operator_action
+def _alignment_count(rows: list[dict[str, Any]], *, operator_action: str) -> int:
+    return sum(
+        1
         for row in rows
+        if row.get("alignment") == "MATCHED_SUGGESTION" and row.get("operator_action") == operator_action
     )
 
 
@@ -41,6 +42,7 @@ def derive_policy_verdict(
         "trace_id": suggestion_payload.get("trace_id"),
         "suggestion": suggestion,
         "confidence_band": confidence_band,
+        "alignment_count": 0,
     }
 
     if latest_decision is None:
@@ -58,20 +60,23 @@ def derive_policy_verdict(
             "policy_safe_lane": SAFE_LANE_NONE,
         }
     if suggestion == "RETRY_RECOMMENDED":
+        alignment_count = _alignment_count(feedback_rows, operator_action="RETRY_EXECUTION")
         if (
             confidence_band == "HIGH"
             and decision_state == "APPROVED"
             and execution_outcome == "EXECUTION_FAILED"
-            and _has_prior_alignment(feedback_rows, operator_action="RETRY_EXECUTION")
+            and alignment_count >= 2
         ):
             return {
                 **base,
+                "alignment_count": alignment_count,
                 "policy_verdict": POLICY_AUTO_ALLOWED,
                 "policy_reason": "high_confidence_retry_after_repeated_operator_alignment",
                 "policy_safe_lane": SAFE_LANE_SUPERVISED_RETRY,
             }
         return {
             **base,
+            "alignment_count": alignment_count,
             "policy_verdict": POLICY_HUMAN_APPROVAL_REQUIRED,
             "policy_reason": "retry_recommended_but_not_auto_eligible",
             "policy_safe_lane": SAFE_LANE_SUPERVISED_RETRY,

@@ -79,6 +79,8 @@ def test_decision_desk_section_renders_pending_fields() -> None:
     assert 'data-field="execution_bridge_status"' in section
     assert 'data-field="execution_outcome_status"' in section
     assert 'data-field="execution_outcome_ref"' in section
+    assert 'data-field="execution_policy_status"' in section
+    assert 'data-field="execution_policy_executed"' in section
     assert 'id="decision-suggestion-panel"' in section
     assert 'id="decision-suggestion-fields"' in section
     assert 'data-field="suggestion"' in section
@@ -158,6 +160,8 @@ def test_decision_desk_recovery_controls_are_bounded_to_failed_or_unknown_outcom
     assert "EXECUTION_FAILED" in TEMPLATE
     assert "EXECUTION_UNKNOWN" in TEMPLATE
     assert "Operator may retry or escalate this outcome." in TEMPLATE
+    assert "AUTO RETRY TRIGGERED" in TEMPLATE
+    assert "policy-executed retry" in TEMPLATE
 
 
 def test_decision_desk_suggestion_panel_is_advisory_only() -> None:

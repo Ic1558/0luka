@@ -28,6 +28,7 @@ if str(ROOT) not in sys.path:
 from tools.ops import approval_presets, approval_write, remediation_queue
 from tools.ops.control_plane_persistence import (
     DecisionPersistenceError,
+    append_decision_event,
     append_suggestion_feedback,
     read_decision_history,
     read_latest_decision,
@@ -37,6 +38,7 @@ from tools.ops.control_plane_persistence import (
 from tools.ops.control_plane_execution_bridge import (
     ExecutionBridgeError,
     RETRYABLE_OUTCOMES,
+    auto_retry_approved_decision,
     escalate_approved_decision,
     handoff_approved_decision,
     retry_approved_decision,
@@ -640,11 +642,21 @@ def _sanitize_decision_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _decorate_decision_with_execution(payload: dict[str, Any]) -> dict[str, Any]:
     decision = _sanitize_decision_payload(payload)
-    decision["execution"] = reconcile_execution_outcome(
+    execution = reconcile_execution_outcome(
         payload,
         repo_root=ROOT,
         observability_root=_observability_root(),
     )
+    metadata = _latest_auto_retry_metadata(str(payload.get("decision_id") or ""))
+    if isinstance(execution, dict) and isinstance(metadata, dict):
+        execution = {
+            **execution,
+            "policy_execution_status": "AUTO RETRY TRIGGERED",
+            "policy_executed": True,
+            "policy_reason": metadata.get("policy_reason"),
+            "policy_alignment_count": metadata.get("alignment_count"),
+        }
+    decision["execution"] = execution
     return decision
 
 
@@ -656,6 +668,10 @@ def load_latest_pending_decision() -> dict[str, Any]:
 
     if not isinstance(payload, dict):
         return {"pending": None, "latest": None}
+    try:
+        _maybe_trigger_policy_auto_retry(payload)
+    except (DecisionPersistenceError, ExecutionBridgeError):
+        pass
     latest = _decorate_decision_with_execution(payload)
     if payload.get("operator_status") != "PENDING":
         return {"pending": None, "latest": latest}
@@ -671,6 +687,7 @@ def _history_event_type(value: str) -> str:
         "EXECUTION_HANDOFF_ACCEPTED": "EXECUTION_HANDOFF_ACCEPTED",
         "EXECUTION_RETRY_REQUESTED": "EXECUTION_RETRY_REQUESTED",
         "EXECUTION_ESCALATION_REQUESTED": "EXECUTION_ESCALATION_REQUESTED",
+        "AUTO_RETRY_TRIGGERED": "AUTO_RETRY_TRIGGERED",
     }
     return mapping.get(value, "UNKNOWN")
 
@@ -1423,6 +1440,76 @@ def _retry_latest_decision() -> tuple[dict[str, Any] | None, str | None]:
         return None, str(exc)
     except DecisionPersistenceError as exc:
         return None, str(exc)
+
+
+def _latest_auto_retry_metadata(decision_id: str) -> dict[str, Any] | None:
+    if not decision_id:
+        return None
+    try:
+        rows = read_decision_history(_observability_root(), limit=200)
+    except DecisionPersistenceError:
+        return None
+
+    latest: dict[str, Any] | None = None
+    for row in rows:
+        if row.get("decision_id") == decision_id and row.get("event") == "AUTO_RETRY_TRIGGERED":
+            latest = row
+    if latest is None:
+        return None
+    return {
+        "policy_reason": latest.get("policy_reason"),
+        "alignment_count": latest.get("alignment_count"),
+    }
+
+
+def _maybe_trigger_policy_auto_retry(latest: dict[str, Any]) -> dict[str, Any] | None:
+    if latest.get("operator_status") != "APPROVED":
+        return None
+    decision_id = str(latest.get("decision_id") or "")
+    if not decision_id or _latest_auto_retry_metadata(decision_id) is not None:
+        return None
+
+    execution = reconcile_execution_outcome(
+        latest,
+        repo_root=ROOT,
+        observability_root=_observability_root(),
+    )
+    if not isinstance(execution, dict) or execution.get("outcome_status") != "EXECUTION_FAILED":
+        return None
+
+    policy = load_decision_policy()
+    if (
+        policy.get("policy_verdict") != "AUTO_ALLOWED"
+        or policy.get("policy_safe_lane") != "SUPERVISED_RETRY"
+        or policy.get("confidence_band") != "HIGH"
+        or int(policy.get("alignment_count") or 0) < 2
+    ):
+        return None
+
+    retry_count = int(execution.get("retry_count") or 0) + 1
+    result = auto_retry_approved_decision(
+        latest,
+        observability_root=_observability_root(),
+        retry_count=retry_count,
+    )
+    append_decision_event(
+        _observability_root(),
+        {
+            "event": "AUTO_RETRY_TRIGGERED",
+            "decision_id": latest.get("decision_id"),
+            "trace_id": latest.get("trace_id"),
+            "ts_utc": latest.get("ts_utc"),
+            "signal_received": latest.get("signal_received"),
+            "proposed_action": latest.get("proposed_action"),
+            "evidence_refs": latest.get("evidence_refs"),
+            "operator_status": latest.get("operator_status"),
+            "operator_note": latest.get("operator_note"),
+            "policy_reason": policy.get("policy_reason"),
+            "confidence_band": policy.get("confidence_band"),
+            "alignment_count": int(policy.get("alignment_count") or 0),
+        },
+    )
+    return result
 
 
 def _escalate_latest_decision() -> tuple[dict[str, Any] | None, str | None]:

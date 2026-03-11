@@ -32,6 +32,7 @@ LEDGER_EVENTS = {
     "SUGGESTION_ACCEPTED",
     "SUGGESTION_IGNORED",
     "SUGGESTION_OVERRIDDEN",
+    "AUTO_RETRY_TRIGGERED",
 }
 
 SUGGESTION_VALUES = {
@@ -119,6 +120,14 @@ def _optional_enum(value: Any, field: str, allowed: set[str]) -> str | None:
     return _ensure_enum(value, field, allowed)
 
 
+def _optional_non_negative_int(value: Any, field: str) -> int | None:
+    if value is None:
+        return None
+    if not isinstance(value, int) or value < 0:
+        raise DecisionPersistenceError(f"invalid_{field}")
+    return value
+
+
 def make_decision_id(*, trace_id: str, ts_utc: str, signal_received: str, proposed_action: str) -> str:
     digest = hashlib.sha256(
         f"{trace_id}|{ts_utc}|{signal_received}|{proposed_action}".encode("utf-8")
@@ -200,6 +209,8 @@ def _append_ledger_event(observability_root: str | Path, payload: dict[str, Any]
         "confidence_band": _optional_enum(payload.get("confidence_band"), "confidence_band", CONFIDENCE_BANDS),
         "operator_action": _optional_enum(payload.get("operator_action"), "operator_action", OPERATOR_ACTIONS),
         "alignment": _optional_enum(payload.get("alignment"), "alignment", SUGGESTION_ALIGNMENT),
+        "policy_reason": _normalize_operator_note(payload.get("policy_reason")),
+        "alignment_count": _optional_non_negative_int(payload.get("alignment_count"), "alignment_count"),
     }
     for key, value in optional_fields.items():
         if value is not None:
@@ -254,6 +265,8 @@ def read_decision_history(observability_root: str | Path, limit: int = 50) -> li
                 "confidence_band": _optional_enum(payload.get("confidence_band"), "confidence_band", CONFIDENCE_BANDS),
                 "operator_action": _optional_enum(payload.get("operator_action"), "operator_action", OPERATOR_ACTIONS),
                 "alignment": _optional_enum(payload.get("alignment"), "alignment", SUGGESTION_ALIGNMENT),
+                "policy_reason": _normalize_operator_note(payload.get("policy_reason")),
+                "alignment_count": _optional_non_negative_int(payload.get("alignment_count"), "alignment_count"),
             }
         )
 
@@ -269,6 +282,12 @@ def append_decision_event(observability_root: str | Path, payload: dict[str, Any
         {
             "event": payload.get("event"),
             **validated,
+            "suggestion": payload.get("suggestion"),
+            "confidence_band": payload.get("confidence_band"),
+            "operator_action": payload.get("operator_action"),
+            "alignment": payload.get("alignment"),
+            "policy_reason": payload.get("policy_reason"),
+            "alignment_count": payload.get("alignment_count"),
         },
     )
     return validated

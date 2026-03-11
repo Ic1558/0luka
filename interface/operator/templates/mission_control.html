@@ -362,6 +362,8 @@
             <dt>Outcome Status</dt><dd data-field="execution_outcome_status">n/a</dd>
             <dt>Outcome Ref</dt><dd data-field="execution_outcome_ref">n/a</dd>
             <dt>Retry Count</dt><dd data-field="execution_retry_count">0</dd>
+            <dt>Policy Execution</dt><dd data-field="execution_policy_status">n/a</dd>
+            <dt>Policy Executed</dt><dd data-field="execution_policy_executed">n/a</dd>
           </dl>
           <div id="decision-suggestion-panel" class="lane-block">
             <h3>Suggested Action</h3>
@@ -939,7 +941,9 @@
         setDecisionRecoveryState(false);
       } else if (operatorStatus === 'APPROVED' && action !== 'NO_ACTION') {
         statusNode.textContent = 'Approved decision available for explicit execution handoff.';
-        if (latest.execution && latest.execution.outcome_status === 'HANDOFF_ONLY') {
+        if (latest.execution && latest.execution.policy_execution_status === 'AUTO RETRY TRIGGERED') {
+          actionStatus.textContent = 'AUTO RETRY TRIGGERED. Handoff accepted via policy-executed retry.';
+        } else if (latest.execution && latest.execution.outcome_status === 'HANDOFF_ONLY') {
           actionStatus.textContent = 'Handoff accepted. Waiting for confirmed outcome.';
         } else if (latest.execution && latest.execution.outcome_status === 'EXECUTION_SUCCEEDED') {
           actionStatus.textContent = 'Execution succeeded.';
@@ -983,6 +987,8 @@
         execution_outcome_status: executionOutcomeLabel(latest.execution),
         execution_outcome_ref: latest.execution ? latest.execution.outcome_ref : null,
         execution_retry_count: latest.execution ? latest.execution.retry_count : 0,
+        execution_policy_status: latest.execution ? latest.execution.policy_execution_status : null,
+        execution_policy_executed: latest.execution && latest.execution.policy_executed ? 'yes' : 'no',
       };
       panel.querySelectorAll('[data-field]').forEach((node) => {
         const field = node.getAttribute('data-field') || '';
