@@ -360,3 +360,116 @@ def test_qs_run_artifacts_endpoint_rejects_unsafe_run_id(tmp_path, monkeypatch) 
 
     assert response.status_code == 404
     assert response.json()["error"] == "not_found"
+
+
+def test_system_model_endpoint_returns_json_when_file_exists(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    state_dir = runtime_root / "state"
+    state_dir.mkdir(parents=True)
+    model_path = state_dir / "system_model.json"
+    model_path.write_text(
+        '{"current_phase":"I","eligibility_to_act":false,"repos_qs_boundary":"frozen_canonical","decision_memory_present":true}',
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+
+    response = client.get("/api/system_model")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "ok": True,
+        "system_model": {
+            "current_phase": "I",
+            "eligibility_to_act": False,
+            "repos_qs_boundary": "frozen_canonical",
+            "decision_memory_present": True,
+        },
+    }
+
+
+def test_system_model_endpoint_returns_404_when_missing(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    (runtime_root / "state").mkdir(parents=True)
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+
+    response = client.get("/api/system_model")
+
+    assert response.status_code == 404
+    assert response.json() == {"ok": False, "error": "system_model_not_found"}
+
+
+def test_system_model_endpoint_returns_500_when_malformed(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    state_dir = runtime_root / "state"
+    state_dir.mkdir(parents=True)
+    (state_dir / "system_model.json").write_text("{not-json", encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+
+    response = client.get("/api/system_model")
+
+    assert response.status_code == 500
+    assert response.json() == {"ok": False, "error": "system_model_unreadable"}
+
+
+def test_system_model_endpoint_is_read_only_and_creates_no_files(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    state_dir = runtime_root / "state"
+    state_dir.mkdir(parents=True)
+    model_path = state_dir / "system_model.json"
+    model_path.write_text('{"current_phase":"I"}', encoding="utf-8")
+    before = model_path.read_text(encoding="utf-8")
+    before_files = sorted(path.relative_to(runtime_root).as_posix() for path in runtime_root.rglob("*"))
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+
+    response = client.get("/api/system_model")
+
+    after_files = sorted(path.relative_to(runtime_root).as_posix() for path in runtime_root.rglob("*"))
+    assert response.status_code == 200
+    assert model_path.read_text(encoding="utf-8") == before
+    assert after_files == before_files
+
+
+def test_system_model_endpoint_has_no_repos_qs_dependency(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    state_dir = runtime_root / "state"
+    state_dir.mkdir(parents=True)
+    (state_dir / "system_model.json").write_text('{"repos_qs_boundary":"frozen_canonical"}', encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(
+        mission_control_server,
+        "_observability_root",
+        lambda: (_ for _ in ()).throw(AssertionError("observability root should not be used")),
+    )
+
+    response = client.get("/api/system_model")
+
+    assert response.status_code == 200
+    assert response.json()["system_model"]["repos_qs_boundary"] == "frozen_canonical"
+
+
+def test_system_model_endpoint_wrapper_introduces_no_control_plane_fields(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    state_dir = runtime_root / "state"
+    state_dir.mkdir(parents=True)
+    (state_dir / "system_model.json").write_text('{"control_plane_enabled":false,"autonomy_enabled":false}', encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+
+    response = client.get("/api/system_model")
+
+    assert response.status_code == 200
+    assert set(response.json()) == {"ok", "system_model"}
+    assert "action" not in response.json()
+    assert "queue" not in response.json()
+    assert "remediation" not in response.json()

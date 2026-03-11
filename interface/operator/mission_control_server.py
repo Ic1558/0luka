@@ -77,6 +77,10 @@ def _qs_runs_dir() -> Path:
     return _runtime_root() / "state" / "qs_runs"
 
 
+def _system_model_path() -> Path:
+    return _runtime_root() / "state" / "system_model.json"
+
+
 def _resolve_qs_run_path(run_id: str) -> Path:
     raw = run_id.strip()
     if not raw or raw in {".", ".."} or "/" in raw or "\\" in raw:
@@ -447,6 +451,10 @@ def load_qs_run(run_id: str) -> dict[str, Any] | None:
     except (json.JSONDecodeError, OSError):
         pass
     return None
+
+
+def load_system_model() -> dict[str, Any]:
+    return _read_json(_system_model_path())
 
 
 def load_runtime_decisions(last: int = 100) -> dict[str, Any]:
@@ -1092,6 +1100,16 @@ async def decision_preview_endpoint(request) -> JSONResponse:
     return JSONResponse(load_decision_preview())
 
 
+async def system_model_endpoint(request) -> JSONResponse:
+    try:
+        payload = load_system_model()
+    except FileNotFoundError:
+        return JSONResponse({"ok": False, "error": "system_model_not_found"}, status_code=404)
+    except (json.JSONDecodeError, OSError, RuntimeError):
+        return JSONResponse({"ok": False, "error": "system_model_unreadable"}, status_code=500)
+    return JSONResponse({"ok": True, "system_model": payload})
+
+
 async def remediation_queue_endpoint(request) -> JSONResponse:
     return JSONResponse(load_remediation_queue())
 
@@ -1229,6 +1247,7 @@ def create_app():
         app.add_api_route("/api/approval_expiry", approval_expiry_status_endpoint, methods=["GET"])
         app.add_api_route("/api/policy_drift", policy_drift_endpoint, methods=["GET"])
         app.add_api_route("/api/decision_preview", decision_preview_endpoint, methods=["GET"])
+        app.add_api_route("/api/system_model", system_model_endpoint, methods=["GET"])
         app.add_api_route("/api/approval_log", approval_log_endpoint, methods=["GET"])
         app.add_api_route("/api/runtime_decisions", runtime_decisions_endpoint, methods=["GET"])
         app.add_api_route("/api/remediation_queue", remediation_queue_endpoint, methods=["GET"])
@@ -1260,6 +1279,7 @@ def create_app():
             Route("/api/approval_expiry", approval_expiry_status_endpoint),
             Route("/api/policy_drift", policy_drift_endpoint),
             Route("/api/decision_preview", decision_preview_endpoint),
+            Route("/api/system_model", system_model_endpoint),
             Route("/api/approval_log", approval_log_endpoint),
             Route("/api/runtime_decisions", runtime_decisions_endpoint),
             Route("/api/remediation_queue", remediation_queue_endpoint),
