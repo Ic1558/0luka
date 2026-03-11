@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from tools.ops.control_plane_policy_learning_review import derive_policy_review, load_policy_learning_review
+from tools.ops.control_plane_auto_lane_queue import load_auto_lane_candidate_queue
 from tools.ops.control_plane_policy_observability import derive_policy_stats, load_policy_stats
 
 
@@ -165,3 +166,97 @@ def test_policy_learning_review_flags_threshold_alignment_frozen_and_reason_clus
     assert "review_reason_failure_cluster" in payload["review_flags"]
     assert payload["reason_breakdown"][0]["policy_reason"] == "high_confidence_retry_after_repeated_operator_alignment"
     assert payload["reason_breakdown"][0]["failure_count"] == 3
+
+
+def test_auto_lane_candidate_queue_aggregates_recent_candidates_and_top_blockers(tmp_path) -> None:
+    repo_root = tmp_path / "repo"
+    observability_root = repo_root / "observability"
+    runtime_root = tmp_path / "runtime"
+    outbox_dir = repo_root / "interface" / "outbox" / "tasks"
+    audit_dir = repo_root / "observability" / "artifacts" / "router_audit"
+    (observability_root / "logs").mkdir(parents=True, exist_ok=True)
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+    outbox_dir.mkdir(parents=True, exist_ok=True)
+    audit_dir.mkdir(parents=True, exist_ok=True)
+
+    rows = [
+        {
+            "event": "POLICY_EVALUATED",
+            "decision_id": "d1",
+            "trace_id": "t1",
+            "ts_utc": "2026-03-11T18:00:00Z",
+            "operator_status": "APPROVED",
+            "proposed_action": "QUARANTINE",
+            "evidence_refs": ["artifact://proof-1"],
+            "suggestion": "RETRY_RECOMMENDED",
+            "confidence_band": "HIGH",
+            "policy_verdict": "AUTO_ALLOWED",
+            "policy_reason": "high_confidence_retry_after_repeated_operator_alignment",
+            "alignment_count": 2,
+        },
+        {
+            "event": "EXECUTION_RETRY_REQUESTED",
+            "decision_id": "d1",
+            "trace_id": "t1",
+            "ts_utc": "2026-03-11T18:00:10Z",
+            "operator_status": "APPROVED",
+            "proposed_action": "QUARANTINE",
+            "evidence_refs": ["artifact://proof-1"],
+        },
+        {
+            "event": "POLICY_EVALUATED",
+            "decision_id": "d2",
+            "trace_id": "t2",
+            "ts_utc": "2026-03-11T18:01:00Z",
+            "operator_status": "APPROVED",
+            "proposed_action": "QUARANTINE",
+            "evidence_refs": ["artifact://proof-2"],
+            "suggestion": "RETRY_RECOMMENDED",
+            "confidence_band": "HIGH",
+            "policy_verdict": "HUMAN_APPROVAL_REQUIRED",
+            "policy_reason": "retry_recommended_but_not_auto_eligible",
+            "alignment_count": 1,
+        },
+        {
+            "event": "EXECUTION_RETRY_REQUESTED",
+            "decision_id": "d2",
+            "trace_id": "t2",
+            "ts_utc": "2026-03-11T18:01:10Z",
+            "operator_status": "APPROVED",
+            "proposed_action": "QUARANTINE",
+            "evidence_refs": ["artifact://proof-2"],
+        },
+        {
+            "event": "POLICY_EVALUATED",
+            "decision_id": "d3",
+            "trace_id": "t3",
+            "ts_utc": "2026-03-11T18:02:00Z",
+            "operator_status": "APPROVED",
+            "proposed_action": "QUARANTINE",
+            "evidence_refs": ["artifact://proof-3"],
+            "suggestion": "RETRY_RECOMMENDED",
+            "confidence_band": "LOW",
+            "policy_verdict": "HUMAN_APPROVAL_REQUIRED",
+            "policy_reason": "retry_recommended_but_not_auto_eligible",
+            "alignment_count": 1,
+        },
+    ]
+    (observability_root / "logs" / "decision_log.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    (audit_dir / "decision_exec_d1_retry_1.json").write_text(json.dumps({"decision": "error"}), encoding="utf-8")
+    (audit_dir / "decision_exec_d2_retry_1.json").write_text(json.dumps({"decision": "error"}), encoding="utf-8")
+
+    payload = load_auto_lane_candidate_queue(
+        observability_root=observability_root,
+        repo_root=repo_root,
+        item_limit=10,
+    )
+
+    assert payload["summary"]["eligible_count"] == 1
+    assert payload["summary"]["blocked_count"] == 2
+    assert all(item["candidate_lane"] == "SUPERVISED_RETRY" for item in payload["items"])
+    assert any(item["category"] == "ELIGIBLE" for item in payload["items"])
+    assert any(item["category"] == "BLOCKED_MULTI" for item in payload["items"])
+    assert payload["summary"]["top_blockers"][0]["reason"] == "policy_verdict_not_auto_allowed"

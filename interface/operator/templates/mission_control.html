@@ -440,6 +440,20 @@
               <li class="muted">No eligibility checks available.</li>
             </ul>
           </div>
+          <div id="auto-lane-candidates-panel" class="lane-block">
+            <h3>Auto-Lane Candidate Queue</h3>
+            <p id="auto-lane-candidates-status" class="proof-meta">No recent auto-lane candidates available.</p>
+            <dl id="auto-lane-candidates-fields">
+              <dt>Eligible Cases</dt><dd data-field="eligible_count">0</dd>
+              <dt>Blocked Cases</dt><dd data-field="blocked_count">0</dd>
+            </dl>
+            <ul id="auto-lane-candidates-items" class="proof-list">
+              <li class="muted">No candidate cases available.</li>
+            </ul>
+            <ul id="auto-lane-candidates-top-blockers" class="proof-list">
+              <li class="muted">No top blocking conditions available.</li>
+            </ul>
+          </div>
           <div id="policy-tuning-panel" class="lane-block">
             <h3>Policy Tuning Preview</h3>
             <p id="policy-tuning-status" class="proof-meta">No policy tuning preview available.</p>
@@ -1183,6 +1197,48 @@
         : '<li class="muted">No eligibility checks available.</li>';
     }
 
+    function renderAutoLaneCandidates(payload) {
+      const statusNode = document.getElementById('auto-lane-candidates-status');
+      const fieldNode = document.getElementById('auto-lane-candidates-fields');
+      const itemsNode = document.getElementById('auto-lane-candidates-items');
+      const blockersNode = document.getElementById('auto-lane-candidates-top-blockers');
+      if (!statusNode || !fieldNode || !itemsNode || !blockersNode) return;
+
+      const summary = payload && payload.summary && typeof payload.summary === 'object' ? payload.summary : {};
+      const values = {
+        eligible_count: typeof summary.eligible_count === 'number' ? String(summary.eligible_count) : '0',
+        blocked_count: typeof summary.blocked_count === 'number' ? String(summary.blocked_count) : '0',
+      };
+      fieldNode.querySelectorAll('[data-field]').forEach((node) => {
+        const field = node.getAttribute('data-field') || '';
+        node.textContent = values[field] || '0';
+      });
+
+      const items = payload && Array.isArray(payload.items) ? payload.items : [];
+      const blockers = summary && Array.isArray(summary.top_blockers) ? summary.top_blockers : [];
+      statusNode.textContent = items.length
+        ? 'Recent auto-lane candidates are shown for operator review only.'
+        : 'No recent auto-lane candidates available.';
+      itemsNode.innerHTML = items.length
+        ? items.map((item) => (
+          '<li>' +
+          '<div class="proof-label">[' + escapeHtml(String(item.category || item.eligibility_verdict || 'BLOCKED')) + '] ' +
+          escapeHtml(String(item.decision_id || 'n/a')) + '</div>' +
+          '<div class="proof-meta">lane=' + escapeHtml(String(item.candidate_lane || 'SUPERVISED_RETRY')) +
+          '; verdict=' + escapeHtml(String(item.eligibility_verdict || 'BLOCKED')) +
+          '; state=' + escapeHtml(String(item.effective_lane_state || 'AUTO_LANE_FROZEN')) + '</div>' +
+          '<div class="proof-meta">' + escapeHtml(String(item.summary || 'n/a')) + '</div>' +
+          '</li>'
+        )).join('')
+        : '<li class="muted">No candidate cases available.</li>';
+      blockersNode.innerHTML = blockers.length
+        ? blockers.map((item) => (
+          '<li><span class="proof-label">' + escapeHtml(autoLaneReasonLabel(String(item.reason || 'unknown'))) +
+          '</span><span class="proof-meta"> count=' + escapeHtml(String(item.count ?? 0)) + '</span></li>'
+        )).join('')
+        : '<li class="muted">No top blocking conditions available.</li>';
+    }
+
     function renderPolicyTuningPreview(payload) {
       const statusNode = document.getElementById('policy-tuning-status');
       const fieldNode = document.getElementById('policy-tuning-fields');
@@ -1571,6 +1627,7 @@
         refreshPolicyStats();
         refreshPolicyReview();
         refreshAutoLaneReview();
+        refreshAutoLaneCandidates();
         refreshDecisionSuggestion();
         refreshDecisionDesk();
       } catch (error) {
@@ -1765,6 +1822,19 @@
       }
     }
 
+    async function refreshAutoLaneCandidates() {
+      try {
+        const response = await fetch('/api/decisions/auto-lane-candidates');
+        if (!response.ok) {
+          renderAutoLaneCandidates(null);
+          return;
+        }
+        renderAutoLaneCandidates(await response.json());
+      } catch (_error) {
+        renderAutoLaneCandidates(null);
+      }
+    }
+
     async function runPolicyTuningPreview() {
       const sliderNode = document.getElementById('policy-tuning-threshold');
       const labelNode = document.getElementById('policy-tuning-threshold-label');
@@ -1858,6 +1928,7 @@
           refreshPolicyStats();
           refreshPolicyReview();
           refreshAutoLaneReview();
+          refreshAutoLaneCandidates();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = action + ' failed: request_error';
@@ -1886,6 +1957,7 @@
           refreshPolicyStats();
           refreshPolicyReview();
           refreshAutoLaneReview();
+          refreshAutoLaneCandidates();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'execute failed: request_error';
@@ -1914,6 +1986,7 @@
           refreshPolicyStats();
           refreshPolicyReview();
           refreshAutoLaneReview();
+          refreshAutoLaneCandidates();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'retry failed: request_error';
@@ -1942,6 +2015,7 @@
           refreshPolicyStats();
           refreshPolicyReview();
           refreshAutoLaneReview();
+          refreshAutoLaneCandidates();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'escalation failed: request_error';
@@ -1968,6 +2042,7 @@
           refreshPolicyStats();
           refreshPolicyReview();
           refreshAutoLaneReview();
+          refreshAutoLaneCandidates();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'ignore failed: request_error';
@@ -2431,6 +2506,7 @@
     refreshPolicyStats();
     refreshPolicyReview();
     refreshAutoLaneReview();
+    refreshAutoLaneCandidates();
     runPolicyTuningPreview();
     refreshPolicyProposals();
     refreshPolicyVersion();
