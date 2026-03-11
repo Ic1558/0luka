@@ -71,6 +71,14 @@ def _policy_review_subsection() -> str:
     return section[start:end]
 
 
+def _auto_lane_review_subsection() -> str:
+    section = _decision_desk_section()
+    marker = 'id="auto-lane-review-panel"'
+    start = section.index(marker)
+    end = section.index("</div>", start)
+    return section[start:end]
+
+
 def _policy_tuning_subsection() -> str:
     section = _decision_desk_section()
     marker = 'id="policy-tuning-panel"'
@@ -129,6 +137,7 @@ def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
     assert "fetch('/api/decisions/latest')" in TEMPLATE
     assert "fetch('/api/decisions/latest/suggestion')" in TEMPLATE
     assert "fetch('/api/decisions/latest/policy')" in TEMPLATE
+    assert "fetch('/api/decisions/latest/auto-lane-review')" in TEMPLATE
     assert "fetch('/api/decisions/latest/suggestion-feedback')" in TEMPLATE
     assert "fetch('/api/policy/stats')" in TEMPLATE
     assert "fetch('/api/policy/review')" in TEMPLATE
@@ -299,6 +308,27 @@ def test_decision_desk_policy_review_panel_is_review_only() -> None:
     assert "renderPolicyReview(payload)" in TEMPLATE
     assert "refreshPolicyReview()" in TEMPLATE
     assert "fetch('/api/policy/review')" in TEMPLATE
+    assert "<button" not in section
+
+
+def test_decision_desk_auto_lane_review_panel_is_visibility_only() -> None:
+    section = _auto_lane_review_subsection()
+
+    assert 'id="auto-lane-review-panel"' in section
+    assert 'id="auto-lane-review-status"' in section
+    assert 'id="auto-lane-review-fields"' in section
+    assert 'data-field="candidate_lane"' in section
+    assert 'data-field="eligibility_verdict"' in section
+    assert 'data-field="effective_lane_state"' in section
+    assert 'data-field="summary"' in section
+    assert 'id="auto-lane-review-reasons"' in section
+    assert 'id="auto-lane-review-checks"' in section
+    assert "All required conditions satisfied for the narrow autonomous retry lane." in TEMPLATE
+    assert "Missing conditions are shown below. This panel is visibility only." in TEMPLATE
+    assert "blocked because no latest decision is available" in TEMPLATE
+    assert "renderAutoLaneReview(payload)" in TEMPLATE
+    assert "refreshAutoLaneReview()" in TEMPLATE
+    assert "fetch('/api/decisions/latest/auto-lane-review')" in TEMPLATE
     assert "<button" not in section
 
 
