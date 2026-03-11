@@ -168,6 +168,50 @@ def read_latest_decision(runtime_root: str | Path) -> dict[str, Any] | None:
     return _read_existing_latest(runtime_root)
 
 
+def read_decision_history(observability_root: str | Path, limit: int = 50) -> list[dict[str, Any]]:
+    if not isinstance(limit, int):
+        raise DecisionPersistenceError("invalid_limit")
+    if limit < 1:
+        raise DecisionPersistenceError("invalid_limit")
+    bounded_limit = min(limit, 200)
+    path = _ledger_path(observability_root)
+    if not path.exists():
+        return []
+
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        raise DecisionPersistenceError("unreadable_decision_log.jsonl") from exc
+
+    items: list[dict[str, Any]] = []
+    for raw_line in lines:
+        if not raw_line.strip():
+            continue
+        try:
+            payload = json.loads(raw_line)
+        except json.JSONDecodeError as exc:
+            raise DecisionPersistenceError("unreadable_decision_log.jsonl") from exc
+        if not isinstance(payload, dict):
+            raise DecisionPersistenceError("invalid_decision_log.jsonl")
+        event_name = _ensure_enum(payload.get("event"), "event", LEDGER_EVENTS)
+        items.append(
+            {
+                "event": event_name,
+                "decision_id": _ensure_non_empty_string(payload.get("decision_id"), "decision_id"),
+                "trace_id": _ensure_non_empty_string(payload.get("trace_id"), "trace_id"),
+                "ts_utc": _ensure_iso_utc_z(payload.get("ts_utc"), "ts_utc"),
+                "operator_status": _ensure_enum(payload.get("operator_status"), "operator_status", OPERATOR_STATUSES),
+                "proposed_action": _ensure_enum(payload.get("proposed_action"), "proposed_action", PROPOSED_ACTIONS),
+                "evidence_refs": _ensure_evidence_refs(payload.get("evidence_refs")),
+                "operator_note": _normalize_operator_note(payload.get("operator_note")),
+            }
+        )
+
+    if len(items) <= bounded_limit:
+        return items
+    return items[-bounded_limit:]
+
+
 def write_pending_decision(
     proposal: dict[str, Any],
     runtime_root: str | Path,

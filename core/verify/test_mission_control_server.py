@@ -757,3 +757,241 @@ def test_resolution_endpoints_do_not_call_execution_hooks(tmp_path, monkeypatch)
     response = client.post("/api/decisions/latest/approve", json={})
 
     assert response.status_code == 200
+
+
+def test_decisions_history_endpoint_returns_ledger_events(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    observability_root = tmp_path / "observability"
+    log_dir = observability_root / "logs"
+    log_dir.mkdir(parents=True)
+    ledger_path = log_dir / "decision_log.jsonl"
+    ledger_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "event": "PROPOSAL_CREATED",
+                        "decision_id": "decision_1",
+                        "trace_id": "trace_1",
+                        "ts_utc": "2026-03-11T12:20:00Z",
+                        "operator_status": "PENDING",
+                        "proposed_action": "REVIEW_PROOF",
+                        "evidence_refs": ["proof_pack:run_1"],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "event": "OPERATOR_REJECTED",
+                        "decision_id": "decision_1",
+                        "trace_id": "trace_1",
+                        "ts_utc": "2026-03-11T12:21:00Z",
+                        "operator_status": "REJECTED",
+                        "proposed_action": "REVIEW_PROOF",
+                        "evidence_refs": ["proof_pack:run_1"],
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/history")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["count"] == 2
+    assert payload["items"][0]["event_type"] == "PROPOSED"
+    assert payload["items"][1]["event_type"] == "OPERATOR_REJECTED"
+    assert payload["items"][0]["trace_id"] == "trace_1"
+
+
+def test_decisions_history_endpoint_is_read_only(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    observability_root = tmp_path / "observability"
+    log_dir = observability_root / "logs"
+    log_dir.mkdir(parents=True)
+    ledger_path = log_dir / "decision_log.jsonl"
+    original = json.dumps(
+        {
+            "event": "PROPOSAL_CREATED",
+            "decision_id": "decision_ro",
+            "trace_id": "trace_ro",
+            "ts_utc": "2026-03-11T12:22:00Z",
+            "operator_status": "PENDING",
+            "proposed_action": "ESCALATE",
+            "evidence_refs": ["proof_pack:run_ro"],
+        }
+    ) + "\n"
+    ledger_path.write_text(original, encoding="utf-8")
+    before = ledger_path.read_text(encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/history?limit=5")
+
+    assert response.status_code == 200
+    assert ledger_path.read_text(encoding="utf-8") == before
+
+
+def test_decisions_latest_endpoint_returns_pending_only_current_state(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    state_dir = runtime_root / "state"
+    state_dir.mkdir(parents=True)
+    latest_path = state_dir / "decision_latest.json"
+    latest_path.write_text(
+        json.dumps(
+            {
+                "decision_id": "decision_latest",
+                "trace_id": "trace_latest",
+                "signal_received": "UNKNOWN",
+                "proposed_action": "ESCALATE",
+                "evidence_refs": ["proof_pack:run_latest"],
+                "ts_utc": "2026-03-11T12:23:00Z",
+                "operator_status": "APPROVED",
+                "operator_note": "reviewed",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+
+    response = client.get("/api/decisions/latest")
+
+    assert response.status_code == 200
+    assert response.json() == {"pending": None}
+
+
+def test_decisions_history_endpoint_returns_events_in_ledger_order(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    observability_root = tmp_path / "observability"
+    log_dir = observability_root / "logs"
+    log_dir.mkdir(parents=True)
+    ledger_path = log_dir / "decision_log.jsonl"
+    rows = [
+        {
+            "event": "PROPOSAL_CREATED",
+            "decision_id": "decision_1",
+            "trace_id": "trace_1",
+            "ts_utc": "2026-03-11T12:24:00Z",
+            "operator_status": "PENDING",
+            "proposed_action": "REVIEW_PROOF",
+            "evidence_refs": ["proof_pack:run_1"],
+        },
+        {
+            "event": "OPERATOR_APPROVED",
+            "decision_id": "decision_1",
+            "trace_id": "trace_1",
+            "ts_utc": "2026-03-11T12:25:00Z",
+            "operator_status": "APPROVED",
+            "proposed_action": "REVIEW_PROOF",
+            "evidence_refs": ["proof_pack:run_1"],
+        },
+        {
+            "event": "PROPOSAL_CREATED",
+            "decision_id": "decision_2",
+            "trace_id": "trace_2",
+            "ts_utc": "2026-03-11T12:26:00Z",
+            "operator_status": "PENDING",
+            "proposed_action": "QUARANTINE",
+            "evidence_refs": ["proof_pack:run_2"],
+        },
+    ]
+    ledger_path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/history?limit=10")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [item["decision_id"] for item in payload["items"]] == ["decision_1", "decision_1", "decision_2"]
+    assert [item["event_type"] for item in payload["items"]] == ["PROPOSED", "OPERATOR_APPROVED", "PROPOSED"]
+
+
+def test_decisions_history_endpoint_enforces_limit(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    observability_root = tmp_path / "observability"
+    log_dir = observability_root / "logs"
+    log_dir.mkdir(parents=True)
+    ledger_path = log_dir / "decision_log.jsonl"
+    rows = []
+    for idx in range(4):
+        rows.append(
+            {
+                "event": "PROPOSAL_CREATED",
+                "decision_id": f"decision_{idx}",
+                "trace_id": f"trace_{idx}",
+                "ts_utc": f"2026-03-11T12:2{idx}:00Z",
+                "operator_status": "PENDING",
+                "proposed_action": "ESCALATE",
+                "evidence_refs": [f"proof_pack:run_{idx}"],
+            }
+        )
+    ledger_path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/history?limit=2")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["count"] == 2
+    assert [item["decision_id"] for item in payload["items"]] == ["decision_2", "decision_3"]
+
+
+def test_decisions_history_endpoint_does_not_mutate_runtime_or_ledger(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    observability_root = tmp_path / "observability"
+    state_dir = runtime_root / "state"
+    log_dir = observability_root / "logs"
+    state_dir.mkdir(parents=True)
+    log_dir.mkdir(parents=True)
+    latest_path = state_dir / "decision_latest.json"
+    latest_path.write_text(
+        json.dumps(
+            {
+                "decision_id": "decision_safe",
+                "trace_id": "trace_safe",
+                "signal_received": "UNKNOWN",
+                "proposed_action": "ESCALATE",
+                "evidence_refs": ["proof_pack:run_safe"],
+                "ts_utc": "2026-03-11T12:29:00Z",
+                "operator_status": "PENDING",
+                "operator_note": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    ledger_path = log_dir / "decision_log.jsonl"
+    ledger_path.write_text(
+        json.dumps(
+            {
+                "event": "PROPOSAL_CREATED",
+                "decision_id": "decision_safe",
+                "trace_id": "trace_safe",
+                "ts_utc": "2026-03-11T12:29:00Z",
+                "operator_status": "PENDING",
+                "proposed_action": "ESCALATE",
+                "evidence_refs": ["proof_pack:run_safe"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    latest_before = latest_path.read_text(encoding="utf-8")
+    ledger_before = ledger_path.read_text(encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/history?limit=20")
+
+    assert response.status_code == 200
+    assert latest_path.read_text(encoding="utf-8") == latest_before
+    assert ledger_path.read_text(encoding="utf-8") == ledger_before

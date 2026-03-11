@@ -28,6 +28,7 @@ if str(ROOT) not in sys.path:
 from tools.ops import approval_presets, approval_write, remediation_queue
 from tools.ops.control_plane_persistence import (
     DecisionPersistenceError,
+    read_decision_history,
     read_latest_decision,
     record_operator_decision,
 )
@@ -638,6 +639,39 @@ def load_latest_pending_decision() -> dict[str, Any]:
     return {"pending": _sanitize_decision_payload(payload)}
 
 
+def _history_event_type(value: str) -> str:
+    mapping = {
+        "PROPOSAL_CREATED": "PROPOSED",
+        "OPERATOR_APPROVED": "OPERATOR_APPROVED",
+        "OPERATOR_REJECTED": "OPERATOR_REJECTED",
+        "PROPOSAL_SUPERSEDED": "PROPOSAL_SUPERSEDED",
+    }
+    return mapping.get(value, "UNKNOWN")
+
+
+def load_decision_history(limit: int = 50) -> dict[str, Any]:
+    try:
+        rows = read_decision_history(_observability_root(), limit=limit)
+    except DecisionPersistenceError:
+        return {"items": [], "count": 0}
+
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        items.append(
+            {
+                "decision_id": row.get("decision_id"),
+                "trace_id": row.get("trace_id"),
+                "event_type": _history_event_type(str(row.get("event") or "")),
+                "timestamp": row.get("ts_utc"),
+                "operator_status": row.get("operator_status"),
+                "proposed_action": row.get("proposed_action"),
+                "operator_note": row.get("operator_note"),
+                "evidence_refs": _sanitize_evidence_refs(row.get("evidence_refs")),
+            }
+        )
+    return {"items": items, "count": len(items)}
+
+
 def load_remediation_queue() -> dict[str, Any]:
     return remediation_queue.list_queue(runtime_root=_runtime_root())
 
@@ -1149,6 +1183,15 @@ async def decisions_latest_endpoint(request) -> JSONResponse:
     return JSONResponse(load_latest_pending_decision())
 
 
+async def decisions_history_endpoint(request) -> JSONResponse:
+    raw_limit = request.query_params.get("limit", "50")
+    try:
+        limit = int(raw_limit)
+    except (TypeError, ValueError):
+        limit = 50
+    return JSONResponse(load_decision_history(limit=limit))
+
+
 async def system_model_endpoint(request) -> JSONResponse:
     try:
         payload = load_system_model()
@@ -1363,6 +1406,7 @@ def create_app():
         app.add_api_route("/api/policy_drift", policy_drift_endpoint, methods=["GET"])
         app.add_api_route("/api/decision_preview", decision_preview_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest", decisions_latest_endpoint, methods=["GET"])
+        app.add_api_route("/api/decisions/history", decisions_history_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/system_model", system_model_endpoint, methods=["GET"])
@@ -1398,6 +1442,7 @@ def create_app():
             Route("/api/policy_drift", policy_drift_endpoint),
             Route("/api/decision_preview", decision_preview_endpoint),
             Route("/api/decisions/latest", decisions_latest_endpoint),
+            Route("/api/decisions/history", decisions_history_endpoint),
             Route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"]),
             Route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"]),
             Route("/api/system_model", system_model_endpoint),
