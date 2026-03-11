@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from starlette.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from interface.operator import mission_control_server
+from tools.ops.control_plane_persistence import make_decision_id
 
 
 def test_health_endpoint_returns_ok() -> None:
@@ -473,3 +475,154 @@ def test_system_model_endpoint_wrapper_introduces_no_control_plane_fields(tmp_pa
     assert "action" not in response.json()
     assert "queue" not in response.json()
     assert "remediation" not in response.json()
+
+
+def test_decisions_latest_returns_pending_structure_when_pending_exists(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    state_dir = runtime_root / "state"
+    state_dir.mkdir(parents=True)
+    decision_id = make_decision_id(
+        trace_id="trace-123",
+        ts_utc="2026-03-11T12:00:00Z",
+        signal_received="MISSING_PROOF",
+        proposed_action="REVIEW_PROOF",
+    )
+    (state_dir / "decision_latest.json").write_text(
+        json.dumps(
+            {
+                "decision_id": decision_id,
+                "trace_id": "trace-123",
+                "signal_received": "MISSING_PROOF",
+                "proposed_action": "REVIEW_PROOF",
+                "evidence_refs": ["proof_pack:run_123"],
+                "ts_utc": "2026-03-11T12:00:00Z",
+                "operator_status": "PENDING",
+                "operator_note": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+
+    response = client.get("/api/decisions/latest")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "pending": {
+            "decision_id": decision_id,
+            "trace_id": "trace-123",
+            "signal_received": "MISSING_PROOF",
+            "proposed_action": "REVIEW_PROOF",
+            "evidence_refs": ["proof_pack:run_123"],
+            "ts_utc": "2026-03-11T12:00:00Z",
+            "operator_status": "PENDING",
+            "operator_note": None,
+        }
+    }
+
+
+def test_decisions_latest_returns_null_when_missing(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    (runtime_root / "state").mkdir(parents=True)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+
+    response = client.get("/api/decisions/latest")
+
+    assert response.status_code == 200
+    assert response.json() == {"pending": None}
+
+
+def test_decisions_latest_handles_malformed_latest_gracefully(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    state_dir = runtime_root / "state"
+    state_dir.mkdir(parents=True)
+    latest_path = state_dir / "decision_latest.json"
+    latest_path.write_text("{bad-json", encoding="utf-8")
+    before = latest_path.read_text(encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+
+    response = client.get("/api/decisions/latest")
+
+    assert response.status_code == 200
+    assert response.json() == {"pending": None}
+    assert latest_path.read_text(encoding="utf-8") == before
+
+
+def test_decisions_latest_returns_null_for_non_pending_latest(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    state_dir = runtime_root / "state"
+    state_dir.mkdir(parents=True)
+    decision_id = make_decision_id(
+        trace_id="trace-124",
+        ts_utc="2026-03-11T12:01:00Z",
+        signal_received="INCONSISTENT",
+        proposed_action="QUARANTINE",
+    )
+    (state_dir / "decision_latest.json").write_text(
+        json.dumps(
+            {
+                "decision_id": decision_id,
+                "trace_id": "trace-124",
+                "signal_received": "INCONSISTENT",
+                "proposed_action": "QUARANTINE",
+                "evidence_refs": ["proof_pack:run_124"],
+                "ts_utc": "2026-03-11T12:01:00Z",
+                "operator_status": "APPROVED",
+                "operator_note": "done",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+
+    response = client.get("/api/decisions/latest")
+
+    assert response.status_code == 200
+    assert response.json() == {"pending": None}
+
+
+def test_decisions_latest_performs_no_file_writes_and_no_mutation_routes_exist(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    state_dir = runtime_root / "state"
+    state_dir.mkdir(parents=True)
+    latest_path = state_dir / "decision_latest.json"
+    decision_id = make_decision_id(
+        trace_id="trace-125",
+        ts_utc="2026-03-11T12:02:00Z",
+        signal_received="UNKNOWN",
+        proposed_action="ESCALATE",
+    )
+    latest_path.write_text(
+        json.dumps(
+            {
+                "decision_id": decision_id,
+                "trace_id": "trace-125",
+                "signal_received": "UNKNOWN",
+                "proposed_action": "ESCALATE",
+                "evidence_refs": ["proof_pack:run_125"],
+                "ts_utc": "2026-03-11T12:02:00Z",
+                "operator_status": "PENDING",
+                "operator_note": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    before = latest_path.read_text(encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+
+    get_response = client.get("/api/decisions/latest")
+    post_response = client.post("/api/decisions/latest", json={})
+
+    assert get_response.status_code == 200
+    assert latest_path.read_text(encoding="utf-8") == before
+    assert not (state_dir / "decision_latest.json.tmp").exists()
+    assert post_response.status_code == 405
