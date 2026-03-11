@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from tools.ops.control_plane_policy_guard import apply_auto_lane_guard
+from tools.ops.control_plane_policy_observability import load_policy_stats
 from tools.ops.control_plane_persistence import (
     DecisionPersistenceError,
     read_latest_decision,
@@ -119,4 +121,6 @@ def load_latest_policy(
         )
     except DecisionPersistenceError:
         feedback = []
-    return derive_policy_verdict(latest, suggestion, feedback)
+    base_policy = derive_policy_verdict(latest, suggestion, feedback)
+    stats = load_policy_stats(observability_root=observability_root, repo_root=repo_root)
+    return apply_auto_lane_guard(base_policy, stats)

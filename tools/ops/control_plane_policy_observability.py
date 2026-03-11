@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from tools.ops.control_plane_policy_guard import derive_auto_lane_guard
 from tools.ops.control_plane_persistence import DecisionPersistenceError, read_decision_history
 
 
@@ -85,7 +86,8 @@ def derive_policy_stats(rows: list[dict[str, Any]], *, repo_root: Path) -> dict[
         else 0.0
     )
 
-    return {
+    payload = {
+        "stats_available": True,
         "auto_retry_triggered": auto_retry_triggered,
         "auto_retry_success": auto_retry_success,
         "auto_retry_failed": auto_retry_failed,
@@ -96,11 +98,26 @@ def derive_policy_stats(rows: list[dict[str, Any]], *, repo_root: Path) -> dict[
         "policy_state": policy_state,
         "warning": "Policy reliability degraded. Review recommended." if policy_state == "POLICY_DEGRADED" else None,
     }
+    payload.update(derive_auto_lane_guard(payload))
+    return payload
 
 
 def load_policy_stats(*, observability_root: Path, repo_root: Path) -> dict[str, Any]:
     try:
         rows = read_decision_history(observability_root, limit=200)
     except DecisionPersistenceError:
-        rows = []
+        payload = {
+            "stats_available": False,
+            "auto_retry_triggered": 0,
+            "auto_retry_success": 0,
+            "auto_retry_failed": 0,
+            "alignment_match": 0,
+            "alignment_mismatch": 0,
+            "success_rate": 0.0,
+            "operator_alignment_rate": 0.0,
+            "policy_state": "POLICY_DEGRADED",
+            "warning": "Policy reliability degraded. Review recommended.",
+        }
+        payload.update(derive_auto_lane_guard(payload))
+        return payload
     return derive_policy_stats(rows, repo_root=repo_root)

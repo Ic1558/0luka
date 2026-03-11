@@ -39,6 +39,8 @@ def test_derive_policy_stats_counts_success_failure_and_alignment(tmp_path) -> N
     assert payload["success_rate"] == 0.5
     assert payload["operator_alignment_rate"] == 0.67
     assert payload["policy_state"] == "POLICY_DEGRADED"
+    assert payload["auto_lane_state"] == "AUTO_LANE_FROZEN"
+    assert payload["auto_lane_reason"] == "policy_degraded"
     assert payload["warning"] == "Policy reliability degraded. Review recommended."
 
 
@@ -59,4 +61,5 @@ def test_derive_policy_stats_stays_healthy_without_failure_drift(tmp_path) -> No
     assert payload["auto_retry_success"] == 1
     assert payload["auto_retry_failed"] == 0
     assert payload["policy_state"] == "POLICY_HEALTHY"
+    assert payload["auto_lane_state"] == "AUTO_LANE_ACTIVE"
     assert payload["warning"] is None

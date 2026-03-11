@@ -219,7 +219,10 @@ def test_decision_desk_policy_stats_panel_is_observability_only() -> None:
     assert 'data-field="operator_alignment_rate"' in section
     assert 'data-field="alignment_mismatch"' in section
     assert 'data-field="policy_state"' in section
+    assert 'data-field="auto_lane_state"' in section
+    assert 'data-field="auto_lane_reason"' in section
     assert 'data-field="warning"' in section
     assert "Policy reliability degraded. Review recommended." in TEMPLATE
+    assert "Auto retry is frozen; manual retry remains available." in TEMPLATE
     assert "renderPolicyStats(payload)" in TEMPLATE
     assert "refreshPolicyStats()" in TEMPLATE

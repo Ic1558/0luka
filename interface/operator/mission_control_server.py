@@ -1299,6 +1299,7 @@ async def decisions_latest_policy_endpoint(request) -> JSONResponse:
     if isinstance(latest, dict):
         try:
             _record_policy_evaluation_if_needed(latest, payload)
+            _record_auto_lane_freeze_if_needed(latest, payload)
         except DecisionPersistenceError:
             pass
     return JSONResponse(payload)
@@ -1476,6 +1477,39 @@ def _record_policy_evaluation_if_needed(latest: dict[str, Any], policy_payload: 
     )
 
 
+def _record_auto_lane_freeze_if_needed(latest: dict[str, Any], policy_payload: dict[str, Any]) -> None:
+    if policy_payload.get("auto_lane_state") != "AUTO_LANE_FROZEN":
+        return
+    safe_lane = policy_payload.get("policy_safe_lane_raw") or policy_payload.get("policy_safe_lane")
+    if safe_lane != "SUPERVISED_RETRY":
+        return
+    decision_id = str(latest.get("decision_id") or "")
+    if not decision_id:
+        return
+    existing = _latest_policy_event_for_decision(decision_id, "POLICY_AUTO_LANE_FROZEN")
+    if existing is not None:
+        return
+    append_decision_event(
+        _observability_root(),
+        {
+            "event": "POLICY_AUTO_LANE_FROZEN",
+            "decision_id": latest.get("decision_id"),
+            "trace_id": latest.get("trace_id"),
+            "ts_utc": latest.get("ts_utc"),
+            "signal_received": latest.get("signal_received"),
+            "proposed_action": latest.get("proposed_action"),
+            "evidence_refs": latest.get("evidence_refs"),
+            "operator_status": latest.get("operator_status"),
+            "operator_note": latest.get("operator_note"),
+            "suggestion": policy_payload.get("suggestion"),
+            "confidence_band": policy_payload.get("confidence_band"),
+            "policy_verdict": policy_payload.get("policy_verdict"),
+            "policy_reason": policy_payload.get("auto_lane_reason"),
+            "alignment_count": int(policy_payload.get("alignment_count") or 0),
+        },
+    )
+
+
 def _record_policy_alignment_if_needed(
     latest: dict[str, Any],
     *,
@@ -1603,6 +1637,7 @@ def _maybe_trigger_policy_auto_retry(latest: dict[str, Any]) -> dict[str, Any] |
 
     policy = load_decision_policy()
     _record_policy_evaluation_if_needed(latest, policy)
+    _record_auto_lane_freeze_if_needed(latest, policy)
     if (
         policy.get("policy_verdict") != "AUTO_ALLOWED"
         or policy.get("policy_safe_lane") != "SUPERVISED_RETRY"
