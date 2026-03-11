@@ -26,6 +26,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.ops import approval_presets, approval_write, remediation_queue
+from tools.ops.control_plane_persistence import (
+    DecisionPersistenceError,
+    read_latest_decision,
+    record_operator_decision,
+)
 from tools.ops.decision_engine import classify_once
 from tools.ops.run_interpreter import interpret_run
 
@@ -593,6 +598,46 @@ def load_decision_preview() -> dict[str, Any]:
     }
 
 
+def _sanitize_evidence_refs(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    refs: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or not item.strip():
+            continue
+        text = item.strip()
+        if text.startswith("/"):
+            text = Path(text).name
+        refs.append(text)
+    return refs
+
+
+def _sanitize_decision_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "decision_id": payload.get("decision_id"),
+        "trace_id": payload.get("trace_id"),
+        "signal_received": payload.get("signal_received"),
+        "proposed_action": payload.get("proposed_action"),
+        "evidence_refs": _sanitize_evidence_refs(payload.get("evidence_refs")),
+        "ts_utc": payload.get("ts_utc"),
+        "operator_status": payload.get("operator_status"),
+        "operator_note": payload.get("operator_note"),
+    }
+
+
+def load_latest_pending_decision() -> dict[str, Any]:
+    try:
+        payload = read_latest_decision(_runtime_root())
+    except DecisionPersistenceError:
+        return {"pending": None}
+
+    if not isinstance(payload, dict):
+        return {"pending": None}
+    if payload.get("operator_status") != "PENDING":
+        return {"pending": None}
+    return {"pending": _sanitize_decision_payload(payload)}
+
+
 def load_remediation_queue() -> dict[str, Any]:
     return remediation_queue.list_queue(runtime_root=_runtime_root())
 
@@ -1100,6 +1145,10 @@ async def decision_preview_endpoint(request) -> JSONResponse:
     return JSONResponse(load_decision_preview())
 
 
+async def decisions_latest_endpoint(request) -> JSONResponse:
+    return JSONResponse(load_latest_pending_decision())
+
+
 async def system_model_endpoint(request) -> JSONResponse:
     try:
         payload = load_system_model()
@@ -1108,6 +1157,72 @@ async def system_model_endpoint(request) -> JSONResponse:
     except (json.JSONDecodeError, OSError, RuntimeError):
         return JSONResponse({"ok": False, "error": "system_model_unreadable"}, status_code=500)
     return JSONResponse({"ok": True, "system_model": payload})
+
+
+async def _optional_request_json(request) -> dict[str, Any]:
+    try:
+        payload = await request.json()
+    except Exception:
+        return {}
+    if payload is None:
+        return {}
+    if not isinstance(payload, dict):
+        raise RuntimeError("invalid_json_body")
+    return payload
+
+
+def _resolve_latest_decision(
+    *,
+    operator_status: str,
+    operator_note: str | None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        latest = read_latest_decision(_runtime_root())
+    except DecisionPersistenceError:
+        return None, "decision_state_unreadable"
+    if latest is None:
+        return None, "no_pending_decision"
+    if latest.get("operator_status") != "PENDING":
+        return None, "decision_not_pending"
+    try:
+        updated = record_operator_decision(
+            str(latest.get("decision_id") or ""),
+            operator_status,
+            _runtime_root(),
+            _observability_root(),
+            operator_note=operator_note,
+        )
+    except DecisionPersistenceError as exc:
+        return None, str(exc)
+    return _sanitize_decision_payload(updated), None
+
+
+async def decisions_latest_approve_endpoint(request) -> JSONResponse:
+    try:
+        payload = await _optional_request_json(request)
+        operator_note = payload.get("operator_note")
+        if operator_note is not None and not isinstance(operator_note, str):
+            raise RuntimeError("invalid_operator_note")
+        decision, error = _resolve_latest_decision(operator_status="APPROVED", operator_note=operator_note)
+        if error:
+            return JSONResponse({"ok": False, "error": error}, status_code=409)
+        return JSONResponse({"ok": True, "decision": decision})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+async def decisions_latest_reject_endpoint(request) -> JSONResponse:
+    try:
+        payload = await _optional_request_json(request)
+        operator_note = payload.get("operator_note")
+        if operator_note is not None and not isinstance(operator_note, str):
+            raise RuntimeError("invalid_operator_note")
+        decision, error = _resolve_latest_decision(operator_status="REJECTED", operator_note=operator_note)
+        if error:
+            return JSONResponse({"ok": False, "error": error}, status_code=409)
+        return JSONResponse({"ok": True, "decision": decision})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
 
 
 async def remediation_queue_endpoint(request) -> JSONResponse:
@@ -1247,6 +1362,9 @@ def create_app():
         app.add_api_route("/api/approval_expiry", approval_expiry_status_endpoint, methods=["GET"])
         app.add_api_route("/api/policy_drift", policy_drift_endpoint, methods=["GET"])
         app.add_api_route("/api/decision_preview", decision_preview_endpoint, methods=["GET"])
+        app.add_api_route("/api/decisions/latest", decisions_latest_endpoint, methods=["GET"])
+        app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
+        app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/system_model", system_model_endpoint, methods=["GET"])
         app.add_api_route("/api/approval_log", approval_log_endpoint, methods=["GET"])
         app.add_api_route("/api/runtime_decisions", runtime_decisions_endpoint, methods=["GET"])
@@ -1279,6 +1397,9 @@ def create_app():
             Route("/api/approval_expiry", approval_expiry_status_endpoint),
             Route("/api/policy_drift", policy_drift_endpoint),
             Route("/api/decision_preview", decision_preview_endpoint),
+            Route("/api/decisions/latest", decisions_latest_endpoint),
+            Route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"]),
+            Route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"]),
             Route("/api/system_model", system_model_endpoint),
             Route("/api/approval_log", approval_log_endpoint),
             Route("/api/runtime_decisions", runtime_decisions_endpoint),

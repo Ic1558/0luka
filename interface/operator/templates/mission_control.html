@@ -228,6 +228,37 @@
       text-transform: uppercase;
       color: var(--accent);
     }
+    .decision-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.7);
+    }
+    .decision-badge.escalate {
+      border-color: #a12828;
+      color: #a12828;
+      background: #fff0ee;
+    }
+    .decision-badge.quarantine {
+      border-color: #b96d15;
+      color: #b96d15;
+      background: #fff6ea;
+    }
+    .decision-badge.review-proof {
+      border-color: #2c5f94;
+      color: #2c5f94;
+      background: #edf5ff;
+    }
+    .decision-badge.no-action {
+      border-color: #5f5a4f;
+      color: #5f5a4f;
+      background: #f2f0eb;
+    }
     .alert-item {
       display: grid;
       gap: 4px;
@@ -311,6 +342,29 @@
             <dt>Autonomy Enabled</dt><dd data-field="autonomy_enabled">n/a</dd>
             <dt>Decision Memory Present</dt><dd data-field="decision_memory_present">n/a</dd>
           </dl>
+        </div>
+      </section>
+      <section class="card">
+        <h2>Decision Desk</h2>
+        <div id="decision-desk-panel" class="proof-subpanel">
+          <p id="decision-desk-status" class="proof-meta">System is healthy. No pending decisions.</p>
+          <div id="decision-action-badge" class="decision-badge no-action">NO_ACTION</div>
+          <dl id="decision-desk-fields">
+            <dt>Decision ID</dt><dd data-field="decision_id">n/a</dd>
+            <dt>Trace ID</dt><dd data-field="trace_id">n/a</dd>
+            <dt>Signal</dt><dd data-field="signal_received">n/a</dd>
+            <dt>Proposed Action</dt><dd data-field="proposed_action">n/a</dd>
+            <dt>Evidence</dt><dd data-field="evidence_refs">n/a</dd>
+            <dt>Timestamp</dt><dd data-field="ts_utc">n/a</dd>
+            <dt>Status</dt><dd data-field="operator_status">n/a</dd>
+            <dt>Operator Note</dt><dd data-field="operator_note">n/a</dd>
+          </dl>
+          <div class="policy-controls">
+            <textarea id="decision-operator-note" placeholder="optional operator note" rows="3" disabled></textarea>
+            <button id="decision-approve" type="button" onclick="submitDecisionResolution('approve')" disabled>Approve</button>
+            <button id="decision-reject" type="button" onclick="submitDecisionResolution('reject')" disabled>Reject</button>
+          </div>
+          <p id="decision-desk-action-status" class="approval-status">Read-only until a pending decision is available.</p>
         </div>
       </section>
       <section class="card">
@@ -655,6 +709,118 @@
         renderSystemModel(payload);
       } catch (error) {
         renderSystemModel(null);
+      }
+    }
+
+    function decisionBadgeClass(action) {
+      switch (String(action || '').toUpperCase()) {
+        case 'ESCALATE':
+          return 'decision-badge escalate';
+        case 'QUARANTINE':
+          return 'decision-badge quarantine';
+        case 'REVIEW_PROOF':
+          return 'decision-badge review-proof';
+        default:
+          return 'decision-badge no-action';
+      }
+    }
+
+    function setDecisionActionState(enabled) {
+      const noteNode = document.getElementById('decision-operator-note');
+      const approveNode = document.getElementById('decision-approve');
+      const rejectNode = document.getElementById('decision-reject');
+      if (noteNode) noteNode.disabled = !enabled;
+      if (approveNode) approveNode.disabled = !enabled;
+      if (rejectNode) rejectNode.disabled = !enabled;
+    }
+
+    function renderDecisionDesk(payload) {
+      const panel = document.getElementById('decision-desk-fields');
+      const statusNode = document.getElementById('decision-desk-status');
+      const badge = document.getElementById('decision-action-badge');
+      const actionStatus = document.getElementById('decision-desk-action-status');
+      const noteNode = document.getElementById('decision-operator-note');
+      if (!panel || !statusNode || !badge || !actionStatus) return;
+
+      const pending = payload && payload.pending && typeof payload.pending === 'object'
+        ? payload.pending
+        : null;
+
+      if (!pending) {
+        statusNode.textContent = 'System is healthy. No pending decisions.';
+        actionStatus.textContent = 'Read-only until a pending decision is available.';
+        badge.className = 'decision-badge no-action';
+        badge.textContent = 'NO_ACTION';
+        setDecisionActionState(false);
+        if (noteNode) noteNode.value = '';
+        panel.querySelectorAll('[data-field]').forEach((node) => {
+          node.textContent = 'n/a';
+        });
+        return;
+      }
+
+      statusNode.textContent = 'Pending decision available for operator review.';
+      actionStatus.textContent = 'Approve or reject to resolve the current pending decision.';
+      const action = String(pending.proposed_action || 'NO_ACTION');
+      badge.className = decisionBadgeClass(action);
+      badge.textContent = action;
+      setDecisionActionState(true);
+      const values = {
+        decision_id: pending.decision_id,
+        trace_id: pending.trace_id,
+        signal_received: pending.signal_received,
+        proposed_action: pending.proposed_action,
+        evidence_refs: Array.isArray(pending.evidence_refs) ? pending.evidence_refs.join(', ') : pending.evidence_refs,
+        ts_utc: pending.ts_utc,
+        operator_status: pending.operator_status,
+        operator_note: pending.operator_note,
+      };
+      panel.querySelectorAll('[data-field]').forEach((node) => {
+        const field = node.getAttribute('data-field') || '';
+        const value = values[field];
+        node.textContent = value === undefined || value === null || value === '' ? 'n/a' : String(value);
+      });
+    }
+
+    async function refreshDecisionDesk() {
+      try {
+        const response = await fetch('/api/decisions/latest');
+        if (!response.ok) {
+          renderDecisionDesk({ pending: null });
+          return;
+        }
+        const payload = await response.json();
+        renderDecisionDesk(payload);
+      } catch (error) {
+        renderDecisionDesk({ pending: null });
+      }
+    }
+
+    async function submitDecisionResolution(action) {
+      const noteNode = document.getElementById('decision-operator-note');
+      const statusNode = document.getElementById('decision-desk-action-status');
+      const payload = {};
+      if (noteNode && String(noteNode.value || '').trim()) {
+        payload.operator_note = String(noteNode.value || '').trim();
+      }
+      const endpoint = action === 'approve' ? '/api/decisions/latest/approve' : '/api/decisions/latest/reject';
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        if (statusNode) {
+          statusNode.textContent = result.ok
+            ? action + ' ok: ' + String(result.decision && result.decision.decision_id || 'n/a')
+            : action + ' failed: ' + String(result.error || 'unknown_error');
+        }
+        if (response.ok) {
+          refreshDecisionDesk();
+        }
+      } catch (error) {
+        if (statusNode) statusNode.textContent = action + ' failed: request_error';
       }
     }
 
@@ -1087,6 +1253,7 @@
 
     setInterval(refreshAlerts, 5000);
     setInterval(refreshSystemModel, 5000);
+    setInterval(refreshDecisionDesk, 5000);
     setInterval(refreshProofInventory, 5000);
     setInterval(refreshQsRuns, 5000);
     setInterval(refreshRemediation, 5000);
@@ -1100,6 +1267,7 @@
     setInterval(refreshRemediationQueue, 5000);
     setInterval(refreshAutonomyPolicy, 5000);
     refreshSystemModel();
+    refreshDecisionDesk();
     refreshProofInventory();
     refreshQsRuns();
   </script>
