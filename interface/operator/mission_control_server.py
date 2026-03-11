@@ -32,6 +32,10 @@ from tools.ops.control_plane_persistence import (
     read_latest_decision,
     record_operator_decision,
 )
+from tools.ops.control_plane_execution_bridge import (
+    ExecutionBridgeError,
+    handoff_approved_decision,
+)
 from tools.ops.decision_engine import classify_once
 from tools.ops.run_interpreter import interpret_run
 
@@ -630,13 +634,14 @@ def load_latest_pending_decision() -> dict[str, Any]:
     try:
         payload = read_latest_decision(_runtime_root())
     except DecisionPersistenceError:
-        return {"pending": None}
+        return {"pending": None, "latest": None}
 
     if not isinstance(payload, dict):
-        return {"pending": None}
+        return {"pending": None, "latest": None}
+    latest = _sanitize_decision_payload(payload)
     if payload.get("operator_status") != "PENDING":
-        return {"pending": None}
-    return {"pending": _sanitize_decision_payload(payload)}
+        return {"pending": None, "latest": latest}
+    return {"pending": latest, "latest": latest}
 
 
 def _history_event_type(value: str) -> str:
@@ -1240,6 +1245,19 @@ def _resolve_latest_decision(
     return _sanitize_decision_payload(updated), None
 
 
+def _execute_latest_decision() -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        latest = read_latest_decision(_runtime_root())
+    except DecisionPersistenceError:
+        return None, "decision_state_unreadable"
+    if latest is None:
+        return None, "latest_decision_missing"
+    try:
+        return handoff_approved_decision(latest, observability_root=_observability_root()), None
+    except ExecutionBridgeError as exc:
+        return None, str(exc)
+
+
 async def decisions_latest_approve_endpoint(request) -> JSONResponse:
     try:
         payload = await _optional_request_json(request)
@@ -1266,6 +1284,13 @@ async def decisions_latest_reject_endpoint(request) -> JSONResponse:
         return JSONResponse({"ok": True, "decision": decision})
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+async def decisions_latest_execute_endpoint(request) -> JSONResponse:
+    result, error = _execute_latest_decision()
+    if error:
+        return JSONResponse({"ok": False, "error": error}, status_code=409)
+    return JSONResponse(result)
 
 
 async def remediation_queue_endpoint(request) -> JSONResponse:
@@ -1409,6 +1434,7 @@ def create_app():
         app.add_api_route("/api/decisions/history", decisions_history_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
+        app.add_api_route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"])
         app.add_api_route("/api/system_model", system_model_endpoint, methods=["GET"])
         app.add_api_route("/api/approval_log", approval_log_endpoint, methods=["GET"])
         app.add_api_route("/api/runtime_decisions", runtime_decisions_endpoint, methods=["GET"])
@@ -1445,6 +1471,7 @@ def create_app():
             Route("/api/decisions/history", decisions_history_endpoint),
             Route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"]),
             Route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"]),
+            Route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"]),
             Route("/api/system_model", system_model_endpoint),
             Route("/api/approval_log", approval_log_endpoint),
             Route("/api/runtime_decisions", runtime_decisions_endpoint),

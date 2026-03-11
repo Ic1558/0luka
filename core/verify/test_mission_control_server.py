@@ -9,6 +9,7 @@ from starlette.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from interface.operator import mission_control_server
+from tools.ops import control_plane_execution_bridge
 from tools.ops.control_plane_persistence import make_decision_id
 
 
@@ -519,7 +520,17 @@ def test_decisions_latest_returns_pending_structure_when_pending_exists(tmp_path
             "ts_utc": "2026-03-11T12:00:00Z",
             "operator_status": "PENDING",
             "operator_note": None,
-        }
+        },
+        "latest": {
+            "decision_id": decision_id,
+            "trace_id": "trace-123",
+            "signal_received": "MISSING_PROOF",
+            "proposed_action": "REVIEW_PROOF",
+            "evidence_refs": ["proof_pack:run_123"],
+            "ts_utc": "2026-03-11T12:00:00Z",
+            "operator_status": "PENDING",
+            "operator_note": None,
+        },
     }
 
 
@@ -842,10 +853,16 @@ def test_decisions_latest_endpoint_returns_pending_only_current_state(tmp_path, 
     state_dir = runtime_root / "state"
     state_dir.mkdir(parents=True)
     latest_path = state_dir / "decision_latest.json"
+    decision_id = make_decision_id(
+        trace_id="trace_latest",
+        ts_utc="2026-03-11T12:23:00Z",
+        signal_received="UNKNOWN",
+        proposed_action="ESCALATE",
+    )
     latest_path.write_text(
         json.dumps(
             {
-                "decision_id": "decision_latest",
+                "decision_id": decision_id,
                 "trace_id": "trace_latest",
                 "signal_received": "UNKNOWN",
                 "proposed_action": "ESCALATE",
@@ -863,7 +880,19 @@ def test_decisions_latest_endpoint_returns_pending_only_current_state(tmp_path, 
     response = client.get("/api/decisions/latest")
 
     assert response.status_code == 200
-    assert response.json() == {"pending": None}
+    assert response.json() == {
+        "pending": None,
+        "latest": {
+            "decision_id": decision_id,
+            "trace_id": "trace_latest",
+            "signal_received": "UNKNOWN",
+            "proposed_action": "ESCALATE",
+            "evidence_refs": ["proof_pack:run_latest"],
+            "ts_utc": "2026-03-11T12:23:00Z",
+            "operator_status": "APPROVED",
+            "operator_note": "reviewed",
+        },
+    }
 
 
 def test_decisions_history_endpoint_returns_events_in_ledger_order(tmp_path, monkeypatch) -> None:
@@ -995,3 +1024,335 @@ def test_decisions_history_endpoint_does_not_mutate_runtime_or_ledger(tmp_path, 
     assert response.status_code == 200
     assert latest_path.read_text(encoding="utf-8") == latest_before
     assert ledger_path.read_text(encoding="utf-8") == ledger_before
+
+
+def test_execute_endpoint_rejects_when_no_latest_decision_exists(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    observability_root = tmp_path / "observability"
+    (runtime_root / "state").mkdir(parents=True)
+    (observability_root / "logs").mkdir(parents=True)
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.post("/api/decisions/latest/execute", json={})
+
+    assert response.status_code == 409
+    assert response.json() == {"ok": False, "error": "latest_decision_missing"}
+
+
+def test_execute_endpoint_rejects_when_latest_decision_is_pending(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    observability_root = tmp_path / "observability"
+    state_dir = runtime_root / "state"
+    state_dir.mkdir(parents=True)
+    (observability_root / "logs").mkdir(parents=True)
+    latest_path = state_dir / "decision_latest.json"
+    decision_id = make_decision_id(
+        trace_id="trace_pending",
+        ts_utc="2026-03-11T13:00:00Z",
+        signal_received="MISSING_PROOF",
+        proposed_action="REVIEW_PROOF",
+    )
+    latest_path.write_text(
+        json.dumps(
+            {
+                "decision_id": decision_id,
+                "trace_id": "trace_pending",
+                "signal_received": "MISSING_PROOF",
+                "proposed_action": "REVIEW_PROOF",
+                "evidence_refs": ["proof_pack:pending"],
+                "ts_utc": "2026-03-11T13:00:00Z",
+                "operator_status": "PENDING",
+                "operator_note": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.post("/api/decisions/latest/execute", json={})
+
+    assert response.status_code == 409
+    assert response.json() == {"ok": False, "error": "latest_decision_not_approved"}
+
+
+def test_execute_endpoint_rejects_when_latest_decision_is_rejected(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    observability_root = tmp_path / "observability"
+    state_dir = runtime_root / "state"
+    state_dir.mkdir(parents=True)
+    (observability_root / "logs").mkdir(parents=True)
+    latest_path = state_dir / "decision_latest.json"
+    decision_id = make_decision_id(
+        trace_id="trace_rejected",
+        ts_utc="2026-03-11T13:01:00Z",
+        signal_received="UNKNOWN",
+        proposed_action="ESCALATE",
+    )
+    latest_path.write_text(
+        json.dumps(
+            {
+                "decision_id": decision_id,
+                "trace_id": "trace_rejected",
+                "signal_received": "UNKNOWN",
+                "proposed_action": "ESCALATE",
+                "evidence_refs": ["proof_pack:rejected"],
+                "ts_utc": "2026-03-11T13:01:00Z",
+                "operator_status": "REJECTED",
+                "operator_note": "no",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.post("/api/decisions/latest/execute", json={})
+
+    assert response.status_code == 409
+    assert response.json() == {"ok": False, "error": "latest_decision_not_approved"}
+
+
+def test_execute_endpoint_rejects_approved_no_action(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    observability_root = tmp_path / "observability"
+    state_dir = runtime_root / "state"
+    state_dir.mkdir(parents=True)
+    (observability_root / "logs").mkdir(parents=True)
+    latest_path = state_dir / "decision_latest.json"
+    decision_id = make_decision_id(
+        trace_id="trace_no_action",
+        ts_utc="2026-03-11T13:02:00Z",
+        signal_received="COMPLETE",
+        proposed_action="NO_ACTION",
+    )
+    latest_path.write_text(
+        json.dumps(
+            {
+                "decision_id": decision_id,
+                "trace_id": "trace_no_action",
+                "signal_received": "COMPLETE",
+                "proposed_action": "NO_ACTION",
+                "evidence_refs": ["proof_pack:complete"],
+                "ts_utc": "2026-03-11T13:02:00Z",
+                "operator_status": "APPROVED",
+                "operator_note": "noop",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.post("/api/decisions/latest/execute", json={})
+
+    assert response.status_code == 409
+    assert response.json() == {"ok": False, "error": "no_action_not_executable"}
+
+
+def test_execute_endpoint_accepts_approved_executable_action_and_preserves_linkage(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    observability_root = tmp_path / "observability"
+    state_dir = runtime_root / "state"
+    state_dir.mkdir(parents=True)
+    (observability_root / "logs").mkdir(parents=True)
+    latest_path = state_dir / "decision_latest.json"
+    decision_id = make_decision_id(
+        trace_id="trace_exec",
+        ts_utc="2026-03-11T13:03:00Z",
+        signal_received="MISSING_PROOF",
+        proposed_action="REVIEW_PROOF",
+    )
+    latest_path.write_text(
+        json.dumps(
+            {
+                "decision_id": decision_id,
+                "trace_id": "trace_exec",
+                "signal_received": "MISSING_PROOF",
+                "proposed_action": "REVIEW_PROOF",
+                "evidence_refs": ["proof_pack:run_exec"],
+                "ts_utc": "2026-03-11T13:03:00Z",
+                "operator_status": "APPROVED",
+                "operator_note": "review it",
+            }
+        ),
+        encoding="utf-8",
+    )
+    captured: dict[str, object] = {}
+
+    def fake_submit_task(task, *, task_id=None):
+        captured["task"] = task
+        captured["task_id"] = task_id
+        return {
+            "status": "submitted",
+            "task_id": task_id,
+            "trace_id": task.get("trace_id"),
+            "inbox_path": f"interface/inbox/{task_id}.yaml",
+            "ts": "2026-03-11T13:04:00Z",
+        }
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(control_plane_execution_bridge, "_submit_task", fake_submit_task)
+
+    response = client.post("/api/decisions/latest/execute", json={})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["bridge_status"] == "HANDOFF_ACCEPTED"
+    assert payload["decision_id"] == decision_id
+    assert payload["trace_id"] == "trace_exec"
+    assert payload["requested_action"] == "REVIEW_PROOF"
+    task = captured["task"]
+    assert isinstance(task, dict)
+    assert task["intent"] == "control.review_proof"
+    assert task["trace_id"] == "trace_exec"
+    assert task["ops"][0]["type"] == "write_text"
+    assert task["ops"][0]["target_path"] == f"runtime/state/execution_requests/{decision_id}.json"
+    assert f"\"decision_id\": \"{decision_id}\"" in task["ops"][0]["content"]
+    assert "\"trace_id\": \"trace_exec\"" in task["ops"][0]["content"]
+    assert "\"requested_action\": \"REVIEW_PROOF\"" in task["ops"][0]["content"]
+    rows = [
+        json.loads(line)
+        for line in (observability_root / "logs" / "decision_log.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert rows[-1]["event"] == "EXECUTION_HANDOFF_ACCEPTED"
+    assert rows[-1]["decision_id"] == decision_id
+
+
+def test_execute_endpoint_preserves_append_only_audit_behavior(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    observability_root = tmp_path / "observability"
+    state_dir = runtime_root / "state"
+    log_dir = observability_root / "logs"
+    state_dir.mkdir(parents=True)
+    log_dir.mkdir(parents=True)
+    latest_path = state_dir / "decision_latest.json"
+    decision_id = make_decision_id(
+        trace_id="trace_audit",
+        ts_utc="2026-03-11T13:05:00Z",
+        signal_received="INCONSISTENT",
+        proposed_action="QUARANTINE",
+    )
+    latest_path.write_text(
+        json.dumps(
+            {
+                "decision_id": decision_id,
+                "trace_id": "trace_audit",
+                "signal_received": "INCONSISTENT",
+                "proposed_action": "QUARANTINE",
+                "evidence_refs": ["proof_pack:audit"],
+                "ts_utc": "2026-03-11T13:05:00Z",
+                "operator_status": "APPROVED",
+                "operator_note": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    ledger_path = log_dir / "decision_log.jsonl"
+    ledger_path.write_text(
+        json.dumps(
+            {
+                "event": "OPERATOR_APPROVED",
+                "decision_id": decision_id,
+                "trace_id": "trace_audit",
+                "ts_utc": "2026-03-11T13:05:00Z",
+                "operator_status": "APPROVED",
+                "proposed_action": "QUARANTINE",
+                "evidence_refs": ["proof_pack:audit"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda task, *, task_id=None: {
+            "status": "submitted",
+            "task_id": task_id,
+            "trace_id": task.get("trace_id"),
+            "inbox_path": f"interface/inbox/{task_id}.yaml",
+            "ts": "2026-03-11T13:06:00Z",
+        },
+    )
+    before = ledger_path.read_text(encoding="utf-8")
+
+    response = client.post("/api/decisions/latest/execute", json={})
+
+    assert response.status_code == 200
+    after = ledger_path.read_text(encoding="utf-8")
+    assert after.startswith(before)
+    assert len(after.splitlines()) == len(before.splitlines()) + 1
+
+
+def test_execute_endpoint_does_not_allow_free_text_execution_or_other_hooks(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    runtime_root = tmp_path / "runtime"
+    observability_root = tmp_path / "observability"
+    state_dir = runtime_root / "state"
+    state_dir.mkdir(parents=True)
+    (observability_root / "logs").mkdir(parents=True)
+    latest_path = state_dir / "decision_latest.json"
+    decision_id = make_decision_id(
+        trace_id="trace_safe_exec",
+        ts_utc="2026-03-11T13:07:00Z",
+        signal_received="UNKNOWN",
+        proposed_action="ESCALATE",
+    )
+    latest_path.write_text(
+        json.dumps(
+            {
+                "decision_id": decision_id,
+                "trace_id": "trace_safe_exec",
+                "signal_received": "UNKNOWN",
+                "proposed_action": "ESCALATE",
+                "evidence_refs": ["proof_pack:safe_exec"],
+                "ts_utc": "2026-03-11T13:07:00Z",
+                "operator_status": "APPROVED",
+                "operator_note": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    captured: dict[str, object] = {}
+
+    def fake_submit_task(task, *, task_id=None):
+        captured["task"] = task
+        return {
+            "status": "submitted",
+            "task_id": task_id,
+            "trace_id": task.get("trace_id"),
+            "inbox_path": f"interface/inbox/{task_id}.yaml",
+            "ts": "2026-03-11T13:08:00Z",
+        }
+
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(control_plane_execution_bridge, "_submit_task", fake_submit_task)
+    monkeypatch.setattr(mission_control_server, "enqueue_remediation_queue", lambda **_: (_ for _ in ()).throw(AssertionError("no remediation queue")))
+    monkeypatch.setattr(mission_control_server, "apply_approval_action", lambda **_: (_ for _ in ()).throw(AssertionError("no approval flow")))
+
+    response = client.post("/api/decisions/latest/execute", json={})
+
+    assert response.status_code == 200
+    task = captured["task"]
+    assert isinstance(task, dict)
+    assert "command" not in json.dumps(task, sort_keys=True)
+    assert task["intent"] == "control.escalate"

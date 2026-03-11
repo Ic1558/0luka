@@ -26,6 +26,7 @@ LEDGER_EVENTS = {
     "OPERATOR_APPROVED",
     "OPERATOR_REJECTED",
     "PROPOSAL_SUPERSEDED",
+    "EXECUTION_HANDOFF_ACCEPTED",
 }
 
 RESOLUTION_EVENT_BY_STATUS = {
@@ -210,6 +211,18 @@ def read_decision_history(observability_root: str | Path, limit: int = 50) -> li
     if len(items) <= bounded_limit:
         return items
     return items[-bounded_limit:]
+
+
+def append_decision_event(observability_root: str | Path, payload: dict[str, Any]) -> dict[str, Any]:
+    validated = _validated_proposal(payload)
+    _append_ledger_event(
+        observability_root,
+        {
+            "event": payload.get("event"),
+            **validated,
+        },
+    )
+    return validated
 
 
 def write_pending_decision(
