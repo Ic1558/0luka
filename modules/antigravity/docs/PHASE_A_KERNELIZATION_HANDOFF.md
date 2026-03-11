@@ -95,6 +95,24 @@ but they are no longer the primary operational truth.
 Phase A.2 does not relocate domain code or redesign trading behavior. It only
 normalizes runtime evidence and current-state ownership toward 0luka.
 
+## Phase A.3 Secrets / Bootstrap Standardization
+
+Canonical ownership now points first to:
+
+- `core/governance/secrets_policy.md`
+- `runtime/services/antigravity_bootstrap/bootstrap_contract.md`
+- `runtime/services/antigravity_bootstrap/env_contract.md`
+
+Secret/bootstrap authority split:
+
+- 0luka core governance owns secrets law
+- 0luka runtime owns bootstrap and environment contract visibility
+- Antigravity module docs may reference these contracts, but do not override
+  them
+
+Legacy repo-local bootstrap assumptions remain delegated only and are not the
+canonical law.
+
 ## Freeze Rule
 
 Antigravity feature work is frozen during this migration except for:

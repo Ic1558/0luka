@@ -1,6 +1,11 @@
 #!/bin/zsh
 set -euo pipefail
 
+# Canonical bootstrap owner:
+#   runtime/services/antigravity_bootstrap/bootstrap_contract.md
+# Secret handling authority:
+#   core/governance/secrets_policy.md
+
 ROOT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
 SCAN_RUNNER="$ROOT_DIR/runtime/services/antigravity_scan/runner.zsh"
 REALTIME_RUNNER="$ROOT_DIR/runtime/services/antigravity_realtime/runner.zsh"

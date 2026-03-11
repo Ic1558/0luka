@@ -69,6 +69,8 @@ path.
 1. PM2/startup behavior is governed by 0luka runtime policy.
 2. Secrets injection for supervised processes must follow
    `core/governance/secrets_policy.md`.
+3. The canonical bootstrap/env contract is documented under
+   `runtime/services/antigravity_bootstrap/`.
 3. Supervisor ownership must stay outside Antigravity feature code.
 4. Runtime persistence must be auditable through 0luka observability paths.
 
@@ -97,3 +99,9 @@ Phase A.1 still defers:
 - relocating Python/Node implementation code out of `repos/option/src/`
 - broad PM2 topology redesign
 - full observability path rewiring for every Antigravity process
+
+Phase A.3 still defers:
+
+- full removal of legacy repo-local deploy scripts
+- broader environment contract enforcement in every Antigravity helper
+- any secret/bootstrap changes inside domain implementation code
