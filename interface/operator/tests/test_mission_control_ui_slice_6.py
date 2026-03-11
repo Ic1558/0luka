@@ -63,6 +63,14 @@ def _decision_desk_section() -> str:
     return TEMPLATE[start:end]
 
 
+def _policy_review_subsection() -> str:
+    section = _decision_desk_section()
+    marker = 'id="policy-review-panel"'
+    start = section.index(marker)
+    end = section.index("</div>", start)
+    return section[start:end]
+
+
 def test_decision_desk_section_renders_pending_fields() -> None:
     section = _decision_desk_section()
 
@@ -99,6 +107,7 @@ def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
     assert "fetch('/api/decisions/latest/policy')" in TEMPLATE
     assert "fetch('/api/decisions/latest/suggestion-feedback')" in TEMPLATE
     assert "fetch('/api/policy/stats')" in TEMPLATE
+    assert "fetch('/api/policy/review')" in TEMPLATE
     assert "fetch('/api/policy/auto-lane/unfreeze'" in TEMPLATE
     assert "fetch(endpoint, {" in TEMPLATE
     assert "/api/decisions/latest/approve" in TEMPLATE
@@ -235,3 +244,27 @@ def test_decision_desk_policy_stats_panel_is_observability_only() -> None:
     assert "noteNode.disabled = !isFrozen" in TEMPLATE
     assert "renderPolicyStats(payload)" in TEMPLATE
     assert "refreshPolicyStats()" in TEMPLATE
+
+
+def test_decision_desk_policy_review_panel_is_review_only() -> None:
+    section = _policy_review_subsection()
+
+    assert 'id="policy-review-panel"' in section
+    assert 'id="policy-review-status"' in section
+    assert 'id="policy-review-fields"' in section
+    assert 'data-field="policy_state"' in section
+    assert 'data-field="auto_lane_state"' in section
+    assert 'data-field="policy_evaluations"' in section
+    assert 'data-field="auto_retry_success_rate"' in section
+    assert 'data-field="operator_alignment_rate"' in section
+    assert 'data-field="review_summary"' in section
+    assert 'id="policy-review-flags"' in section
+    assert 'id="policy-review-reasons"' in section
+    assert "insufficient evidence for strong review conclusions" in TEMPLATE
+    assert "Policy review highlights areas for operator review only." in TEMPLATE
+    assert "No review flags" in TEMPLATE
+    assert "No policy reason breakdown available" in TEMPLATE
+    assert "renderPolicyReview(payload)" in TEMPLATE
+    assert "refreshPolicyReview()" in TEMPLATE
+    assert "fetch('/api/policy/review')" in TEMPLATE
+    assert "<button" not in section

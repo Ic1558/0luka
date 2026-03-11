@@ -45,6 +45,7 @@ from tools.ops.control_plane_execution_bridge import (
 )
 from tools.ops.control_plane_suggestions import load_latest_suggestion
 from tools.ops.control_plane_policy import load_latest_policy
+from tools.ops.control_plane_policy_learning_review import load_policy_learning_review
 from tools.ops.control_plane_policy_observability import load_policy_stats
 from tools.ops.execution_outcome_reconciler import reconcile_execution_outcome
 from tools.ops.decision_engine import classify_once
@@ -765,6 +766,13 @@ def load_policy_stats_payload() -> dict[str, Any]:
     )
 
 
+def load_policy_review_payload() -> dict[str, Any]:
+    return load_policy_learning_review(
+        observability_root=_observability_root(),
+        repo_root=ROOT,
+    )
+
+
 def load_remediation_queue() -> dict[str, Any]:
     return remediation_queue.list_queue(runtime_root=_runtime_root())
 
@@ -1307,6 +1315,10 @@ async def decisions_latest_policy_endpoint(request) -> JSONResponse:
 
 async def policy_stats_endpoint(request) -> JSONResponse:
     return JSONResponse(load_policy_stats_payload())
+
+
+async def policy_review_endpoint(request) -> JSONResponse:
+    return JSONResponse(load_policy_review_payload())
 
 
 async def policy_auto_lane_unfreeze_endpoint(request) -> JSONResponse:
@@ -1994,6 +2006,7 @@ def create_app():
         app.add_api_route("/api/decisions/latest/suggestion-feedback", decisions_latest_suggestion_feedback_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest/policy", decisions_latest_policy_endpoint, methods=["GET"])
         app.add_api_route("/api/policy/stats", policy_stats_endpoint, methods=["GET"])
+        app.add_api_route("/api/policy/review", policy_review_endpoint, methods=["GET"])
         app.add_api_route("/api/policy/auto-lane/unfreeze", policy_auto_lane_unfreeze_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/history", decisions_history_endpoint, methods=["GET"])
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
@@ -2039,6 +2052,7 @@ def create_app():
             Route("/api/decisions/latest/suggestion-feedback", decisions_latest_suggestion_feedback_endpoint),
             Route("/api/decisions/latest/policy", decisions_latest_policy_endpoint),
             Route("/api/policy/stats", policy_stats_endpoint),
+            Route("/api/policy/review", policy_review_endpoint),
             Route("/api/policy/auto-lane/unfreeze", policy_auto_lane_unfreeze_endpoint, methods=["POST"]),
             Route("/api/decisions/history", decisions_history_endpoint),
             Route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"]),

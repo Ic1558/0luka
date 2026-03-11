@@ -2973,6 +2973,128 @@ def test_policy_stats_endpoint_returns_aggregates_and_drift_warning(tmp_path, mo
     assert payload["warning"] == "Policy reliability degraded. Review recommended."
 
 
+def test_policy_review_endpoint_returns_safe_sparse_surface(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("policy review must stay read-only")),
+    )
+
+    response = client.get("/api/policy/review")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["review_flags"] == ["review_insufficient_evidence"]
+    assert payload["review_summary"] == "insufficient evidence for strong review conclusions"
+    assert payload["reason_breakdown"] == []
+
+
+def test_policy_review_endpoint_surfaces_flags_and_reason_breakdown(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    outbox_dir = repo_root / "interface" / "outbox" / "tasks"
+    audit_dir = repo_root / "observability" / "artifacts" / "router_audit"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+    outbox_dir.mkdir(parents=True, exist_ok=True)
+    audit_dir.mkdir(parents=True, exist_ok=True)
+
+    for index in range(1, 5):
+        decision_id = f"decision_{index}"
+        _write_decision_event(
+            observability_root,
+            event="POLICY_EVALUATED",
+            decision_id=decision_id,
+            trace_id=f"trace-{index}",
+            ts_utc=f"2026-03-11T20:0{index}:00Z",
+            proposed_action="QUARANTINE",
+            policy_verdict="AUTO_ALLOWED",
+            policy_reason="high_confidence_retry_after_repeated_operator_alignment",
+        )
+        _write_decision_event(
+            observability_root,
+            event="EXECUTION_RETRY_REQUESTED",
+            decision_id=decision_id,
+            trace_id=f"trace-{index}",
+            ts_utc=f"2026-03-11T20:0{index}:10Z",
+            proposed_action="QUARANTINE",
+        )
+        _write_decision_event(
+            observability_root,
+            event="AUTO_RETRY_TRIGGERED",
+            decision_id=decision_id,
+            trace_id=f"trace-{index}",
+            ts_utc=f"2026-03-11T20:0{index}:20Z",
+            proposed_action="QUARANTINE",
+            confidence_band="HIGH",
+            policy_reason="high_confidence_retry_after_repeated_operator_alignment",
+            alignment_count=2,
+        )
+    _write_decision_event(
+        observability_root,
+        event="POLICY_ALIGNMENT_MATCHED",
+        decision_id="decision_1",
+        trace_id="trace-1",
+        ts_utc="2026-03-11T20:10:00Z",
+        proposed_action="QUARANTINE",
+        operator_action="RETRY_EXECUTION",
+        alignment="MATCHED",
+        policy_verdict="AUTO_ALLOWED",
+    )
+    for index in range(2, 5):
+        _write_decision_event(
+            observability_root,
+            event="POLICY_ALIGNMENT_MISMATCHED",
+            decision_id=f"decision_{index}",
+            trace_id=f"trace-{index}",
+            ts_utc=f"2026-03-11T20:1{index}:00Z",
+            proposed_action="QUARANTINE",
+            operator_action="IGNORE_SUGGESTION",
+            alignment="MISMATCHED",
+            policy_verdict="AUTO_ALLOWED",
+        )
+
+    (audit_dir / "decision_exec_decision_1_retry_1.json").write_text(json.dumps({"decision": "error"}), encoding="utf-8")
+    (audit_dir / "decision_exec_decision_2_retry_1.json").write_text(json.dumps({"decision": "error"}), encoding="utf-8")
+    (audit_dir / "decision_exec_decision_3_retry_1.json").write_text(json.dumps({"decision": "error"}), encoding="utf-8")
+    (outbox_dir / "decision_exec_decision_4_retry_1.result.json").write_text(json.dumps({"status": "success"}), encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("policy review must stay read-only")),
+    )
+
+    response = client.get("/api/policy/review")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["policy_state"] == "POLICY_DEGRADED"
+    assert payload["auto_lane_state"] == "AUTO_LANE_FROZEN"
+    assert payload["totals"]["policy_evaluations"] == 4
+    assert payload["rates"]["auto_retry_success_rate"] == 0.25
+    assert payload["rates"]["operator_alignment_rate"] == 0.25
+    assert "review_auto_retry_threshold" in payload["review_flags"]
+    assert "review_alignment_drift" in payload["review_flags"]
+    assert "review_frozen_lane" in payload["review_flags"]
+    assert "review_reason_failure_cluster" in payload["review_flags"]
+    assert payload["reason_breakdown"][0]["policy_reason"] == "high_confidence_retry_after_repeated_operator_alignment"
+    assert payload["reason_breakdown"][0]["failure_count"] == 3
+
+
 def test_policy_auto_lane_unfreeze_requires_frozen_state_and_appends_audit(tmp_path, monkeypatch) -> None:
     client = TestClient(mission_control_server.app)
     repo_root = tmp_path / "repo"
