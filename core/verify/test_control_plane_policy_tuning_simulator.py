@@ -1,59 +1,123 @@
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from tools.ops.control_plane_policy_tuning_simulator import (
-    BASELINE_SUCCESS_THRESHOLD,
-    derive_tuning_preview,
-)
+from tools.ops.control_plane_policy_tuning_simulator import derive_tuning_preview
 
 
-def test_simulator_returns_deterministic_result(tmp_path) -> None:
-    repo_root = tmp_path / "repo"
-    outbox_dir = repo_root / "interface" / "outbox" / "tasks"
-    audit_dir = repo_root / "observability" / "artifacts" / "router_audit"
-    outbox_dir.mkdir(parents=True, exist_ok=True)
-    audit_dir.mkdir(parents=True, exist_ok=True)
+def _candidate_context(
+    decision_id: str,
+    *,
+    confidence_band: str = "HIGH",
+    alignment_count: int = 2,
+    execution_outcome: str = "EXECUTION_FAILED",
+) -> dict[str, object]:
+    return {
+        "decision_id": decision_id,
+        "trace_id": f"trace-{decision_id}",
+        "latest_decision": {
+            "decision_id": decision_id,
+            "trace_id": f"trace-{decision_id}",
+            "operator_status": "APPROVED",
+            "execution": {"outcome_status": execution_outcome},
+        },
+        "policy_payload": {
+            "suggestion": "RETRY_RECOMMENDED",
+            "policy_verdict": "AUTO_ALLOWED" if confidence_band == "HIGH" and alignment_count >= 2 else "HUMAN_APPROVAL_REQUIRED",
+            "policy_safe_lane": "SUPERVISED_RETRY",
+            "confidence_band": confidence_band,
+            "alignment_count": alignment_count,
+            "auto_lane_state": "AUTO_LANE_ACTIVE",
+        },
+    }
 
-    rows = [
-        {"event": "EXECUTION_RETRY_REQUESTED", "decision_id": "d1"},
-        {"event": "AUTO_RETRY_TRIGGERED", "decision_id": "d1", "policy_reason": "reason_a"},
-        {"event": "EXECUTION_RETRY_REQUESTED", "decision_id": "d2"},
-        {"event": "AUTO_RETRY_TRIGGERED", "decision_id": "d2", "policy_reason": "reason_a"},
-        {"event": "EXECUTION_RETRY_REQUESTED", "decision_id": "d3"},
-        {"event": "AUTO_RETRY_TRIGGERED", "decision_id": "d3", "policy_reason": "reason_b"},
-        {"event": "EXECUTION_RETRY_REQUESTED", "decision_id": "d4"},
-        {"event": "AUTO_RETRY_TRIGGERED", "decision_id": "d4", "policy_reason": "reason_b"},
+
+def test_simulator_baseline_matches_current_live_assumptions() -> None:
+    candidate_contexts = [
+        _candidate_context("d1", confidence_band="HIGH", alignment_count=2),
+        _candidate_context("d2", confidence_band="HIGH", alignment_count=1),
+        _candidate_context("d3", confidence_band="LOW", alignment_count=2),
+        _candidate_context("d4", confidence_band="HIGH", alignment_count=3),
     ]
-    (outbox_dir / "decision_exec_d1_retry_1.result.json").write_text(json.dumps({"status": "success"}), encoding="utf-8")
-    (outbox_dir / "decision_exec_d2_retry_1.result.json").write_text(json.dumps({"status": "success"}), encoding="utf-8")
-    (audit_dir / "decision_exec_d3_retry_1.json").write_text(json.dumps({"decision": "error"}), encoding="utf-8")
-    (audit_dir / "decision_exec_d4_retry_1.json").write_text(json.dumps({"decision": "error"}), encoding="utf-8")
 
-    payload = derive_tuning_preview(rows, repo_root=repo_root, simulated_success_threshold=0.80)
+    payload = derive_tuning_preview(
+        candidate_contexts,
+        alignment_threshold=2,
+        confidence_requirement="HIGH",
+        recent_cases=4,
+        auto_lane_state="AUTO_LANE_ACTIVE",
+    )
 
-    assert payload["baseline_threshold"] == BASELINE_SUCCESS_THRESHOLD
-    assert payload["simulated_threshold"] == 0.80
-    assert payload["baseline_retry_count"] == 2
-    assert payload["simulated_retry_count"] == 2
-    assert payload["baseline_success_rate"] == 1.0
-    assert payload["simulated_success_rate"] == 1.0
-    assert payload["difference"]["retry_reduction"] == 0
-    assert payload["stats_available"] is True
+    assert payload["baseline"]["alignment_threshold"] == 2
+    assert payload["baseline"]["confidence_requirement"] == "HIGH"
+    assert payload["baseline"]["eligible_count"] == 2
+    assert payload["baseline"]["blocked_count"] == 2
+    assert payload["baseline"]["eligible_ratio"] == 0.5
 
 
-def test_simulator_handles_sparse_data_safely(tmp_path) -> None:
-    payload = derive_tuning_preview([], repo_root=tmp_path, simulated_success_threshold=0.80)
+def test_alignment_threshold_simulation_changes_counts_and_blocker_shift_deterministically() -> None:
+    candidate_contexts = [
+        _candidate_context("d1", confidence_band="HIGH", alignment_count=2),
+        _candidate_context("d2", confidence_band="HIGH", alignment_count=1),
+        _candidate_context("d3", confidence_band="HIGH", alignment_count=1),
+        _candidate_context("d4", confidence_band="LOW", alignment_count=2),
+    ]
 
-    assert payload["baseline_threshold"] == BASELINE_SUCCESS_THRESHOLD
-    assert payload["simulated_threshold"] == 0.80
-    assert payload["baseline_retry_count"] == 0
-    assert payload["simulated_retry_count"] == 0
-    assert payload["baseline_success_rate"] == 0.0
-    assert payload["simulated_success_rate"] == 0.0
-    assert payload["difference"]["retry_reduction"] == 0
+    payload = derive_tuning_preview(
+        candidate_contexts,
+        alignment_threshold=1,
+        confidence_requirement="HIGH",
+        recent_cases=4,
+        auto_lane_state="AUTO_LANE_ACTIVE",
+    )
+
+    assert payload["simulation"]["alignment_threshold"] == 1
+    assert payload["simulation"]["eligible_count"] == 3
+    assert payload["simulation"]["blocked_count"] == 1
+    assert payload["difference"]["eligible_delta"] == 2
+    assert payload["difference"]["blocked_delta"] == -2
+    assert payload["difference"]["eligible_ratio_delta"] == 0.5
+    assert payload["blocker_shift"][0]["reason"] == "trust_alignment_count_below_threshold"
+    assert payload["blocker_shift"][0]["baseline_count"] == 2
+    assert payload["blocker_shift"][0]["simulated_count"] == 0
+    assert "simulation reduced trust-alignment blocking" in payload["notes"]
+
+
+def test_simulator_recomputes_readiness_band_under_simulated_conditions() -> None:
+    candidate_contexts = [
+        _candidate_context("d1", confidence_band="HIGH", alignment_count=1),
+        _candidate_context("d2", confidence_band="HIGH", alignment_count=1),
+        _candidate_context("d3", confidence_band="HIGH", alignment_count=2),
+        _candidate_context("d4", confidence_band="MEDIUM", alignment_count=2),
+    ]
+
+    payload = derive_tuning_preview(
+        candidate_contexts,
+        alignment_threshold=1,
+        confidence_requirement="MEDIUM",
+        recent_cases=4,
+        auto_lane_state="AUTO_LANE_ACTIVE",
+    )
+
+    assert payload["baseline"]["readiness_band"] == "NOT_READY"
+    assert payload["simulation"]["readiness_band"] == "READY"
+
+
+def test_simulator_handles_sparse_data_safely() -> None:
+    payload = derive_tuning_preview(
+        [],
+        alignment_threshold=1,
+        confidence_requirement="MEDIUM",
+        recent_cases=20,
+        auto_lane_state="AUTO_LANE_ACTIVE",
+    )
+
+    assert payload["window"]["cases_observed"] == 0
+    assert payload["baseline"]["eligible_count"] == 0
+    assert payload["simulation"]["eligible_count"] == 0
+    assert payload["blocker_shift"] == []
+    assert payload["notes"] == ["insufficient evidence for sandbox tuning preview"]
     assert payload["stats_available"] is False

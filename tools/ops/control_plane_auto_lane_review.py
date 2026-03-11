@@ -6,6 +6,10 @@ from typing import Any
 CANDIDATE_LANE = "SUPERVISED_RETRY"
 ELIGIBLE = "ELIGIBLE"
 BLOCKED = "BLOCKED"
+BASELINE_ALIGNMENT_THRESHOLD = 2
+BASELINE_CONFIDENCE_REQUIREMENT = "HIGH"
+ALLOWED_ALIGNMENT_THRESHOLDS = {1, 2, 3}
+ALLOWED_CONFIDENCE_REQUIREMENTS = {"HIGH", "MEDIUM"}
 
 FAILED_REASON_LABELS = {
     "no_latest_decision": "no latest decision is available",
@@ -21,29 +25,78 @@ FAILED_REASON_LABELS = {
 }
 
 
-def _check_map(latest_decision: dict[str, Any] | None, policy_payload: dict[str, Any] | None) -> dict[str, bool]:
+def _normalize_alignment_threshold(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("invalid_alignment_threshold")
+    if value not in ALLOWED_ALIGNMENT_THRESHOLDS:
+        raise ValueError("invalid_alignment_threshold")
+    return value
+
+
+def _normalize_confidence_requirement(value: Any) -> str:
+    if not isinstance(value, str):
+        raise ValueError("invalid_confidence_requirement")
+    normalized = value.strip().upper()
+    if normalized == "RELAXED_TO_MEDIUM":
+        normalized = "MEDIUM"
+    if normalized not in ALLOWED_CONFIDENCE_REQUIREMENTS:
+        raise ValueError("invalid_confidence_requirement")
+    return normalized
+
+
+def _check_map(
+    latest_decision: dict[str, Any] | None,
+    policy_payload: dict[str, Any] | None,
+    *,
+    alignment_threshold: int = BASELINE_ALIGNMENT_THRESHOLD,
+    confidence_requirement: str = BASELINE_CONFIDENCE_REQUIREMENT,
+    simulate_policy_gate: bool = False,
+) -> dict[str, bool]:
     execution = latest_decision.get("execution") if isinstance(latest_decision, dict) else None
     outcome_status = execution.get("outcome_status") if isinstance(execution, dict) else None
     alignment_count = policy_payload.get("alignment_count") if isinstance(policy_payload, dict) else None
     auto_lane_state = policy_payload.get("auto_lane_state") if isinstance(policy_payload, dict) else None
+    normalized_alignment_threshold = _normalize_alignment_threshold(alignment_threshold)
+    normalized_confidence_requirement = _normalize_confidence_requirement(confidence_requirement)
+    suggestion_retry_recommended = bool(
+        isinstance(policy_payload, dict) and policy_payload.get("suggestion") == "RETRY_RECOMMENDED"
+    )
+    policy_safe_lane_supervised_retry = bool(
+        isinstance(policy_payload, dict) and policy_payload.get("policy_safe_lane") == CANDIDATE_LANE
+    )
+    confidence_requirement_met = bool(
+        isinstance(policy_payload, dict)
+        and (
+            policy_payload.get("confidence_band") == "HIGH"
+            or (
+                normalized_confidence_requirement == "MEDIUM"
+                and policy_payload.get("confidence_band") == "MEDIUM"
+            )
+        )
+    )
+    alignment_threshold_met = bool(
+        isinstance(alignment_count, int) and alignment_count >= normalized_alignment_threshold
+    )
+    policy_verdict_auto_allowed = bool(
+        isinstance(policy_payload, dict) and policy_payload.get("policy_verdict") == "AUTO_ALLOWED"
+    )
+    if simulate_policy_gate:
+        policy_verdict_auto_allowed = bool(
+            suggestion_retry_recommended
+            and policy_safe_lane_supervised_retry
+            and confidence_requirement_met
+            and alignment_threshold_met
+        )
     return {
-        "suggestion_retry_recommended": bool(
-            isinstance(policy_payload, dict) and policy_payload.get("suggestion") == "RETRY_RECOMMENDED"
-        ),
-        "policy_verdict_auto_allowed": bool(
-            isinstance(policy_payload, dict) and policy_payload.get("policy_verdict") == "AUTO_ALLOWED"
-        ),
-        "policy_safe_lane_supervised_retry": bool(
-            isinstance(policy_payload, dict) and policy_payload.get("policy_safe_lane") == CANDIDATE_LANE
-        ),
-        "confidence_high": bool(
-            isinstance(policy_payload, dict) and policy_payload.get("confidence_band") == "HIGH"
-        ),
+        "suggestion_retry_recommended": suggestion_retry_recommended,
+        "policy_verdict_auto_allowed": policy_verdict_auto_allowed,
+        "policy_safe_lane_supervised_retry": policy_safe_lane_supervised_retry,
+        "confidence_high": confidence_requirement_met,
         "latest_decision_approved": bool(
             isinstance(latest_decision, dict) and latest_decision.get("operator_status") == "APPROVED"
         ),
         "execution_outcome_failed": bool(outcome_status == "EXECUTION_FAILED"),
-        "alignment_count_gte_2": bool(isinstance(alignment_count, int) and alignment_count >= 2),
+        "alignment_count_gte_2": alignment_threshold_met,
         "auto_lane_active": bool(auto_lane_state == "AUTO_LANE_ACTIVE"),
     }
 
@@ -85,8 +138,18 @@ def _summary(verdict: str, reasons: list[str]) -> str:
 def derive_auto_lane_review(
     latest_decision: dict[str, Any] | None,
     policy_payload: dict[str, Any] | None,
+    *,
+    alignment_threshold: int = BASELINE_ALIGNMENT_THRESHOLD,
+    confidence_requirement: str = BASELINE_CONFIDENCE_REQUIREMENT,
+    simulate_policy_gate: bool = False,
 ) -> dict[str, Any]:
-    checks = _check_map(latest_decision, policy_payload)
+    checks = _check_map(
+        latest_decision,
+        policy_payload,
+        alignment_threshold=alignment_threshold,
+        confidence_requirement=confidence_requirement,
+        simulate_policy_gate=simulate_policy_gate,
+    )
     reasons = _failed_reasons(latest_decision, checks)
     verdict = ELIGIBLE if all(checks.values()) else BLOCKED
     return {
