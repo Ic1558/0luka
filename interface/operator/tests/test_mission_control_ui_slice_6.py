@@ -79,17 +79,27 @@ def test_decision_desk_section_renders_pending_fields() -> None:
     assert 'data-field="execution_bridge_status"' in section
     assert 'data-field="execution_outcome_status"' in section
     assert 'data-field="execution_outcome_ref"' in section
+    assert 'id="decision-suggestion-panel"' in section
+    assert 'id="decision-suggestion-fields"' in section
+    assert 'data-field="suggestion"' in section
+    assert 'data-field="reason"' in section
 
 
 def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
     assert "fetch('/api/decisions/latest')" in TEMPLATE
+    assert "fetch('/api/decisions/latest/suggestion')" in TEMPLATE
     assert "fetch(endpoint, {" in TEMPLATE
     assert "/api/decisions/latest/approve" in TEMPLATE
     assert "/api/decisions/latest/reject" in TEMPLATE
     assert "/api/decisions/latest/execute" in TEMPLATE
+    assert "/api/decisions/latest/retry" in TEMPLATE
+    assert "/api/decisions/latest/escalate" in TEMPLATE
     assert "submitDecisionResolution('approve')" in TEMPLATE
     assert "submitDecisionResolution('reject')" in TEMPLATE
     assert "submitDecisionExecution()" in TEMPLATE
+    assert "submitDecisionRetry()" in TEMPLATE
+    assert "submitDecisionEscalation()" in TEMPLATE
+    assert "refreshDecisionSuggestion()" in TEMPLATE
 
 
 def test_decision_desk_buttons_start_disabled_and_can_be_enabled_for_pending() -> None:
@@ -98,10 +108,13 @@ def test_decision_desk_buttons_start_disabled_and_can_be_enabled_for_pending() -
     assert 'id="decision-approve"' in section
     assert 'id="decision-reject"' in section
     assert 'id="decision-execute"' in section
+    assert 'id="decision-retry"' in section
+    assert 'id="decision-escalate"' in section
     assert 'id="decision-operator-note"' in section
     assert 'disabled' in section
     assert "setDecisionActionState(true);" in TEMPLATE
-    assert "setDecisionExecuteState(true);" in TEMPLATE
+    assert "function setDecisionExecuteState(enabled)" in TEMPLATE
+    assert "function setDecisionRecoveryState(enabled)" in TEMPLATE
 
 
 def test_decision_desk_has_no_execution_or_remediation_actions() -> None:
@@ -112,7 +125,8 @@ def test_decision_desk_has_no_execution_or_remediation_actions() -> None:
     assert "remediation_engine" not in TEMPLATE
     assert "task_dispatcher" not in TEMPLATE
     assert "run anyway" not in TEMPLATE.lower()
-    assert "retry" not in TEMPLATE.lower()
+    assert "automatic retry" not in TEMPLATE.lower()
+    assert "background scheduler" not in TEMPLATE.lower()
 
 
 def test_decision_desk_outcome_wording_distinguishes_handoff_from_completion() -> None:
@@ -122,3 +136,26 @@ def test_decision_desk_outcome_wording_distinguishes_handoff_from_completion() -
     assert "Execution failed" in TEMPLATE
     assert "Outcome unknown" in TEMPLATE
     assert "Completion is not implied in this phase." in TEMPLATE
+
+
+def test_decision_desk_recovery_controls_are_bounded_to_failed_or_unknown_outcomes() -> None:
+    section = _decision_desk_section()
+
+    assert 'data-field="execution_retry_count"' in section
+    assert "Retry Execution" in section
+    assert "Escalate Issue" in section
+    assert "EXECUTION_FAILED" in TEMPLATE
+    assert "EXECUTION_UNKNOWN" in TEMPLATE
+    assert "Operator may retry or escalate this outcome." in TEMPLATE
+
+
+def test_decision_desk_suggestion_panel_is_advisory_only() -> None:
+    section = _decision_desk_section()
+
+    assert "Suggested Action" in section
+    assert "No Action Recommended" in section
+    assert "No latest decision available." in section
+    assert "Retry Recommended" in TEMPLATE
+    assert "Escalation Recommended" in TEMPLATE
+    assert "Execution failed after approved decision." in TEMPLATE
+    assert "Execution outcome is unknown after approved decision." in TEMPLATE

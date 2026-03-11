@@ -1632,3 +1632,414 @@ def test_latest_decision_reconciles_malformed_downstream_result_as_unknown(tmp_p
     execution = response.json()["latest"]["execution"]
     assert execution["outcome_status"] == "EXECUTION_UNKNOWN"
     assert execution["outcome_ref"] == f"interface/outbox/tasks/{task_id}.result.json"
+
+
+def _write_latest_decision(
+    runtime_root: Path,
+    *,
+    trace_id: str,
+    ts_utc: str,
+    signal_received: str,
+    proposed_action: str,
+    operator_status: str = "APPROVED",
+    operator_note: str | None = None,
+) -> str:
+    decision_id = make_decision_id(
+        trace_id=trace_id,
+        ts_utc=ts_utc,
+        signal_received=signal_received,
+        proposed_action=proposed_action,
+    )
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+    (runtime_root / "state" / "decision_latest.json").write_text(
+        json.dumps(
+            {
+                "decision_id": decision_id,
+                "trace_id": trace_id,
+                "signal_received": signal_received,
+                "proposed_action": proposed_action,
+                "evidence_refs": [f"proof_pack:{trace_id}"],
+                "ts_utc": ts_utc,
+                "operator_status": operator_status,
+                "operator_note": operator_note,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return decision_id
+
+
+def _write_decision_event(
+    observability_root: Path,
+    *,
+    event: str,
+    decision_id: str,
+    trace_id: str,
+    ts_utc: str,
+    proposed_action: str,
+    operator_status: str = "APPROVED",
+    operator_note: str | None = None,
+) -> None:
+    log_path = observability_root / "logs" / "decision_log.jsonl"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                {
+                    "event": event,
+                    "decision_id": decision_id,
+                    "trace_id": trace_id,
+                    "ts_utc": ts_utc,
+                    "operator_status": operator_status,
+                    "proposed_action": proposed_action,
+                    "evidence_refs": [f"proof_pack:{trace_id}"],
+                    "operator_note": operator_note,
+                }
+            )
+            + "\n"
+        )
+
+
+def test_retry_endpoint_accepts_failed_execution_and_increments_retry_count(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    audit_dir = observability_root / "artifacts" / "router_audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-retry",
+        ts_utc="2026-03-11T15:00:00Z",
+        signal_received="INCONSISTENT",
+        proposed_action="QUARANTINE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_HANDOFF_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-retry",
+        ts_utc="2026-03-11T15:00:00Z",
+        proposed_action="QUARANTINE",
+    )
+    (audit_dir / f"decision_exec_{decision_id}.json").write_text(json.dumps({"decision": "rejected"}), encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    def fake_submit_task(task, *, task_id=None):
+        captured["task"] = task
+        captured["task_id"] = task_id
+        return {"task_id": task_id, "inbox_path": f"interface/inbox/{task_id}.yaml"}
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(control_plane_execution_bridge, "_submit_task", fake_submit_task)
+
+    response = client.post("/api/decisions/latest/retry", json={})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["retry"]["decision_id"] == decision_id
+    assert payload["retry"]["retry_count"] == 1
+    assert payload["retry"]["requested_action"] == "QUARANTINE"
+    assert captured["task_id"] == f"decision_exec_{decision_id}_retry_1"
+    ledger_rows = [
+        json.loads(line)
+        for line in (observability_root / "logs" / "decision_log.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert ledger_rows[-1]["event"] == "EXECUTION_RETRY_REQUESTED"
+
+    latest_response = client.get("/api/decisions/latest")
+    execution = latest_response.json()["latest"]["execution"]
+    assert execution["retry_count"] == 1
+    assert execution["outcome_status"] == "HANDOFF_ONLY"
+
+
+def test_retry_endpoint_accepts_unknown_execution(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    outbox_dir = repo_root / "interface" / "outbox" / "tasks"
+    outbox_dir.mkdir(parents=True, exist_ok=True)
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-unknown-retry",
+        ts_utc="2026-03-11T15:01:00Z",
+        signal_received="MISSING_PROOF",
+        proposed_action="REVIEW_PROOF",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_HANDOFF_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-unknown-retry",
+        ts_utc="2026-03-11T15:01:00Z",
+        proposed_action="REVIEW_PROOF",
+    )
+    (outbox_dir / f"decision_exec_{decision_id}.result.json").write_text("{bad", encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda task, *, task_id=None: {"task_id": task_id, "inbox_path": f"interface/inbox/{task_id}.yaml"},
+    )
+
+    response = client.post("/api/decisions/latest/retry", json={})
+
+    assert response.status_code == 200
+    assert response.json()["retry"]["requested_action"] == "REVIEW_PROOF"
+
+
+def test_retry_endpoint_blocks_succeeded_execution(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    outbox_dir = repo_root / "interface" / "outbox" / "tasks"
+    outbox_dir.mkdir(parents=True, exist_ok=True)
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-success-final",
+        ts_utc="2026-03-11T15:02:00Z",
+        signal_received="UNKNOWN",
+        proposed_action="ESCALATE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_HANDOFF_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-success-final",
+        ts_utc="2026-03-11T15:02:00Z",
+        proposed_action="ESCALATE",
+    )
+    (outbox_dir / f"decision_exec_{decision_id}.result.json").write_text(json.dumps({"status": "committed"}), encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("no automatic retry")),
+    )
+
+    response = client.post("/api/decisions/latest/retry", json={})
+
+    assert response.status_code == 409
+    assert response.json() == {"ok": False, "error": "execution_outcome_not_retryable"}
+
+
+def test_escalate_endpoint_accepts_failed_execution_and_preserves_append_only_history(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    audit_dir = observability_root / "artifacts" / "router_audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-escalate",
+        ts_utc="2026-03-11T15:03:00Z",
+        signal_received="UNKNOWN",
+        proposed_action="ESCALATE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_HANDOFF_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-escalate",
+        ts_utc="2026-03-11T15:03:00Z",
+        proposed_action="ESCALATE",
+    )
+    (audit_dir / f"decision_exec_{decision_id}.json").write_text(json.dumps({"decision": "error"}), encoding="utf-8")
+    before_lines = (observability_root / "logs" / "decision_log.jsonl").read_text(encoding="utf-8").splitlines()
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda task, *, task_id=None: {"task_id": task_id, "inbox_path": f"interface/inbox/{task_id}.yaml"},
+    )
+
+    response = client.post("/api/decisions/latest/escalate", json={})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["escalation"]["decision_id"] == decision_id
+    assert payload["escalation"]["requested_action"] == "ESCALATE"
+    after_lines = (observability_root / "logs" / "decision_log.jsonl").read_text(encoding="utf-8").splitlines()
+    assert after_lines[: len(before_lines)] == before_lines
+    assert json.loads(after_lines[-1])["event"] == "EXECUTION_ESCALATION_REQUESTED"
+
+
+def test_no_automatic_retry_path_is_added_to_latest_endpoint(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    audit_dir = observability_root / "artifacts" / "router_audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-passive",
+        ts_utc="2026-03-11T15:04:00Z",
+        signal_received="INCONSISTENT",
+        proposed_action="QUARANTINE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_HANDOFF_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-passive",
+        ts_utc="2026-03-11T15:04:00Z",
+        proposed_action="QUARANTINE",
+    )
+    (audit_dir / f"decision_exec_{decision_id}.json").write_text(json.dumps({"decision": "rejected"}), encoding="utf-8")
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("latest endpoint must not dispatch")),
+    )
+
+    response = client.get("/api/decisions/latest")
+
+    assert response.status_code == 200
+    execution = response.json()["latest"]["execution"]
+    assert execution["outcome_status"] == "EXECUTION_FAILED"
+
+
+def test_latest_suggestion_returns_retry_for_failed_execution(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    audit_dir = observability_root / "artifacts" / "router_audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-suggest-retry",
+        ts_utc="2026-03-11T16:10:00Z",
+        signal_received="INCONSISTENT",
+        proposed_action="QUARANTINE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_HANDOFF_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-suggest-retry",
+        ts_utc="2026-03-11T16:10:00Z",
+        proposed_action="QUARANTINE",
+    )
+    (audit_dir / f"decision_exec_{decision_id}.json").write_text(json.dumps({"decision": "rejected"}), encoding="utf-8")
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/latest/suggestion")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["suggestion"] == "RETRY_RECOMMENDED"
+    assert payload["reason"] == "execution_failed_after_approved_decision"
+
+
+def test_latest_suggestion_returns_escalation_for_unknown_execution(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    outbox_dir = repo_root / "interface" / "outbox" / "tasks"
+    outbox_dir.mkdir(parents=True, exist_ok=True)
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-suggest-escalate",
+        ts_utc="2026-03-11T16:11:00Z",
+        signal_received="MISSING_PROOF",
+        proposed_action="REVIEW_PROOF",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_HANDOFF_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-suggest-escalate",
+        ts_utc="2026-03-11T16:11:00Z",
+        proposed_action="REVIEW_PROOF",
+    )
+    (outbox_dir / f"decision_exec_{decision_id}.result.json").write_text("{bad", encoding="utf-8")
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/latest/suggestion")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["suggestion"] == "ESCALATION_RECOMMENDED"
+    assert payload["reason"] == "execution_outcome_unknown_after_approved_decision"
+
+
+def test_latest_suggestion_returns_no_action_for_succeeded_execution(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    outbox_dir = repo_root / "interface" / "outbox" / "tasks"
+    outbox_dir.mkdir(parents=True, exist_ok=True)
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-suggest-success",
+        ts_utc="2026-03-11T16:12:00Z",
+        signal_received="UNKNOWN",
+        proposed_action="ESCALATE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_HANDOFF_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-suggest-success",
+        ts_utc="2026-03-11T16:12:00Z",
+        proposed_action="ESCALATE",
+    )
+    (outbox_dir / f"decision_exec_{decision_id}.result.json").write_text(json.dumps({"status": "committed"}), encoding="utf-8")
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/latest/suggestion")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["suggestion"] == "NO_ACTION_RECOMMENDED"
+    assert payload["reason"] == "execution_succeeded"
+
+
+def test_latest_suggestion_returns_no_action_when_decision_missing(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+    (observability_root / "logs").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/latest/suggestion")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["suggestion"] == "NO_ACTION_RECOMMENDED"
+    assert payload["reason"] == "no_latest_decision"

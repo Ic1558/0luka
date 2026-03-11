@@ -9,6 +9,11 @@ from tools.ops.control_plane_persistence import DecisionPersistenceError, read_d
 
 SUCCESS_STATUSES = {"committed", "ok", "success", "completed", "dry_run_ok"}
 FAILURE_AUDIT_DECISIONS = {"rejected", "error"}
+EXECUTION_EVENTS = {
+    "EXECUTION_HANDOFF_ACCEPTED",
+    "EXECUTION_RETRY_REQUESTED",
+    "EXECUTION_ESCALATION_REQUESTED",
+}
 
 
 def _safe_relative(path: Path, root: Path) -> str | None:
@@ -25,12 +30,41 @@ def _read_json(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _find_handoff_event(decision_id: str, observability_root: Path) -> dict[str, Any] | None:
+def _latest_attempt_context(decision_id: str, observability_root: Path) -> dict[str, Any] | None:
     rows = read_decision_history(observability_root, limit=200)
-    for row in reversed(rows):
-        if row.get("decision_id") == decision_id and row.get("event") == "EXECUTION_HANDOFF_ACCEPTED":
-            return row
-    return None
+    latest_event: dict[str, Any] | None = None
+    retry_count = 0
+    escalation_count = 0
+
+    for row in rows:
+        if row.get("decision_id") != decision_id:
+            continue
+        event = row.get("event")
+        if event not in EXECUTION_EVENTS:
+            continue
+        latest_event = row
+        if event == "EXECUTION_RETRY_REQUESTED":
+            retry_count += 1
+        elif event == "EXECUTION_ESCALATION_REQUESTED":
+            escalation_count += 1
+
+    if latest_event is None:
+        return None
+
+    event = str(latest_event.get("event") or "")
+    if event == "EXECUTION_HANDOFF_ACCEPTED":
+        task_id = f"decision_exec_{decision_id}"
+    elif event == "EXECUTION_RETRY_REQUESTED":
+        task_id = f"decision_exec_{decision_id}_retry_{retry_count}"
+    else:
+        task_id = f"decision_exec_{decision_id}_escalate_{escalation_count}"
+
+    return {
+        "latest_event": latest_event,
+        "task_id": task_id,
+        "retry_count": retry_count,
+        "escalation_count": escalation_count,
+    }
 
 
 def reconcile_execution_outcome(
@@ -47,18 +81,20 @@ def reconcile_execution_outcome(
         return None
 
     try:
-        handoff = _find_handoff_event(decision_id, observability_root)
+        attempt = _latest_attempt_context(decision_id, observability_root)
     except DecisionPersistenceError:
         return {
             "bridge_status": "HANDOFF_ACCEPTED",
             "outcome_status": "EXECUTION_UNKNOWN",
             "outcome_ref": None,
+            "retry_count": 0,
+            "escalation_count": 0,
         }
 
-    if handoff is None:
+    if attempt is None:
         return None
 
-    task_id = f"decision_exec_{decision_id}"
+    task_id = attempt["task_id"]
     outbox_path = repo_root / "interface" / "outbox" / "tasks" / f"{task_id}.result.json"
     audit_path = repo_root / "observability" / "artifacts" / "router_audit" / f"{task_id}.json"
 
@@ -70,6 +106,8 @@ def reconcile_execution_outcome(
                 "bridge_status": "HANDOFF_ACCEPTED",
                 "outcome_status": "EXECUTION_UNKNOWN",
                 "outcome_ref": _safe_relative(outbox_path, repo_root),
+                "retry_count": attempt["retry_count"],
+                "escalation_count": attempt["escalation_count"],
             }
         status = str(payload.get("status") or "").strip().lower()
         if status in SUCCESS_STATUSES:
@@ -77,11 +115,15 @@ def reconcile_execution_outcome(
                 "bridge_status": "HANDOFF_ACCEPTED",
                 "outcome_status": "EXECUTION_SUCCEEDED",
                 "outcome_ref": _safe_relative(outbox_path, repo_root),
+                "retry_count": attempt["retry_count"],
+                "escalation_count": attempt["escalation_count"],
             }
         return {
             "bridge_status": "HANDOFF_ACCEPTED",
             "outcome_status": "EXECUTION_UNKNOWN",
             "outcome_ref": _safe_relative(outbox_path, repo_root),
+            "retry_count": attempt["retry_count"],
+            "escalation_count": attempt["escalation_count"],
         }
 
     if audit_path.exists():
@@ -92,6 +134,8 @@ def reconcile_execution_outcome(
                 "bridge_status": "HANDOFF_ACCEPTED",
                 "outcome_status": "EXECUTION_UNKNOWN",
                 "outcome_ref": _safe_relative(audit_path, repo_root),
+                "retry_count": attempt["retry_count"],
+                "escalation_count": attempt["escalation_count"],
             }
         decision_value = str(payload.get("decision") or "").strip().lower()
         if decision_value in FAILURE_AUDIT_DECISIONS:
@@ -99,15 +143,21 @@ def reconcile_execution_outcome(
                 "bridge_status": "HANDOFF_ACCEPTED",
                 "outcome_status": "EXECUTION_FAILED",
                 "outcome_ref": _safe_relative(audit_path, repo_root),
+                "retry_count": attempt["retry_count"],
+                "escalation_count": attempt["escalation_count"],
             }
         return {
             "bridge_status": "HANDOFF_ACCEPTED",
             "outcome_status": "EXECUTION_UNKNOWN",
             "outcome_ref": _safe_relative(audit_path, repo_root),
+            "retry_count": attempt["retry_count"],
+            "escalation_count": attempt["escalation_count"],
         }
 
     return {
         "bridge_status": "HANDOFF_ACCEPTED",
         "outcome_status": "HANDOFF_ONLY",
         "outcome_ref": None,
+        "retry_count": attempt["retry_count"],
+        "escalation_count": attempt["escalation_count"],
     }
