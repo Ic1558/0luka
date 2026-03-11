@@ -367,7 +367,10 @@
             <h3>Suggested Action</h3>
             <dl id="decision-suggestion-fields">
               <dt>Suggestion</dt><dd data-field="suggestion">No Action Recommended</dd>
+              <dt>Confidence</dt><dd data-field="confidence_band">Low</dd>
+              <dt>Confidence Score</dt><dd data-field="confidence_score">0.20</dd>
               <dt>Reason</dt><dd data-field="reason">No latest decision available.</dd>
+              <dt>Hint</dt><dd data-field="root_cause_hint">No latest decision available for suggestion analysis.</dd>
             </dl>
           </div>
           <div class="policy-controls">
@@ -812,12 +815,27 @@
       return mapping[reason] || reason.replaceAll('_', ' ');
     }
 
+    function suggestionConfidenceBandLabel(payload) {
+      const band = payload && payload.confidence_band ? String(payload.confidence_band) : 'LOW';
+      if (band === 'HIGH') return 'High';
+      if (band === 'MEDIUM') return 'Medium';
+      return 'Low';
+    }
+
+    function suggestionConfidenceScoreLabel(payload) {
+      const raw = payload && typeof payload.confidence_score === 'number' ? payload.confidence_score : 0.2;
+      return raw.toFixed(2);
+    }
+
     function renderDecisionSuggestion(payload) {
       const panel = document.getElementById('decision-suggestion-fields');
       if (!panel) return;
       const values = {
         suggestion: suggestionLabel(payload),
+        confidence_band: suggestionConfidenceBandLabel(payload),
+        confidence_score: suggestionConfidenceScoreLabel(payload),
         reason: suggestionReasonLabel(payload),
+        root_cause_hint: payload && payload.root_cause_hint ? String(payload.root_cause_hint) : 'No latest decision available for suggestion analysis.',
       };
       panel.querySelectorAll('[data-field]').forEach((node) => {
         const field = node.getAttribute('data-field') || '';

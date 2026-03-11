@@ -7,6 +7,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from tools.ops.control_plane_suggestions import (
+    CONFIDENCE_HIGH,
+    CONFIDENCE_LOW,
+    CONFIDENCE_MEDIUM,
     SUGGESTION_ESCALATE,
     SUGGESTION_NO_ACTION,
     SUGGESTION_RETRY,
@@ -27,7 +30,10 @@ def test_approved_failed_returns_retry_suggestion() -> None:
     )
 
     assert payload["suggestion"] == SUGGESTION_RETRY
+    assert payload["confidence_score"] == 0.9
+    assert payload["confidence_band"] == CONFIDENCE_HIGH
     assert payload["reason"] == "execution_failed_after_approved_decision"
+    assert payload["root_cause_hint"] == "deterministic execution failure observed after approved handoff"
 
 
 def test_approved_unknown_returns_escalate_suggestion() -> None:
@@ -41,7 +47,10 @@ def test_approved_unknown_returns_escalate_suggestion() -> None:
     )
 
     assert payload["suggestion"] == SUGGESTION_ESCALATE
+    assert payload["confidence_score"] == 0.65
+    assert payload["confidence_band"] == CONFIDENCE_MEDIUM
     assert payload["reason"] == "execution_outcome_unknown_after_approved_decision"
+    assert payload["root_cause_hint"] == "downstream result not safely reconcilable from current execution surfaces"
 
 
 def test_approved_succeeded_returns_no_action_suggestion() -> None:
@@ -55,14 +64,20 @@ def test_approved_succeeded_returns_no_action_suggestion() -> None:
     )
 
     assert payload["suggestion"] == SUGGESTION_NO_ACTION
+    assert payload["confidence_score"] == 0.95
+    assert payload["confidence_band"] == CONFIDENCE_HIGH
     assert payload["reason"] == "execution_succeeded"
+    assert payload["root_cause_hint"] == "execution completed successfully; no further action suggested"
 
 
 def test_missing_decision_returns_no_action_suggestion() -> None:
     payload = derive_suggestion(None, None)
 
     assert payload["suggestion"] == SUGGESTION_NO_ACTION
+    assert payload["confidence_score"] == 0.2
+    assert payload["confidence_band"] == CONFIDENCE_LOW
     assert payload["reason"] == "no_latest_decision"
+    assert payload["root_cause_hint"] == "no latest decision available for suggestion analysis"
 
 
 def test_load_latest_suggestion_is_deterministic_for_failed_execution(tmp_path: Path) -> None:
@@ -124,3 +139,21 @@ def test_load_latest_suggestion_is_deterministic_for_failed_execution(tmp_path: 
 
     assert first == second
     assert first["suggestion"] == SUGGESTION_RETRY
+    assert first["confidence_band"] == CONFIDENCE_HIGH
+
+
+def test_handoff_only_returns_low_confidence_no_action_hint() -> None:
+    payload = derive_suggestion(
+        {
+            "decision_id": "decision_4",
+            "trace_id": "trace_4",
+            "operator_status": "APPROVED",
+        },
+        {"outcome_status": "HANDOFF_ONLY"},
+    )
+
+    assert payload["suggestion"] == SUGGESTION_NO_ACTION
+    assert payload["confidence_score"] == 0.45
+    assert payload["confidence_band"] == CONFIDENCE_LOW
+    assert payload["reason"] == "waiting_for_confirmed_execution_outcome"
+    assert payload["root_cause_hint"] == "execution was handed off but no confirmed downstream outcome is available"
