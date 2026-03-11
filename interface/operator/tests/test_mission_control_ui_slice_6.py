@@ -83,8 +83,10 @@ def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
     assert "fetch(endpoint, {" in TEMPLATE
     assert "/api/decisions/latest/approve" in TEMPLATE
     assert "/api/decisions/latest/reject" in TEMPLATE
+    assert "/api/decisions/latest/execute" in TEMPLATE
     assert "submitDecisionResolution('approve')" in TEMPLATE
     assert "submitDecisionResolution('reject')" in TEMPLATE
+    assert "submitDecisionExecution()" in TEMPLATE
 
 
 def test_decision_desk_buttons_start_disabled_and_can_be_enabled_for_pending() -> None:
@@ -92,9 +94,11 @@ def test_decision_desk_buttons_start_disabled_and_can_be_enabled_for_pending() -
 
     assert 'id="decision-approve"' in section
     assert 'id="decision-reject"' in section
+    assert 'id="decision-execute"' in section
     assert 'id="decision-operator-note"' in section
     assert 'disabled' in section
     assert "setDecisionActionState(true);" in TEMPLATE
+    assert "setDecisionExecuteState(true);" in TEMPLATE
 
 
 def test_decision_desk_has_no_execution_or_remediation_actions() -> None:
@@ -104,3 +108,5 @@ def test_decision_desk_has_no_execution_or_remediation_actions() -> None:
     assert "submitApprovalAction" not in section
     assert "remediation_engine" not in TEMPLATE
     assert "task_dispatcher" not in TEMPLATE
+    assert "run anyway" not in TEMPLATE.lower()
+    assert "retry" not in TEMPLATE.lower()

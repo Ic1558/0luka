@@ -363,6 +363,7 @@
             <textarea id="decision-operator-note" placeholder="optional operator note" rows="3" disabled></textarea>
             <button id="decision-approve" type="button" onclick="submitDecisionResolution('approve')" disabled>Approve</button>
             <button id="decision-reject" type="button" onclick="submitDecisionResolution('reject')" disabled>Reject</button>
+            <button id="decision-execute" type="button" onclick="submitDecisionExecution()" disabled>Execute Approved Decision</button>
           </div>
           <p id="decision-desk-action-status" class="approval-status">Read-only until a pending decision is available.</p>
         </div>
@@ -738,9 +739,16 @@
       const noteNode = document.getElementById('decision-operator-note');
       const approveNode = document.getElementById('decision-approve');
       const rejectNode = document.getElementById('decision-reject');
+      const executeNode = document.getElementById('decision-execute');
       if (noteNode) noteNode.disabled = !enabled;
       if (approveNode) approveNode.disabled = !enabled;
       if (rejectNode) rejectNode.disabled = !enabled;
+      if (executeNode) executeNode.disabled = true;
+    }
+
+    function setDecisionExecuteState(enabled) {
+      const executeNode = document.getElementById('decision-execute');
+      if (executeNode) executeNode.disabled = !enabled;
     }
 
     function renderDecisionDesk(payload) {
@@ -751,16 +759,20 @@
       const noteNode = document.getElementById('decision-operator-note');
       if (!panel || !statusNode || !badge || !actionStatus) return;
 
+      const latest = payload && payload.latest && typeof payload.latest === 'object'
+        ? payload.latest
+        : null;
       const pending = payload && payload.pending && typeof payload.pending === 'object'
         ? payload.pending
         : null;
 
-      if (!pending) {
+      if (!latest) {
         statusNode.textContent = 'System is healthy. No pending decisions.';
         actionStatus.textContent = 'Read-only until a pending decision is available.';
         badge.className = 'decision-badge no-action';
         badge.textContent = 'NO_ACTION';
         setDecisionActionState(false);
+        setDecisionExecuteState(false);
         if (noteNode) noteNode.value = '';
         panel.querySelectorAll('[data-field]').forEach((node) => {
           node.textContent = 'n/a';
@@ -768,21 +780,40 @@
         return;
       }
 
-      statusNode.textContent = 'Pending decision available for operator review.';
-      actionStatus.textContent = 'Approve or reject to resolve the current pending decision.';
-      const action = String(pending.proposed_action || 'NO_ACTION');
+      const action = String(latest.proposed_action || 'NO_ACTION');
+      const operatorStatus = String(latest.operator_status || 'UNKNOWN');
       badge.className = decisionBadgeClass(action);
       badge.textContent = action;
-      setDecisionActionState(true);
+      if (operatorStatus === 'PENDING') {
+        statusNode.textContent = 'Pending decision available for operator review.';
+        actionStatus.textContent = 'Approve or reject to resolve the current pending decision.';
+        setDecisionActionState(true);
+        setDecisionExecuteState(false);
+      } else if (operatorStatus === 'APPROVED' && action !== 'NO_ACTION') {
+        statusNode.textContent = 'Approved decision available for explicit execution handoff.';
+        actionStatus.textContent = 'Execution handoff only. Completion is not implied in this phase.';
+        setDecisionActionState(false);
+        setDecisionExecuteState(true);
+      } else if (operatorStatus === 'APPROVED') {
+        statusNode.textContent = 'Approved decision is non-executable in this phase.';
+        actionStatus.textContent = 'NO_ACTION decisions cannot cross the execution boundary.';
+        setDecisionActionState(false);
+        setDecisionExecuteState(false);
+      } else {
+        statusNode.textContent = 'Latest decision is not actionable.';
+        actionStatus.textContent = 'Only APPROVED executable decisions can request execution handoff.';
+        setDecisionActionState(false);
+        setDecisionExecuteState(false);
+      }
       const values = {
-        decision_id: pending.decision_id,
-        trace_id: pending.trace_id,
-        signal_received: pending.signal_received,
-        proposed_action: pending.proposed_action,
-        evidence_refs: Array.isArray(pending.evidence_refs) ? pending.evidence_refs.join(', ') : pending.evidence_refs,
-        ts_utc: pending.ts_utc,
-        operator_status: pending.operator_status,
-        operator_note: pending.operator_note,
+        decision_id: latest.decision_id,
+        trace_id: latest.trace_id,
+        signal_received: latest.signal_received,
+        proposed_action: latest.proposed_action,
+        evidence_refs: Array.isArray(latest.evidence_refs) ? latest.evidence_refs.join(', ') : latest.evidence_refs,
+        ts_utc: latest.ts_utc,
+        operator_status: latest.operator_status,
+        operator_note: latest.operator_note,
       };
       panel.querySelectorAll('[data-field]').forEach((node) => {
         const field = node.getAttribute('data-field') || '';
@@ -870,9 +901,33 @@
         }
         if (response.ok) {
           refreshDecisionDesk();
+          refreshDecisionHistory();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = action + ' failed: request_error';
+      }
+    }
+
+    async function submitDecisionExecution() {
+      const statusNode = document.getElementById('decision-desk-action-status');
+      try {
+        const response = await fetch('/api/decisions/latest/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        const result = await response.json();
+        if (statusNode) {
+          statusNode.textContent = result.ok
+            ? 'handoff accepted: ' + String(result.requested_action || 'n/a')
+            : 'execute failed: ' + String(result.error || 'unknown_error');
+        }
+        if (response.ok) {
+          refreshDecisionDesk();
+          refreshDecisionHistory();
+        }
+      } catch (error) {
+        if (statusNode) statusNode.textContent = 'execute failed: request_error';
       }
     }
 
