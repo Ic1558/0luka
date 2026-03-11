@@ -13,6 +13,13 @@ def _system_model_section() -> str:
     return TEMPLATE[start:end]
 
 
+def _decision_desk_section() -> str:
+    marker = "<h2>Decision Desk</h2>"
+    start = TEMPLATE.index(marker)
+    end = TEMPLATE.index("</section>", start)
+    return TEMPLATE[start:end]
+
+
 def test_system_model_section_renders_read_only_panel() -> None:
     section = _system_model_section()
 
@@ -54,3 +61,41 @@ def test_system_model_section_has_no_repos_qs_dependency() -> None:
     assert "repos/qs Boundary" in section
     assert "fetch('/api/qs_runs" not in section
     assert "proof-artifact-panel" not in section
+
+
+def test_decision_desk_section_renders_pending_fields() -> None:
+    section = _decision_desk_section()
+
+    assert 'id="decision-desk-panel"' in section
+    assert 'id="decision-desk-status"' in section
+    assert 'id="decision-desk-fields"' in section
+    assert 'data-field="decision_id"' in section
+    assert 'data-field="trace_id"' in section
+    assert 'data-field="signal_received"' in section
+    assert 'data-field="proposed_action"' in section
+    assert 'data-field="evidence_refs"' in section
+    assert 'data-field="ts_utc"' in section
+    assert 'data-field="operator_status"' in section
+    assert "System is healthy. No pending decisions." in section
+
+
+def test_decision_desk_fetches_api_and_has_empty_state_fallback() -> None:
+    assert "fetch('/api/decisions/latest')" in TEMPLATE
+    assert "renderDecisionDesk({ pending: null });" in TEMPLATE
+    assert "Pending decision available for operator review." in TEMPLATE
+
+
+def test_decision_desk_is_read_only_and_has_no_action_controls() -> None:
+    section = _decision_desk_section()
+
+    assert "<button" not in section
+    assert "<input" not in section
+    assert "submitApprovalAction" not in section
+    assert "enqueueRemediationItem" not in section
+
+
+def test_decision_desk_has_no_repos_qs_dependency() -> None:
+    section = _decision_desk_section()
+
+    assert "repos/qs" not in section
+    assert "fetch('/api/qs_runs" not in section

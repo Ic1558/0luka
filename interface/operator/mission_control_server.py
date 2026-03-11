@@ -26,6 +26,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.ops import approval_presets, approval_write, remediation_queue
+from tools.ops.control_plane_persistence import DecisionPersistenceError, read_latest_decision
 from tools.ops.decision_engine import classify_once
 from tools.ops.run_interpreter import interpret_run
 
@@ -593,6 +594,45 @@ def load_decision_preview() -> dict[str, Any]:
     }
 
 
+def _sanitize_evidence_refs(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    refs: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or not item.strip():
+            continue
+        text = item.strip()
+        if text.startswith("/"):
+            text = Path(text).name
+        refs.append(text)
+    return refs
+
+
+def load_latest_pending_decision() -> dict[str, Any]:
+    try:
+        payload = read_latest_decision(_runtime_root())
+    except DecisionPersistenceError:
+        return {"pending": None}
+
+    if not isinstance(payload, dict):
+        return {"pending": None}
+    if payload.get("operator_status") != "PENDING":
+        return {"pending": None}
+
+    return {
+        "pending": {
+            "decision_id": payload.get("decision_id"),
+            "trace_id": payload.get("trace_id"),
+            "signal_received": payload.get("signal_received"),
+            "proposed_action": payload.get("proposed_action"),
+            "evidence_refs": _sanitize_evidence_refs(payload.get("evidence_refs")),
+            "ts_utc": payload.get("ts_utc"),
+            "operator_status": payload.get("operator_status"),
+            "operator_note": payload.get("operator_note"),
+        }
+    }
+
+
 def load_remediation_queue() -> dict[str, Any]:
     return remediation_queue.list_queue(runtime_root=_runtime_root())
 
@@ -1110,6 +1150,10 @@ async def system_model_endpoint(request) -> JSONResponse:
     return JSONResponse({"ok": True, "system_model": payload})
 
 
+async def decisions_latest_endpoint(request) -> JSONResponse:
+    return JSONResponse(load_latest_pending_decision())
+
+
 async def remediation_queue_endpoint(request) -> JSONResponse:
     return JSONResponse(load_remediation_queue())
 
@@ -1248,6 +1292,7 @@ def create_app():
         app.add_api_route("/api/policy_drift", policy_drift_endpoint, methods=["GET"])
         app.add_api_route("/api/decision_preview", decision_preview_endpoint, methods=["GET"])
         app.add_api_route("/api/system_model", system_model_endpoint, methods=["GET"])
+        app.add_api_route("/api/decisions/latest", decisions_latest_endpoint, methods=["GET"])
         app.add_api_route("/api/approval_log", approval_log_endpoint, methods=["GET"])
         app.add_api_route("/api/runtime_decisions", runtime_decisions_endpoint, methods=["GET"])
         app.add_api_route("/api/remediation_queue", remediation_queue_endpoint, methods=["GET"])
@@ -1280,6 +1325,7 @@ def create_app():
             Route("/api/policy_drift", policy_drift_endpoint),
             Route("/api/decision_preview", decision_preview_endpoint),
             Route("/api/system_model", system_model_endpoint),
+            Route("/api/decisions/latest", decisions_latest_endpoint),
             Route("/api/approval_log", approval_log_endpoint),
             Route("/api/runtime_decisions", runtime_decisions_endpoint),
             Route("/api/remediation_queue", remediation_queue_endpoint),
