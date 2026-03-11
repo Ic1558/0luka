@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from tools.ops.control_plane_policy_observability import derive_policy_stats
+from tools.ops.control_plane_policy_observability import derive_policy_stats, load_policy_stats
 
 
 def test_derive_policy_stats_counts_success_failure_and_alignment(tmp_path) -> None:
@@ -63,3 +63,49 @@ def test_derive_policy_stats_stays_healthy_without_failure_drift(tmp_path) -> No
     assert payload["policy_state"] == "POLICY_HEALTHY"
     assert payload["auto_lane_state"] == "AUTO_LANE_ACTIVE"
     assert payload["warning"] is None
+
+
+def test_manual_unfreeze_event_overrides_degraded_auto_lane_state(tmp_path) -> None:
+    repo_root = tmp_path / "repo"
+    observability_root = repo_root / "observability"
+    (observability_root / "logs").mkdir(parents=True, exist_ok=True)
+    log_path = observability_root / "logs" / "decision_log.jsonl"
+    rows = [
+        {
+            "event": "EXECUTION_RETRY_REQUESTED",
+            "decision_id": "d1",
+            "trace_id": "t1",
+            "ts_utc": "2026-03-11T18:00:00Z",
+            "operator_status": "APPROVED",
+            "proposed_action": "QUARANTINE",
+            "evidence_refs": ["artifact://proof-1"],
+        },
+        {
+            "event": "AUTO_RETRY_TRIGGERED",
+            "decision_id": "d1",
+            "trace_id": "t1",
+            "ts_utc": "2026-03-11T18:00:01Z",
+            "operator_status": "APPROVED",
+            "proposed_action": "QUARANTINE",
+            "evidence_refs": ["artifact://proof-1"],
+            "confidence_band": "HIGH",
+        },
+        {
+            "event": "POLICY_AUTO_LANE_UNFROZEN",
+            "decision_id": "d1",
+            "trace_id": "t1",
+            "ts_utc": "2026-03-11T18:10:00Z",
+            "operator_status": "APPROVED",
+            "proposed_action": "QUARANTINE",
+            "evidence_refs": ["artifact://proof-1"],
+            "operator_note": "manual review completed; re-enable narrow retry lane",
+        },
+    ]
+    log_path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+
+    payload = load_policy_stats(observability_root=observability_root, repo_root=repo_root)
+
+    assert payload["auto_lane_state"] == "AUTO_LANE_ACTIVE"
+    assert payload["auto_lane_reason"] == "manual_policy_review_completed"
+    assert payload["auto_lane_lifecycle_event"] == "POLICY_AUTO_LANE_UNFROZEN"
+    assert payload["auto_lane_operator_note"] == "manual review completed; re-enable narrow retry lane"

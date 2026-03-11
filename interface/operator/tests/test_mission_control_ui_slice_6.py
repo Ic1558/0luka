@@ -99,6 +99,7 @@ def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
     assert "fetch('/api/decisions/latest/policy')" in TEMPLATE
     assert "fetch('/api/decisions/latest/suggestion-feedback')" in TEMPLATE
     assert "fetch('/api/policy/stats')" in TEMPLATE
+    assert "fetch('/api/policy/auto-lane/unfreeze'" in TEMPLATE
     assert "fetch(endpoint, {" in TEMPLATE
     assert "/api/decisions/latest/approve" in TEMPLATE
     assert "/api/decisions/latest/reject" in TEMPLATE
@@ -221,8 +222,16 @@ def test_decision_desk_policy_stats_panel_is_observability_only() -> None:
     assert 'data-field="policy_state"' in section
     assert 'data-field="auto_lane_state"' in section
     assert 'data-field="auto_lane_reason"' in section
+    assert 'data-field="auto_lane_lifecycle_event"' in section
+    assert 'data-field="auto_lane_operator_note"' in section
+    assert 'id="policy-auto-lane-note"' in section
+    assert 'id="policy-auto-lane-unfreeze"' in section
     assert 'data-field="warning"' in section
     assert "Policy reliability degraded. Review recommended." in TEMPLATE
     assert "Auto retry is frozen; manual retry remains available." in TEMPLATE
+    assert "Re-enable Auto Retry Lane" in TEMPLATE
+    assert "submitPolicyAutoLaneUnfreeze()" in TEMPLATE
+    assert "unfreezeButton.disabled = !isFrozen" in TEMPLATE
+    assert "noteNode.disabled = !isFrozen" in TEMPLATE
     assert "renderPolicyStats(payload)" in TEMPLATE
     assert "refreshPolicyStats()" in TEMPLATE

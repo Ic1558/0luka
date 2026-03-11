@@ -17,6 +17,7 @@ from tools.ops.control_plane_policy import (
 from tools.ops.control_plane_policy_guard import (
     AUTO_LANE_ACTIVE,
     AUTO_LANE_FROZEN,
+    AUTO_LANE_UNFROZEN_EVENT,
     apply_auto_lane_guard,
     derive_auto_lane_guard,
 )
@@ -213,3 +214,24 @@ def test_guard_downgrades_auto_allowed_retry_when_frozen() -> None:
     assert payload["policy_verdict_raw"] == POLICY_AUTO_ALLOWED
     assert payload["policy_safe_lane"] == SAFE_LANE_SUPERVISED_RETRY
     assert payload["auto_lane_state"] == AUTO_LANE_FROZEN
+
+
+def test_manual_unfreeze_lifecycle_event_reactivates_auto_lane() -> None:
+    guard = derive_auto_lane_guard(
+        {
+            "stats_available": True,
+            "auto_retry_triggered": 3,
+            "success_rate": 0.2,
+            "policy_state": "POLICY_DEGRADED",
+            "warning": "Policy reliability degraded. Review recommended.",
+        },
+        lifecycle_event={
+            "event": AUTO_LANE_UNFROZEN_EVENT,
+            "operator_note": "manual review completed; re-enable narrow retry lane",
+        },
+    )
+
+    assert guard["auto_lane_state"] == AUTO_LANE_ACTIVE
+    assert guard["auto_lane_reason"] == "manual_policy_review_completed"
+    assert guard["auto_lane_lifecycle_event"] == AUTO_LANE_UNFROZEN_EVENT
+    assert guard["auto_lane_operator_note"] == "manual review completed; re-enable narrow retry lane"
