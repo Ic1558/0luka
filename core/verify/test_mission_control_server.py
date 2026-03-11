@@ -1749,7 +1749,8 @@ def test_retry_endpoint_accepts_failed_execution_and_increments_retry_count(tmp_
         json.loads(line)
         for line in (observability_root / "logs" / "decision_log.jsonl").read_text(encoding="utf-8").splitlines()
     ]
-    assert ledger_rows[-1]["event"] == "EXECUTION_RETRY_REQUESTED"
+    assert ledger_rows[-2]["event"] == "EXECUTION_RETRY_REQUESTED"
+    assert ledger_rows[-1]["event"] == "SUGGESTION_ACCEPTED"
 
     latest_response = client.get("/api/decisions/latest")
     execution = latest_response.json()["latest"]["execution"]
@@ -1878,7 +1879,8 @@ def test_escalate_endpoint_accepts_failed_execution_and_preserves_append_only_hi
     assert payload["escalation"]["requested_action"] == "ESCALATE"
     after_lines = (observability_root / "logs" / "decision_log.jsonl").read_text(encoding="utf-8").splitlines()
     assert after_lines[: len(before_lines)] == before_lines
-    assert json.loads(after_lines[-1])["event"] == "EXECUTION_ESCALATION_REQUESTED"
+    assert json.loads(after_lines[-2])["event"] == "EXECUTION_ESCALATION_REQUESTED"
+    assert json.loads(after_lines[-1])["event"] == "SUGGESTION_OVERRIDDEN"
 
 
 def test_no_automatic_retry_path_is_added_to_latest_endpoint(tmp_path, monkeypatch) -> None:
@@ -2055,3 +2057,128 @@ def test_latest_suggestion_returns_no_action_when_decision_missing(tmp_path, mon
     assert payload["confidence_band"] == "LOW"
     assert payload["reason"] == "no_latest_decision"
     assert payload["root_cause_hint"] == "no latest decision available for suggestion analysis"
+
+
+def test_retry_records_suggestion_accepted_feedback(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    audit_dir = observability_root / "artifacts" / "router_audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-feedback-retry",
+        ts_utc="2026-03-11T17:00:00Z",
+        signal_received="INCONSISTENT",
+        proposed_action="QUARANTINE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_HANDOFF_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-feedback-retry",
+        ts_utc="2026-03-11T17:00:00Z",
+        proposed_action="QUARANTINE",
+    )
+    (audit_dir / f"decision_exec_{decision_id}.json").write_text(json.dumps({"decision": "rejected"}), encoding="utf-8")
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda task, *, task_id=None: {"task_id": task_id, "inbox_path": f"interface/inbox/{task_id}.yaml"},
+    )
+
+    response = client.post("/api/decisions/latest/retry", json={})
+
+    assert response.status_code == 200
+    feedback = client.get("/api/decisions/latest/suggestion-feedback").json()
+    assert feedback["count"] == 1
+    item = feedback["items"][0]
+    assert item["event"] == "SUGGESTION_ACCEPTED"
+    assert item["operator_action"] == "RETRY_EXECUTION"
+    assert item["alignment"] == "MATCHED_SUGGESTION"
+    assert item["suggestion"] == "RETRY_RECOMMENDED"
+    assert item["confidence_band"] == "HIGH"
+
+
+def test_ignore_suggestion_records_ignored_feedback(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    audit_dir = observability_root / "artifacts" / "router_audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-feedback-ignore",
+        ts_utc="2026-03-11T17:01:00Z",
+        signal_received="INCONSISTENT",
+        proposed_action="QUARANTINE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_HANDOFF_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-feedback-ignore",
+        ts_utc="2026-03-11T17:01:00Z",
+        proposed_action="QUARANTINE",
+    )
+    (audit_dir / f"decision_exec_{decision_id}.json").write_text(json.dumps({"decision": "rejected"}), encoding="utf-8")
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.post("/api/decisions/latest/suggestion-feedback/ignore", json={})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["feedback"]["alignment"] == "IGNORED_SUGGESTION"
+    feedback = client.get("/api/decisions/latest/suggestion-feedback").json()
+    assert feedback["items"][0]["event"] == "SUGGESTION_IGNORED"
+    assert feedback["items"][0]["operator_action"] == "IGNORE_SUGGESTION"
+
+
+def test_escalation_records_overridden_feedback_when_retry_was_suggested(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    audit_dir = observability_root / "artifacts" / "router_audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-feedback-override",
+        ts_utc="2026-03-11T17:02:00Z",
+        signal_received="INCONSISTENT",
+        proposed_action="QUARANTINE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_HANDOFF_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-feedback-override",
+        ts_utc="2026-03-11T17:02:00Z",
+        proposed_action="QUARANTINE",
+    )
+    (audit_dir / f"decision_exec_{decision_id}.json").write_text(json.dumps({"decision": "rejected"}), encoding="utf-8")
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda task, *, task_id=None: {"task_id": task_id, "inbox_path": f"interface/inbox/{task_id}.yaml"},
+    )
+
+    response = client.post("/api/decisions/latest/escalate", json={})
+
+    assert response.status_code == 200
+    feedback = client.get("/api/decisions/latest/suggestion-feedback").json()
+    item = feedback["items"][0]
+    assert item["event"] == "SUGGESTION_OVERRIDDEN"
+    assert item["operator_action"] == "ESCALATE_ISSUE"
+    assert item["alignment"] == "OVERRIDDEN"
+    assert item["suggestion"] == "RETRY_RECOMMENDED"

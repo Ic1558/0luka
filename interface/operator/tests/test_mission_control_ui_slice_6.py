@@ -91,6 +91,7 @@ def test_decision_desk_section_renders_pending_fields() -> None:
 def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
     assert "fetch('/api/decisions/latest')" in TEMPLATE
     assert "fetch('/api/decisions/latest/suggestion')" in TEMPLATE
+    assert "fetch('/api/decisions/latest/suggestion-feedback')" in TEMPLATE
     assert "fetch(endpoint, {" in TEMPLATE
     assert "/api/decisions/latest/approve" in TEMPLATE
     assert "/api/decisions/latest/reject" in TEMPLATE
@@ -102,7 +103,9 @@ def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
     assert "submitDecisionExecution()" in TEMPLATE
     assert "submitDecisionRetry()" in TEMPLATE
     assert "submitDecisionEscalation()" in TEMPLATE
+    assert "submitSuggestionIgnore()" in TEMPLATE
     assert "refreshDecisionSuggestion()" in TEMPLATE
+    assert "refreshSuggestionFeedback()" in TEMPLATE
 
 
 def test_decision_desk_buttons_start_disabled_and_can_be_enabled_for_pending() -> None:
@@ -113,6 +116,7 @@ def test_decision_desk_buttons_start_disabled_and_can_be_enabled_for_pending() -
     assert 'id="decision-execute"' in section
     assert 'id="decision-retry"' in section
     assert 'id="decision-escalate"' in section
+    assert 'id="decision-ignore-suggestion"' in section
     assert 'id="decision-operator-note"' in section
     assert 'disabled' in section
     assert "setDecisionActionState(true);" in TEMPLATE
@@ -162,6 +166,8 @@ def test_decision_desk_suggestion_panel_is_advisory_only() -> None:
     assert "No latest decision available." in section
     assert "Hint" in section
     assert "No latest decision available for suggestion analysis." in section
+    assert "No suggestion feedback submitted." in section
+    assert "No suggestion feedback recorded" in section
     assert "Retry Recommended" in TEMPLATE
     assert "Escalation Recommended" in TEMPLATE
     assert "High" in TEMPLATE
@@ -171,3 +177,6 @@ def test_decision_desk_suggestion_panel_is_advisory_only() -> None:
     assert "Execution outcome is unknown after approved decision." in TEMPLATE
     assert "root_cause_hint" in TEMPLATE
     assert "renderDecisionSuggestion(payload)" in TEMPLATE
+    assert 'id="decision-suggestion-feedback"' in section
+    assert 'id="decision-suggestion-status"' in section
+    assert "renderSuggestionFeedback(payload)" in TEMPLATE

@@ -150,7 +150,7 @@ def _handoff_request(
                 "trace_id": decision.get("trace_id"),
                 "ts_utc": decision.get("ts_utc"),
                 "signal_received": decision.get("signal_received"),
-                "proposed_action": request["requested_action"],
+                "proposed_action": decision.get("proposed_action"),
                 "evidence_refs": decision.get("evidence_refs"),
                 "operator_status": decision.get("operator_status"),
                 "operator_note": decision.get("operator_note"),

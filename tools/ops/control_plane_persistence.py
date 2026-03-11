@@ -29,6 +29,33 @@ LEDGER_EVENTS = {
     "EXECUTION_HANDOFF_ACCEPTED",
     "EXECUTION_RETRY_REQUESTED",
     "EXECUTION_ESCALATION_REQUESTED",
+    "SUGGESTION_ACCEPTED",
+    "SUGGESTION_IGNORED",
+    "SUGGESTION_OVERRIDDEN",
+}
+
+SUGGESTION_VALUES = {
+    "RETRY_RECOMMENDED",
+    "ESCALATION_RECOMMENDED",
+    "NO_ACTION_RECOMMENDED",
+}
+
+CONFIDENCE_BANDS = {
+    "HIGH",
+    "MEDIUM",
+    "LOW",
+}
+
+OPERATOR_ACTIONS = {
+    "RETRY_EXECUTION",
+    "ESCALATE_ISSUE",
+    "IGNORE_SUGGESTION",
+}
+
+SUGGESTION_ALIGNMENT = {
+    "MATCHED_SUGGESTION",
+    "IGNORED_SUGGESTION",
+    "OVERRIDDEN",
 }
 
 RESOLUTION_EVENT_BY_STATUS = {
@@ -84,6 +111,12 @@ def _normalize_operator_note(value: Any) -> str | None:
     if not isinstance(value, str):
         raise DecisionPersistenceError("invalid_operator_note")
     return value
+
+
+def _optional_enum(value: Any, field: str, allowed: set[str]) -> str | None:
+    if value is None:
+        return None
+    return _ensure_enum(value, field, allowed)
 
 
 def make_decision_id(*, trace_id: str, ts_utc: str, signal_received: str, proposed_action: str) -> str:
@@ -161,6 +194,16 @@ def _append_ledger_event(observability_root: str | Path, payload: dict[str, Any]
         "proposed_action": _ensure_enum(payload.get("proposed_action"), "proposed_action", PROPOSED_ACTIONS),
         "evidence_refs": _ensure_evidence_refs(payload.get("evidence_refs")),
     }
+    optional_fields = {
+        "operator_note": _normalize_operator_note(payload.get("operator_note")),
+        "suggestion": _optional_enum(payload.get("suggestion"), "suggestion", SUGGESTION_VALUES),
+        "confidence_band": _optional_enum(payload.get("confidence_band"), "confidence_band", CONFIDENCE_BANDS),
+        "operator_action": _optional_enum(payload.get("operator_action"), "operator_action", OPERATOR_ACTIONS),
+        "alignment": _optional_enum(payload.get("alignment"), "alignment", SUGGESTION_ALIGNMENT),
+    }
+    for key, value in optional_fields.items():
+        if value is not None:
+            record[key] = value
     path = _ledger_path(observability_root)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
@@ -207,6 +250,10 @@ def read_decision_history(observability_root: str | Path, limit: int = 50) -> li
                 "proposed_action": _ensure_enum(payload.get("proposed_action"), "proposed_action", PROPOSED_ACTIONS),
                 "evidence_refs": _ensure_evidence_refs(payload.get("evidence_refs")),
                 "operator_note": _normalize_operator_note(payload.get("operator_note")),
+                "suggestion": _optional_enum(payload.get("suggestion"), "suggestion", SUGGESTION_VALUES),
+                "confidence_band": _optional_enum(payload.get("confidence_band"), "confidence_band", CONFIDENCE_BANDS),
+                "operator_action": _optional_enum(payload.get("operator_action"), "operator_action", OPERATOR_ACTIONS),
+                "alignment": _optional_enum(payload.get("alignment"), "alignment", SUGGESTION_ALIGNMENT),
             }
         )
 
@@ -225,6 +272,48 @@ def append_decision_event(observability_root: str | Path, payload: dict[str, Any
         },
     )
     return validated
+
+
+def append_suggestion_feedback(
+    observability_root: str | Path,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    validated = _validated_proposal(payload)
+    event = _ensure_enum(payload.get("event"), "event", {"SUGGESTION_ACCEPTED", "SUGGESTION_IGNORED", "SUGGESTION_OVERRIDDEN"})
+    suggestion = _ensure_enum(payload.get("suggestion"), "suggestion", SUGGESTION_VALUES)
+    confidence_band = _ensure_enum(payload.get("confidence_band"), "confidence_band", CONFIDENCE_BANDS)
+    operator_action = _ensure_enum(payload.get("operator_action"), "operator_action", OPERATOR_ACTIONS)
+    alignment = _ensure_enum(payload.get("alignment"), "alignment", SUGGESTION_ALIGNMENT)
+    _append_ledger_event(
+        observability_root,
+        {
+            "event": event,
+            **validated,
+            "suggestion": suggestion,
+            "confidence_band": confidence_band,
+            "operator_action": operator_action,
+            "alignment": alignment,
+        },
+    )
+    return {
+        **validated,
+        "event": event,
+        "suggestion": suggestion,
+        "confidence_band": confidence_band,
+        "operator_action": operator_action,
+        "alignment": alignment,
+    }
+
+
+def read_suggestion_feedback(observability_root: str | Path, decision_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    rows = read_decision_history(observability_root, limit=limit)
+    items = [
+        row for row in rows
+        if row.get("event") in {"SUGGESTION_ACCEPTED", "SUGGESTION_IGNORED", "SUGGESTION_OVERRIDDEN"}
+    ]
+    if decision_id is not None:
+        items = [row for row in items if row.get("decision_id") == decision_id]
+    return items
 
 
 def write_pending_decision(
