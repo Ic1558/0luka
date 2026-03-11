@@ -14,6 +14,7 @@ from tools.ops.control_plane_policy import (
     SAFE_LANE_SUPERVISED_RETRY,
     derive_policy_verdict,
 )
+from tools.ops.control_plane_auto_lane_review import BLOCKED, ELIGIBLE, derive_auto_lane_review
 from tools.ops.control_plane_policy_guard import (
     AUTO_LANE_ACTIVE,
     AUTO_LANE_FROZEN,
@@ -235,3 +236,70 @@ def test_manual_unfreeze_lifecycle_event_reactivates_auto_lane() -> None:
     assert guard["auto_lane_reason"] == "manual_policy_review_completed"
     assert guard["auto_lane_lifecycle_event"] == AUTO_LANE_UNFROZEN_EVENT
     assert guard["auto_lane_operator_note"] == "manual review completed; re-enable narrow retry lane"
+
+
+def test_auto_lane_review_returns_eligible_when_all_retry_conditions_pass() -> None:
+    payload = derive_auto_lane_review(
+        {
+            "decision_id": "d7",
+            "trace_id": "t7",
+            "operator_status": "APPROVED",
+            "execution": {"outcome_status": "EXECUTION_FAILED"},
+        },
+        {
+            "suggestion": "RETRY_RECOMMENDED",
+            "policy_verdict": "AUTO_ALLOWED",
+            "policy_safe_lane": "SUPERVISED_RETRY",
+            "confidence_band": "HIGH",
+            "alignment_count": 2,
+            "auto_lane_state": "AUTO_LANE_ACTIVE",
+        },
+    )
+
+    assert payload["eligibility_verdict"] == ELIGIBLE
+    assert payload["reasons"] == []
+
+
+def test_auto_lane_review_blocks_for_low_confidence_and_alignment_gap() -> None:
+    payload = derive_auto_lane_review(
+        {
+            "decision_id": "d8",
+            "trace_id": "t8",
+            "operator_status": "APPROVED",
+            "execution": {"outcome_status": "EXECUTION_FAILED"},
+        },
+        {
+            "suggestion": "RETRY_RECOMMENDED",
+            "policy_verdict": "HUMAN_APPROVAL_REQUIRED",
+            "policy_safe_lane": "SUPERVISED_RETRY",
+            "confidence_band": "LOW",
+            "alignment_count": 1,
+            "auto_lane_state": "AUTO_LANE_ACTIVE",
+        },
+    )
+
+    assert payload["eligibility_verdict"] == BLOCKED
+    assert "confidence_band_not_high" in payload["reasons"]
+    assert "trust_alignment_count_below_threshold" in payload["reasons"]
+
+
+def test_auto_lane_review_blocks_when_lane_is_frozen() -> None:
+    payload = derive_auto_lane_review(
+        {
+            "decision_id": "d9",
+            "trace_id": "t9",
+            "operator_status": "APPROVED",
+            "execution": {"outcome_status": "EXECUTION_FAILED"},
+        },
+        {
+            "suggestion": "RETRY_RECOMMENDED",
+            "policy_verdict": "HUMAN_APPROVAL_REQUIRED",
+            "policy_safe_lane": "SUPERVISED_RETRY",
+            "confidence_band": "HIGH",
+            "alignment_count": 2,
+            "auto_lane_state": "AUTO_LANE_FROZEN",
+        },
+    )
+
+    assert payload["eligibility_verdict"] == BLOCKED
+    assert "auto_lane_frozen" in payload["reasons"]

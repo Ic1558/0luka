@@ -3096,6 +3096,131 @@ def test_policy_review_endpoint_surfaces_flags_and_reason_breakdown(tmp_path, mo
     assert payload["reason_breakdown"][0]["failure_count"] == 3
 
 
+def test_auto_lane_review_endpoint_returns_explicit_block_reasons(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+
+    _write_latest_decision(
+        runtime_root,
+        trace_id="trace-auto-lane",
+        ts_utc="2026-03-11T20:20:00Z",
+        signal_received="INCONSISTENT",
+        proposed_action="QUARANTINE",
+        operator_status="APPROVED",
+    )
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        mission_control_server,
+        "load_decision_policy",
+        lambda: {
+            "decision_id": "decision_auto_lane",
+            "trace_id": "trace-auto-lane",
+            "suggestion": "RETRY_RECOMMENDED",
+            "policy_verdict": "HUMAN_APPROVAL_REQUIRED",
+            "policy_safe_lane": "SUPERVISED_RETRY",
+            "confidence_band": "LOW",
+            "alignment_count": 1,
+            "auto_lane_state": "AUTO_LANE_ACTIVE",
+        },
+    )
+    monkeypatch.setattr(
+        mission_control_server,
+        "reconcile_execution_outcome",
+        lambda *_args, **_kwargs: {"outcome_status": "EXECUTION_FAILED"},
+    )
+    monkeypatch.setattr(
+        control_plane_execution_bridge,
+        "_submit_task",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("auto-lane review must stay read-only")),
+    )
+
+    response = client.get("/api/decisions/latest/auto-lane-review")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["candidate_lane"] == "SUPERVISED_RETRY"
+    assert payload["eligibility_verdict"] == "BLOCKED"
+    assert "confidence_band_not_high" in payload["reasons"]
+    assert "trust_alignment_count_below_threshold" in payload["reasons"]
+    assert payload["checks"]["execution_outcome_failed"] is True
+    assert payload["checks"]["auto_lane_active"] is True
+
+
+def test_auto_lane_review_endpoint_blocks_frozen_lane(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+
+    _write_latest_decision(
+        runtime_root,
+        trace_id="trace-frozen",
+        ts_utc="2026-03-11T20:30:00Z",
+        signal_received="INCONSISTENT",
+        proposed_action="QUARANTINE",
+        operator_status="APPROVED",
+    )
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    monkeypatch.setattr(
+        mission_control_server,
+        "load_decision_policy",
+        lambda: {
+            "decision_id": "decision_auto_lane",
+            "trace_id": "trace-frozen",
+            "suggestion": "RETRY_RECOMMENDED",
+            "policy_verdict": "HUMAN_APPROVAL_REQUIRED",
+            "policy_safe_lane": "SUPERVISED_RETRY",
+            "confidence_band": "HIGH",
+            "alignment_count": 2,
+            "auto_lane_state": "AUTO_LANE_FROZEN",
+        },
+    )
+    monkeypatch.setattr(
+        mission_control_server,
+        "reconcile_execution_outcome",
+        lambda *_args, **_kwargs: {"outcome_status": "EXECUTION_FAILED"},
+    )
+
+    response = client.get("/api/decisions/latest/auto-lane-review")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["eligibility_verdict"] == "BLOCKED"
+    assert "auto_lane_frozen" in payload["reasons"]
+    assert payload["effective_lane_state"] == "AUTO_LANE_FROZEN"
+
+
+def test_auto_lane_review_endpoint_returns_safe_empty_surface_without_latest_decision(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/latest/auto-lane-review")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["decision_id"] is None
+    assert payload["trace_id"] is None
+    assert payload["eligibility_verdict"] == "BLOCKED"
+    assert payload["reasons"] == ["no_latest_decision"]
+
+
 def test_policy_tuning_preview_endpoint_returns_expected_structure(tmp_path, monkeypatch) -> None:
     client = TestClient(mission_control_server.app)
     repo_root = tmp_path / "repo"

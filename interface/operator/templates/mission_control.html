@@ -424,6 +424,22 @@
               <li class="muted">No policy reason breakdown available</li>
             </ul>
           </div>
+          <div id="auto-lane-review-panel" class="lane-block">
+            <h3>Auto-Lane Eligibility Review</h3>
+            <p id="auto-lane-review-status" class="proof-meta">No latest decision available for auto-lane eligibility review.</p>
+            <dl id="auto-lane-review-fields">
+              <dt>Candidate Lane</dt><dd data-field="candidate_lane">SUPERVISED_RETRY</dd>
+              <dt>Eligibility</dt><dd data-field="eligibility_verdict">BLOCKED</dd>
+              <dt>Lane State</dt><dd data-field="effective_lane_state">AUTO_LANE_FROZEN</dd>
+              <dt>Summary</dt><dd data-field="summary">blocked because no latest decision is available</dd>
+            </dl>
+            <ul id="auto-lane-review-reasons" class="proof-list">
+              <li class="muted">No latest decision available for auto-lane review.</li>
+            </ul>
+            <ul id="auto-lane-review-checks" class="proof-list">
+              <li class="muted">No eligibility checks available.</li>
+            </ul>
+          </div>
           <div id="policy-tuning-panel" class="lane-block">
             <h3>Policy Tuning Preview</h3>
             <p id="policy-tuning-status" class="proof-meta">No policy tuning preview available.</p>
@@ -1099,6 +1115,74 @@
         : '<li class="muted">No policy reason breakdown available</li>';
     }
 
+    function autoLaneReviewLabel(value) {
+      return value === 'ELIGIBLE' ? 'ELIGIBLE' : 'BLOCKED';
+    }
+
+    function autoLaneCheckLabel(key) {
+      const mapping = {
+        suggestion_retry_recommended: 'suggestion retry recommended',
+        policy_verdict_auto_allowed: 'policy verdict AUTO_ALLOWED',
+        policy_safe_lane_supervised_retry: 'policy safe lane SUPERVISED_RETRY',
+        confidence_high: 'confidence HIGH',
+        latest_decision_approved: 'latest decision APPROVED',
+        execution_outcome_failed: 'execution outcome EXECUTION_FAILED',
+        alignment_count_gte_2: 'trust alignment count >= 2',
+        auto_lane_active: 'auto lane ACTIVE',
+      };
+      return mapping[key] || key;
+    }
+
+    function autoLaneReasonLabel(reason) {
+      const mapping = {
+        no_latest_decision: 'no latest decision is available',
+        suggestion_not_retry_recommended: 'suggestion is not retry recommended',
+        policy_verdict_not_auto_allowed: 'policy verdict is not auto allowed',
+        policy_safe_lane_not_supervised_retry: 'policy safe lane is not supervised retry',
+        confidence_band_not_high: 'confidence is below HIGH',
+        latest_decision_not_approved: 'latest decision is not approved',
+        execution_outcome_not_failed: 'execution outcome is not failed',
+        trust_alignment_count_below_threshold: 'trust alignment count is below threshold',
+        auto_lane_frozen: 'auto lane is frozen',
+        insufficient_eligibility_evidence: 'insufficient eligibility evidence is available',
+      };
+      return mapping[reason] || reason.replaceAll('_', ' ');
+    }
+
+    function renderAutoLaneReview(payload) {
+      const statusNode = document.getElementById('auto-lane-review-status');
+      const fieldNode = document.getElementById('auto-lane-review-fields');
+      const reasonsNode = document.getElementById('auto-lane-review-reasons');
+      const checksNode = document.getElementById('auto-lane-review-checks');
+      if (!statusNode || !fieldNode || !reasonsNode || !checksNode) return;
+
+      const values = {
+        candidate_lane: payload && payload.candidate_lane ? String(payload.candidate_lane) : 'SUPERVISED_RETRY',
+        eligibility_verdict: autoLaneReviewLabel(payload && payload.eligibility_verdict ? String(payload.eligibility_verdict) : 'BLOCKED'),
+        effective_lane_state: payload && payload.effective_lane_state ? String(payload.effective_lane_state) : 'AUTO_LANE_FROZEN',
+        summary: payload && payload.summary ? String(payload.summary) : 'blocked because insufficient eligibility evidence is available',
+      };
+      fieldNode.querySelectorAll('[data-field]').forEach((node) => {
+        const field = node.getAttribute('data-field') || '';
+        node.textContent = values[field] || 'n/a';
+      });
+
+      const reasons = payload && Array.isArray(payload.reasons) ? payload.reasons : [];
+      const checks = payload && payload.checks && typeof payload.checks === 'object' ? payload.checks : {};
+      statusNode.textContent = values.eligibility_verdict === 'ELIGIBLE'
+        ? 'All required conditions satisfied for the narrow autonomous retry lane.'
+        : 'Missing conditions are shown below. This panel is visibility only.';
+      reasonsNode.innerHTML = reasons.length
+        ? reasons.map((reason) => '<li><span class="proof-label">' + escapeHtml(autoLaneReasonLabel(String(reason))) + '</span></li>').join('')
+        : '<li class="muted">All required conditions satisfied</li>';
+      const checkEntries = Object.entries(checks);
+      checksNode.innerHTML = checkEntries.length
+        ? checkEntries.map(([key, value]) => (
+          '<li><span class="proof-label">' + escapeHtml(autoLaneCheckLabel(key)) + '</span>: ' + escapeHtml(value ? 'PASS' : 'BLOCKED') + '</li>'
+        )).join('')
+        : '<li class="muted">No eligibility checks available.</li>';
+    }
+
     function renderPolicyTuningPreview(payload) {
       const statusNode = document.getElementById('policy-tuning-status');
       const fieldNode = document.getElementById('policy-tuning-fields');
@@ -1486,6 +1570,7 @@
         if (noteNode) noteNode.value = '';
         refreshPolicyStats();
         refreshPolicyReview();
+        refreshAutoLaneReview();
         refreshDecisionSuggestion();
         refreshDecisionDesk();
       } catch (error) {
@@ -1667,6 +1752,19 @@
       }
     }
 
+    async function refreshAutoLaneReview() {
+      try {
+        const response = await fetch('/api/decisions/latest/auto-lane-review');
+        if (!response.ok) {
+          renderAutoLaneReview(null);
+          return;
+        }
+        renderAutoLaneReview(await response.json());
+      } catch (_error) {
+        renderAutoLaneReview(null);
+      }
+    }
+
     async function runPolicyTuningPreview() {
       const sliderNode = document.getElementById('policy-tuning-threshold');
       const labelNode = document.getElementById('policy-tuning-threshold-label');
@@ -1759,6 +1857,7 @@
           refreshSuggestionFeedback();
           refreshPolicyStats();
           refreshPolicyReview();
+          refreshAutoLaneReview();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = action + ' failed: request_error';
@@ -1786,6 +1885,7 @@
           refreshSuggestionFeedback();
           refreshPolicyStats();
           refreshPolicyReview();
+          refreshAutoLaneReview();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'execute failed: request_error';
@@ -1813,6 +1913,7 @@
           refreshSuggestionFeedback();
           refreshPolicyStats();
           refreshPolicyReview();
+          refreshAutoLaneReview();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'retry failed: request_error';
@@ -1840,6 +1941,7 @@
           refreshSuggestionFeedback();
           refreshPolicyStats();
           refreshPolicyReview();
+          refreshAutoLaneReview();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'escalation failed: request_error';
@@ -1865,6 +1967,7 @@
           refreshSuggestionFeedback();
           refreshPolicyStats();
           refreshPolicyReview();
+          refreshAutoLaneReview();
         }
       } catch (error) {
         if (statusNode) statusNode.textContent = 'ignore failed: request_error';
@@ -2327,6 +2430,7 @@
     refreshSuggestionFeedback();
     refreshPolicyStats();
     refreshPolicyReview();
+    refreshAutoLaneReview();
     runPolicyTuningPreview();
     refreshPolicyProposals();
     refreshPolicyVersion();
