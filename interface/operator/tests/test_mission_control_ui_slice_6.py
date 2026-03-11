@@ -86,11 +86,15 @@ def test_decision_desk_section_renders_pending_fields() -> None:
     assert 'data-field="confidence_score"' in section
     assert 'data-field="reason"' in section
     assert 'data-field="root_cause_hint"' in section
+    assert 'data-field="policy_verdict"' in section
+    assert 'data-field="policy_safe_lane"' in section
+    assert 'data-field="policy_reason"' in section
 
 
 def test_decision_desk_fetch_and_resolution_wiring_is_present() -> None:
     assert "fetch('/api/decisions/latest')" in TEMPLATE
     assert "fetch('/api/decisions/latest/suggestion')" in TEMPLATE
+    assert "fetch('/api/decisions/latest/policy')" in TEMPLATE
     assert "fetch('/api/decisions/latest/suggestion-feedback')" in TEMPLATE
     assert "fetch(endpoint, {" in TEMPLATE
     assert "/api/decisions/latest/approve" in TEMPLATE
@@ -166,6 +170,9 @@ def test_decision_desk_suggestion_panel_is_advisory_only() -> None:
     assert "No latest decision available." in section
     assert "Hint" in section
     assert "No latest decision available for suggestion analysis." in section
+    assert "Policy" in section
+    assert "Lane" in section
+    assert "Policy Reason" in section
     assert "No suggestion feedback submitted." in section
     assert "No suggestion feedback recorded" in section
     assert "Retry Recommended" in TEMPLATE
@@ -180,3 +187,17 @@ def test_decision_desk_suggestion_panel_is_advisory_only() -> None:
     assert 'id="decision-suggestion-feedback"' in section
     assert 'id="decision-suggestion-status"' in section
     assert "renderSuggestionFeedback(payload)" in TEMPLATE
+    assert "policyVerdictLabel(payload)" in TEMPLATE
+
+
+def test_decision_desk_policy_panel_is_visibility_only() -> None:
+    section = _decision_desk_section()
+
+    assert "Auto Allowed" in TEMPLATE
+    assert "Human Approval Required" in TEMPLATE
+    assert "Manual Only" in TEMPLATE
+    assert "Supervised Retry" in TEMPLATE
+    assert "Supervised Escalation" in TEMPLATE
+    assert "NONE" not in section
+    assert 'data-field="policy_reason"' in section
+    assert "policySafeLaneLabel(payload)" in TEMPLATE

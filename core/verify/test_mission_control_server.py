@@ -2059,6 +2059,101 @@ def test_latest_suggestion_returns_no_action_when_decision_missing(tmp_path, mon
     assert payload["root_cause_hint"] == "no latest decision available for suggestion analysis"
 
 
+def test_latest_policy_returns_manual_only_for_missing_decision(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+    (observability_root / "logs").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/latest/policy")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["policy_verdict"] == "MANUAL_ONLY"
+    assert payload["policy_safe_lane"] == "NONE"
+    assert payload["policy_reason"] == "no_latest_decision"
+
+
+def test_latest_policy_returns_auto_allowed_for_high_confidence_retry_with_alignment(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    audit_dir = observability_root / "artifacts" / "router_audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    decision_id = _write_latest_decision(
+        runtime_root,
+        trace_id="trace-policy-auto",
+        ts_utc="2026-03-11T18:00:00Z",
+        signal_received="INCONSISTENT",
+        proposed_action="QUARANTINE",
+    )
+    _write_decision_event(
+        observability_root,
+        event="EXECUTION_HANDOFF_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-policy-auto",
+        ts_utc="2026-03-11T18:00:00Z",
+        proposed_action="QUARANTINE",
+    )
+    (audit_dir / f"decision_exec_{decision_id}.json").write_text(json.dumps({"decision": "rejected"}), encoding="utf-8")
+    _write_decision_event(
+        observability_root,
+        event="SUGGESTION_ACCEPTED",
+        decision_id=decision_id,
+        trace_id="trace-policy-auto",
+        ts_utc="2026-03-11T18:00:00Z",
+        proposed_action="QUARANTINE",
+        operator_status="APPROVED",
+    )
+    log_path = observability_root / "logs" / "decision_log.jsonl"
+    rows = log_path.read_text(encoding="utf-8").splitlines()
+    last = json.loads(rows[-1])
+    last["suggestion"] = "RETRY_RECOMMENDED"
+    last["confidence_band"] = "HIGH"
+    last["operator_action"] = "RETRY_EXECUTION"
+    last["alignment"] = "MATCHED_SUGGESTION"
+    rows[-1] = json.dumps(last, sort_keys=True)
+    log_path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+
+    response = client.get("/api/decisions/latest/policy")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["policy_verdict"] == "AUTO_ALLOWED"
+    assert payload["policy_safe_lane"] == "SUPERVISED_RETRY"
+
+
+def test_policy_endpoint_is_read_only(tmp_path, monkeypatch) -> None:
+    client = TestClient(mission_control_server.app)
+    repo_root = tmp_path / "repo"
+    runtime_root = tmp_path / "runtime"
+    observability_root = repo_root / "observability"
+    (runtime_root / "state").mkdir(parents=True, exist_ok=True)
+    (observability_root / "logs").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(mission_control_server, "ROOT", repo_root)
+    monkeypatch.setattr(mission_control_server, "_runtime_root", lambda: runtime_root)
+    monkeypatch.setattr(mission_control_server, "_observability_root", lambda: observability_root)
+    latest_path = runtime_root / "state" / "decision_latest.json"
+    ledger_path = observability_root / "logs" / "decision_log.jsonl"
+    latest_before = latest_path.exists()
+    ledger_before = ledger_path.exists()
+
+    response = client.get("/api/decisions/latest/policy")
+
+    assert response.status_code == 200
+    assert latest_path.exists() is latest_before
+    assert ledger_path.exists() is ledger_before
+
+
 def test_retry_records_suggestion_accepted_feedback(tmp_path, monkeypatch) -> None:
     client = TestClient(mission_control_server.app)
     repo_root = tmp_path / "repo"
