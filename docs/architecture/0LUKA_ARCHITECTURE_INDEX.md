@@ -26,11 +26,17 @@ Architecture governance documents:
 - `0LUKA_LAYER_MODEL.md`  
   Canonical system layer definitions.
 
+- `0LUKA_ARCHITECTURE_DIAGRAM.md`  
+  ASCII architecture view aligned to the layer model.
+
 - `0LUKA_ARCHITECTURE_GUARDRAILS.md`  
   Defines what changes are allowed and forbidden.
 
 - `capabilities/README.md`  
   Canonical capability ownership model and index.
+
+- `0LUKA_CAPABILITY_OWNERSHIP_TABLE.md`  
+  Capability ownership table aligned to capability docs.
 
 - `0LUKA_ARCHITECTURE_INVARIANTS.md`  
   Defines rules that must always remain true.
@@ -43,6 +49,9 @@ Architecture decision framework:
 - `0LUKA_ARCHITECTURE_DECISION_RECORDS.md`  
   Framework for documenting architecture decisions.
 
+- `adr/ADR-001-capability-ownership-and-layer-model.md`  
+  Architecture decision record for the layer model and capability ownership.
+
 System constitution:
 
 - `0LUKA_SYSTEM_CONSTITUTION.md`  
@@ -53,12 +62,13 @@ System constitution:
 1. System Constitution
 2. Layer Model
 3. Architecture Guardrails
-4. Capability Ownership
-5. Architecture Invariants
-6. System Topology
-7. System Self Model
-8. Evolution Roadmap
-9. Architecture Decision Records
+4. Architecture Diagram
+5. Capability Ownership
+6. Architecture Invariants
+7. System Topology
+8. System Self Model
+9. Evolution Roadmap
+10. Architecture Decision Records
 
 ## Architecture Stack Diagram
 
