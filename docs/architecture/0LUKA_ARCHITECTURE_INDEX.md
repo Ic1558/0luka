@@ -59,6 +59,12 @@ Architecture decision framework:
 - `0LUKA_ARCHITECTURE_DECISION_RECORDS.md`
   Framework for documenting architecture decisions.
 
+- `adr/ADR-001-capability-ownership-and-layer-model.md`
+  First resolved ADR: capability ownership and layer model.
+
+- `adr/ADR-UNRESOLVED-INDEX.md`
+  Tracking index for known, unresolved architecture decisions.
+
 System constitution:
 
 - `0LUKA_SYSTEM_CONSTITUTION.md`
