@@ -75,3 +75,9 @@ Target end-state:
 
 This document is planning-only and does not authorize runtime mutation by
 itself.
+
+## Execution plan link
+
+For supervised execution sequencing, refer to:
+
+- `ANTIGRAVITY_RUNTIME_EXECUTION_PLAN_2026-03-13.md`

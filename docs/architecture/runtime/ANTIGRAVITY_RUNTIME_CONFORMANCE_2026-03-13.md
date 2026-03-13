@@ -95,9 +95,3 @@ present runtime wiring drift only.
 This document records evidence-only runtime conformance status against the
 canonical architecture contract ratified in ADR-AG-001. It does not modify
 runtime state.
-
-## Remediation link
-
-Refer to:
-
-- `ANTIGRAVITY_RUNTIME_REMEDIATION_PLAN_2026-03-13.md`
