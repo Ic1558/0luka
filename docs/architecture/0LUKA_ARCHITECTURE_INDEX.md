@@ -39,6 +39,12 @@ Architecture governance documents:
   Verified Antigravity runtime state, drift classification, and canonical
   runtime ownership.
 
+- `runtime/ANTIGRAVITY_RUNTIME_REMEDIATION_PLAN_2026-03-13.md`
+  Canonical remediation plan for evidence-backed Antigravity runtime drift.
+
+- `runtime/ANTIGRAVITY_RUNTIME_EXECUTION_PLAN_2026-03-13.md`
+  Supervised execution sequence for approved runtime remediation.
+
 - `capabilities/README.md`
   Canonical capability ownership model and index.
 
