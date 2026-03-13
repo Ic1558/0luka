@@ -71,3 +71,9 @@ Why:
 - this report does not authorize runtime restart
 - this report does not authorize credential mutation
 - this report does not re-open architecture governance
+
+## Provider-side confirmation link
+
+Refer to:
+
+- `PROVIDER_SIDE_CONFIRMATION_RECORD_2026-03-13.md`
