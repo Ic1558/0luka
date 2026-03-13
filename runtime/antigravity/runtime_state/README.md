@@ -7,6 +7,7 @@ execution work.
 
 - define local runtime state abstractions
 - support evidence and phase tracking without live mutation
+- provide typed model in `antigravity_runtime_state.py` for executor linkage
 
 ## Non-goals
 

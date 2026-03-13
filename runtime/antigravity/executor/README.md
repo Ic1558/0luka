@@ -8,6 +8,8 @@ runtime phases.
 - hold pre-execution validation logic
 - build supervised execution plans
 - report blockers without mutating live runtime
+- bind executor behavior to `ANTIGRAVITY_EXECUTOR_CONTRACT.md`
+- use local state model from `runtime_state/antigravity_runtime_state.py`
 
 ## Non-goals
 
