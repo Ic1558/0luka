@@ -33,7 +33,7 @@ It is not a replacement for runtime topology or evidence logs; it is the classif
 
 ---
 
-`repos/option` is delegated implementation space (legacy/delegated), not canonical runtime ownership.
+`repos/option` is delegated implementation space (legacy/delegated). It is not a runtime ownership layer.
 
 ## Classification Notes
 
