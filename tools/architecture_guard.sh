@@ -63,6 +63,7 @@ unresolved_rules=''
 for rel in \
   docs/architecture/0LUKA_ARCHITECTURE_CONTRACT.md \
   docs/architecture/0LUKA_ARCHITECTURE_INVARIANTS.md \
+  docs/architecture/0LUKA_LAYER_CONTRACT.md \
   docs/architecture/0LUKA_LAYER_MODEL.md \
   docs/architecture/0LUKA_ARCHITECTURE_GUARDRAILS.md \
   docs/architecture/0LUKA_CAPABILITY_MAP.md \
@@ -125,45 +126,41 @@ if ! grep -nF 'PM2 must not directly target app scripts' \
   architecture_invariants_issues=$(append_issue "$architecture_invariants_issues" 'architecture contract is missing the non-canonical PM2 first-hop rule')
 fi
 
-layer_model_has_modules=$(grep -nF 'Modules may depend on:' "$DOCS_DIR/0LUKA_LAYER_MODEL.md" >/dev/null 2>&1 && printf yes || printf no)
-layer_model_has_core=$(grep -nF 'Core must not depend on:' "$DOCS_DIR/0LUKA_LAYER_MODEL.md" >/dev/null 2>&1 && printf yes || printf no)
-guardrails_has_runtime_forbidden=$(grep -nF 'Runtime -> Interface' "$DOCS_DIR/0LUKA_ARCHITECTURE_GUARDRAILS.md" >/dev/null 2>&1 && printf yes || printf no)
+layer_contract_file="$DOCS_DIR/0LUKA_LAYER_CONTRACT.md"
+invariants_file="$DOCS_DIR/0LUKA_ARCHITECTURE_INVARIANTS.md"
 
-if [ "$layer_model_has_modules" = yes ] && [ "$layer_model_has_core" = yes ] && [ "$guardrails_has_runtime_forbidden" = yes ] && \
-   grep -nF 'agents/' "$DOCS_DIR/0LUKA_LAYER_MODEL.md" >/dev/null 2>&1 && \
-   ! grep -nF 'System / Services Layer' "$DOCS_DIR/0LUKA_ARCHITECTURE_GUARDRAILS.md" >/dev/null 2>&1; then
-  if find "$ROOT_DIR/core" -type f \( -name '*.py' -o -name '*.js' \) 2>/dev/null | xargs grep -nE '(^|[[:space:]])(from|import)[[:space:]]+(runtime|modules|interface)(\.|[[:space:]]|$)|from[[:space:]]+["'\''](runtime|modules|interface)/|require\(["'\''](runtime|modules|interface)/' >/dev/null 2>&1; then
-    layer_mapping_status=FAIL
-    layer_mapping_issues=$(append_issue "$layer_mapping_issues" 'core imports higher-layer paths (runtime/modules/interface)')
-  fi
-
-  if find "$ROOT_DIR/runtime" -type f \( -name '*.py' -o -name '*.js' \) 2>/dev/null | xargs grep -nE '(^|[[:space:]])(from|import)[[:space:]]+(interface|modules)(\.|[[:space:]]|$)|from[[:space:]]+["'\''](interface|modules)/|require\(["'\''](interface|modules)/' >/dev/null 2>&1; then
-    layer_mapping_status=FAIL
-    layer_mapping_issues=$(append_issue "$layer_mapping_issues" 'runtime imports higher or sideways layer paths (interface/modules)')
-  fi
-
-  if find "$ROOT_DIR/modules" -type f \( -name '*.py' -o -name '*.js' \) 2>/dev/null | xargs grep -nE '(^|[[:space:]])(from|import)[[:space:]]+interface(\.|[[:space:]]|$)|from[[:space:]]+["'\'']interface/|require\(["'\'']interface/' >/dev/null 2>&1; then
-    layer_mapping_status=FAIL
-    layer_mapping_issues=$(append_issue "$layer_mapping_issues" 'modules import interface paths')
-  fi
+if [ ! -f "$layer_contract_file" ]; then
+  layer_mapping_status=FAIL
+  layer_mapping_issues=$(append_issue "$layer_mapping_issues" 'missing docs/architecture/0LUKA_LAYER_CONTRACT.md')
 else
-  layer_mapping_status=UNRESOLVED
-  layer_mapping_issues=$(append_issue "$layer_mapping_issues" 'canonical docs do not yet define a stable enough path-to-layer mapping for static import enforcement')
+  for expected in \
+    '`docs/architecture/` -> architecture governance layer' \
+    '`docs/architecture/capabilities/` -> capability governance layer' \
+    '`tools/` -> governance/tooling support layer' \
+    '`runtime/services/` -> canonical runtime first-hop ownership' \
+    '`runtime/supervisors/` -> canonical runtime supervision layer' \
+    '`repos/option/` -> delegated implementation space' \
+    '`repos/qs/` -> delegated implementation space'
+  do
+    if ! grep -nF "$expected" "$layer_contract_file" >/dev/null 2>&1; then
+      layer_mapping_status=FAIL
+      layer_mapping_issues=$(append_issue "$layer_mapping_issues" "layer contract missing mapping: $expected")
+    fi
+  done
 fi
 
-if ! grep -nF 'agents/' "$DOCS_DIR/0LUKA_LAYER_MODEL.md" >/dev/null 2>&1; then
-  unresolved_rules=$(append_issue "$unresolved_rules" 'Agents layer mapping')
-  if [ "$layer_mapping_status" = PASS ]; then
-    layer_mapping_status=UNRESOLVED
+for expected in \
+  'Canonical architecture ownership must be defined by `docs/architecture/*`.' \
+  'Canonical runtime first-hop ownership must be defined under' \
+  'Delegated implementation spaces must not be treated as runtime ownership' \
+  'Runtime supervision and runtime ownership are distinct concepts.' \
+  'Path-to-layer classification must be derived from the layer contract, not'
+do
+  if ! grep -nF "$expected" "$invariants_file" >/dev/null 2>&1; then
+    layer_mapping_status=FAIL
+    layer_mapping_issues=$(append_issue "$layer_mapping_issues" "architecture invariants missing layer rule: $expected")
   fi
-fi
-
-if grep -nF 'System / Services Layer' "$DOCS_DIR/0LUKA_ARCHITECTURE_GUARDRAILS.md" >/dev/null 2>&1; then
-  unresolved_rules=$(append_issue "$unresolved_rules" 'System / Services vs layer-model terminology alignment')
-  if [ "$layer_mapping_status" = PASS ]; then
-    layer_mapping_status=UNRESOLVED
-  fi
-fi
+done
 
 runtime_ref_paths=$( \
   {
