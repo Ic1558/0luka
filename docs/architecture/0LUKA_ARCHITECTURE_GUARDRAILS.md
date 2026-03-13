@@ -4,6 +4,15 @@
 
 This document defines the minimum architectural rules that prevent architecture entanglement, runtime fragility, and agent ownership drift. It is governance-first and evidence-bound.
 
+Architecture authority is defined by:
+
+- `docs/architecture/0LUKA_ARCHITECTURE_CONTRACT.md`
+- `docs/architecture/0LUKA_ARCHITECTURE_INVARIANTS.md`
+
+Read-only enforcement command:
+
+- `tools/architecture_guard.sh`
+
 ## Layer Model
 
 ### Interface Layer

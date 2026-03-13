@@ -1,87 +1,57 @@
-# 0luka Architecture Invariants
+# 0LUKA Architecture Invariants
 
-## System Classification Invariant
+## Purpose
 
-0luka is a bounded Observability + Reasoning system.
+This document defines the small set of invariant rules that must remain true as
+the repository evolves.
 
-The system interprets signals, classifies them, previews decisions, and stores decision memory but does not execute actions.
+These invariants are architecture law. They are intended to be checked by
+architecture review and repository tooling.
 
-## Observability First Principle
+## Invariants
 
-All reasoning must originate from observable runtime signals.
+1. Core does not depend on higher layers.
+2. Runtime supervision does not define policy authority.
+3. Capability ownership has exactly one canonical owner.
+4. Host runtime state is not architecture truth.
+5. Canonical runtime first-hop ownership belongs under `runtime/services/*`.
+6. Delegated implementation space is not runtime ownership space.
+7. PM2 direct execution of app-local scripts is non-canonical.
+8. Missing entrypoint paths referenced by live runtime imply architecture drift.
+9. Incident documents may describe failure state but do not redefine
+   architecture.
+10. Architecture claims must be anchored to canonical governance documents or
+    ADRs.
 
-No reasoning layer may bypass runtime observability.
+## Invariant Violation Examples
 
-## Signal Interpretation Invariant
+Examples from the current repository context:
 
-Runtime signals must be interpreted before classification.
+- PM2 targeting `modules/antigravity/realtime/control_tower.py` while that path
+  is missing on disk.
+- PM2 targeting `src/antigravity_prod.py` while that path is missing on disk.
+- Host-specific inventory documents describing `Antigravity-HQ` as canonical
+  runtime ownership while canonical runtime wrapper ownership is not defined for
+  that service.
 
-Interpretation creates a human-readable system state representation.
+## Drift Signals
 
-## Classifier Purity Rule
+Architecture drift signals include:
 
-The classification layer must remain side-effect free.
+- conflicting ownership language across documents
+- stale path references treated as maintained sources
+- canonical-vs-host-document contradictions
+- undocumented supervisor authority claims
 
-Classifier output must never mutate system state.
+## Enforcement Intent
 
-## Decision Preview Constraint
+These invariants are intended to be enforced through architecture tooling,
+documentation review, and governance PR discipline.
 
-Decision preview surfaces must remain read-only.
+## ADR References
 
-They exist only to expose reasoning results.
-
-## Decision Persistence Boundary
-
-Decision persistence stores reasoning outputs but must never trigger system actions.
-
-Persistence must remain bounded.
-
-## Control Plane Separation
-
-Control-plane execution must remain separated from reasoning.
-
-Reasoning layers must not execute actions.
-
-## Frozen Canonical Boundary
-
-repos/qs remains frozen canonical.
-
-No architecture change may modify repos/qs.
-
-## Knowledge Mirror Constraint
-
-NotebookLM acts as a knowledge mirror of repository state.
-
-The mirror must not mutate repository data.
-
-## Governance Discipline
-
-All architecture evolution must occur through bounded lanes and explicit PRs.
-
-Implicit system mutation is forbidden.
-
-## Evolution Safety Rule
-
-Future evolution must never introduce system autonomy implicitly.
-
-## Architecture Diagram
-
-```text
-Runtime
-  ↓
-Signals
-  ↓
-Interpretation
-  ↓
-Classification (dry-run)
-  ↓
-Decision Preview
-  ↓
-Decision Memory
-
-Knowledge Mirror
-  └─ NotebookLM publish
-
-Boundary
-  └─ repos/qs frozen canonical
-```
+- `ADR-001: Capability Ownership and Layer Model`
+- `ADR-UNRESOLVED: Runtime Service Ownership Model`
+- `ADR-UNRESOLVED: Host Supervisor Authority Model`
+- `ADR-UNRESOLVED: Antigravity HQ Runtime Ownership`
+- `ADR-UNRESOLVED: Legacy Runtime Entrypoint Classification`
