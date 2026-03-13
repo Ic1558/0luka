@@ -9,22 +9,32 @@ This document defines the minimum architectural rules that prevent architecture 
 ### Interface Layer
 - Role: human/operator interaction and presentation.
 - Examples: interface/operator/, tools/mission_control.py, tools/ops/operator_*
-- Allowed dependencies: System / Services Layer, Core Layer, Observability Layer (read-only)
+- Allowed dependencies: System / Services Layer, Runtime Layer, Core Layer, Observability Layer (read-only)
 
 ### System / Services Layer
 - Role: operational services, orchestration, and runtime coordination.
 - Examples: system/, runtime/, services/, control_tower/, agents/
-- Allowed dependencies: Core Layer, Observability Layer
+- Allowed dependencies: Runtime Layer, Core Layer, Observability Layer
+
+### Runtime Layer
+- Role: execution substrate and process supervision.
+- Examples: runtime/
+- Allowed dependencies: Core Layer, Observability Layer (contracts only)
 
 ### Core Layer
 - Role: stable system primitives and invariants.
 - Examples: core/, core/governance/, core/ledger.py, core/task_dispatcher.py, core/run_provenance.py
-- Allowed dependencies: Observability Layer (read-only contracts only)
+- Allowed dependencies: none
 
 ### Observability Layer
 - Role: telemetry, logs, artifacts, and reporting.
 - Examples: observability/, logs/, telemetry/, reports/
 - Allowed dependencies: Core Layer (schemas/contracts only)
+
+### Module Layer
+- Role: optional domain modules and plug-in capability bundles.
+- Examples: modules/, plugins/
+- Allowed dependencies: System / Services Layer, Runtime Layer, Core Layer, Observability Layer (contracts only)
 
 ---
 
@@ -38,20 +48,37 @@ Imports may only flow inward/downward toward more stable layers. Cross-layer or 
 
 ### Allowed Patterns
 - Interface -> System / Services
+- Interface -> Runtime
 - Interface -> Core
+- Interface -> Observability (read-only)
+- System / Services -> Runtime
 - System / Services -> Core
 - System / Services -> Observability
-- Core -> Observability (contracts only)
+- Runtime -> Core
+- Runtime -> Observability (contracts only)
+- Observability -> Core (schemas/contracts only)
+- Module -> System / Services
+- Module -> Runtime
+- Module -> Core
+- Module -> Observability (contracts only)
 
 ### Forbidden Patterns
+- Core -> Runtime
 - Core -> System / Services
 - Core -> Interface
+- Core -> Module
+- Runtime -> System / Services
+- Runtime -> Interface
+- Runtime -> Module
 - System / Services -> Interface
+- System / Services -> Module
 - Observability -> System / Services or Interface
+- Observability -> Runtime or Module
 
 ### Violation Detection
 - Scan Python imports (import/from) and map each file to a layer.
 - Flag any import that crosses upward or sideways into less stable layers.
+- Flag any dependency on a Module from non-module layers.
 
 ### Fix Strategies
 - Move shared logic downward into Core.
@@ -119,10 +146,13 @@ Every architectural capability must have exactly one canonical owner. Other comp
 
 | Capability | Canonical Owner | Execution Owner | Evidence Source | Change Authority |
 |---|---|---|---|---|
-| Runtime supervision | docs/architecture/mac-mini-supervisor-decision.md | Live supervisor (PM2 now, launchd target) | g/reports/mac-mini/runtime_topology.md | docs/architecture/mac-mini-migration-plan.md + cutover checklist |
-| Mission Control API surface | interface/operator/mission_control_server.py | Mission Control server process | core/verify/test_mission_control_server.py | docs/architecture/phases/phase-11.0-completion.md |
-| Policy intelligence | tools/ops/policy_intelligence.py | Mission Control policy endpoints | core/verify/test_policy_intelligence.py | docs/architecture/0LUKA_SYSTEM_CONSTITUTION.md |
-| Runtime inventory & topology | docs/architecture/mac-mini-runtime-inventory.md | tools/ops/runtime_inventory.zsh | g/reports/mac-mini/runtime_topology.md | docs/architecture/mac-mini-migration-plan.md |
+| Operator Control | docs/architecture/capabilities/operator_control.md | Interface operator surfaces | docs/architecture/0LUKA_SYSTEM_CONSTITUTION.md | docs/architecture/0LUKA_ARCHITECTURE_DECISION_RECORDS.md |
+| Policy Governance | docs/architecture/capabilities/policy_governance.md | Core policy services | docs/architecture/0LUKA_ARCHITECTURE_INVARIANTS.md | docs/architecture/0LUKA_ARCHITECTURE_DECISION_RECORDS.md |
+| Decision Infrastructure | docs/architecture/capabilities/decision_infrastructure.md | Core decision pipeline | docs/architecture/0LUKA_ARCHITECTURE_INVARIANTS.md | docs/architecture/0LUKA_ARCHITECTURE_DECISION_RECORDS.md |
+| Runtime Execution | docs/architecture/capabilities/runtime_execution.md | Runtime supervisors | docs/architecture/0LUKA_SYSTEM_CONSTITUTION.md | docs/architecture/0LUKA_ARCHITECTURE_DECISION_RECORDS.md |
+| Observability Intelligence | docs/architecture/capabilities/observability_intelligence.md | Observability tooling | docs/architecture/0LUKA_OBSERVABILITY_INTELLIGENCE.md | docs/architecture/0LUKA_ARCHITECTURE_DECISION_RECORDS.md |
+| Agent Execution | docs/architecture/capabilities/agent_execution.md | System services | docs/architecture/0LUKA_SYSTEM_CONSTITUTION.md | docs/architecture/0LUKA_ARCHITECTURE_DECISION_RECORDS.md |
+| Antigravity Module | docs/architecture/capabilities/antigravity_module.md | Module runtime (optional) | docs/architecture/0LUKA_ARCHITECTURE_INVARIANTS.md | docs/architecture/0LUKA_ARCHITECTURE_DECISION_RECORDS.md |
 
 ---
 
