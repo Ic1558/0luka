@@ -21,7 +21,18 @@ Evolution model:
 - `0LUKA_EVOLUTION_ROADMAP.md`  
   Explains how the system evolved and future phases.
 
+Architecture governance documents:
+
+- `0LUKA_CAPABILITY_MAP.md`  
+  Canonical current-state capability contract.
+
+- `0LUKA_DEFINITION_OF_DONE.md`  
+  Verification contract for implementation readiness.
+
 Core architectural rules:
+
+- `0LUKA_LAYER_MODEL.md`  
+  Canonical system layer definitions (Kernel / Runtime / Modules / Interface / Observability).
 
 - `0LUKA_ARCHITECTURE_INVARIANTS.md`  
   Defines rules that must always remain true.
@@ -44,17 +55,20 @@ System constitution:
 ## Reading Order
 
 1. System Constitution
-2. System Topology
-3. System Map
-4. Evolution Roadmap
-5. Architecture Invariants
-6. Architecture Guardrails
-7. Architecture Decision Records
+2. Layer Model
+3. System Topology
+4. System Map
+5. Evolution Roadmap
+6. Architecture Invariants
+7. Architecture Guardrails
+8. Architecture Decision Records
 
 ## Architecture Stack Diagram
 
 ```text
 System Constitution
+        ↓
+Layer Model
         ↓
 Architecture Guardrails
         ↓
