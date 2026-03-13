@@ -12,6 +12,7 @@ Antigravity runtime work under `runtime/`.
 - Artifact models under `artifacts/` are analysis-layer only.
 - Worker scaffold at `worker/runtime_worker.py` is approval-gated stub only.
 - In-memory artifact store at `state/artifact_store.py` is scaffolding only.
+- Artifact emitter at `engine/runtime_engine.py` is additive scaffolding only.
 
 ## Non-goals
 
