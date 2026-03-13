@@ -29,6 +29,9 @@ Architecture governance documents:
 - `0LUKA_LAYER_MODEL.md`
   Canonical system layer definitions.
 
+- `0LUKA_LAYER_CONTRACT.md`
+  Authoritative path-to-layer mapping contract for governance/tooling checks.
+
 - `0LUKA_ARCHITECTURE_GUARDRAILS.md`
   Defines what changes are allowed and forbidden.
 

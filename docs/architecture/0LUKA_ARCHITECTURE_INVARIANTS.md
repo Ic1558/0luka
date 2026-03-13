@@ -22,6 +22,14 @@ architecture review and repository tooling.
    architecture.
 10. Architecture claims must be anchored to canonical governance documents or
     ADRs.
+11. Canonical architecture ownership must be defined by `docs/architecture/*`.
+12. Canonical runtime first-hop ownership must be defined under
+    `runtime/services/*`.
+13. Delegated implementation spaces must not be treated as runtime ownership
+    layers.
+14. Runtime supervision and runtime ownership are distinct concepts.
+15. Path-to-layer classification must be derived from the layer contract, not
+    host runtime state.
 
 ## Invariant Violation Examples
 
