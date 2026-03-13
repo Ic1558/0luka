@@ -77,6 +77,11 @@ Architecture governance documents:
 
 - `../runtime/antigravity/state/README.md`
   State-store scaffold boundary and non-goal definition.
+- `../runtime/antigravity/engine/runtime_engine.py`
+  Additive artifact emitter scaffold for blocker/evidence/plan records.
+
+- `../runtime/antigravity/engine/README.md`
+  Engine-layer scaffold boundary and non-goal definition.
 
 - `capabilities/README.md`
   Canonical capability ownership model and index.
