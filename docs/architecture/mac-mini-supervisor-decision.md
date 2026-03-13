@@ -20,7 +20,7 @@ Two process supervision regimes currently coexist:
 - launchd (macOS native supervisor)
 - PM2 (Node ecosystem process manager)
 
-This dual-supervisor situation creates ambiguity about the authoritative runtime owner.
+This dual-supervisor situation creates ambiguity about host-level supervisor authority.
 
 ---
 
@@ -40,28 +40,30 @@ PM2
 
 Additional host services are managed by launchd.
 
-`com.antigravity.controltower` exists in launchd but is not the active runtime owner.
+`com.antigravity.controltower` exists in launchd but is not the active live supervisor.
 
 ---
 
 ## Decision
 
-launchd will be the canonical runtime supervisor for the Mac mini host.
+launchd is the target host-level supervisor authority for the Mac mini host.
 
 PM2 is recognized as the current live supervisor but not the intended long-term architecture.
+
+This document does not define architecture ownership authority for runtime services.
 
 ---
 
 ## Supervisor Rule
 
-Only one process supervisor may own a canonical runtime service.
+Only one process supervisor should be active per host runtime service instance.
 
 For the Mac mini host:
 
-launchd = canonical supervisor  
+launchd = target host supervisor authority  
 PM2 = tooling or development supervisor only
 
-PM2 must not supervise canonical runtime services once migration completes.
+PM2 must not supervise host runtime services selected for launchd once migration completes.
 
 ---
 
@@ -71,7 +73,7 @@ PM2 must not supervise canonical runtime services once migration completes.
 launchd integrates with macOS boot, login, and session semantics.
 
 ### Deterministic ownership
-A single host supervisor eliminates ambiguity in runtime ownership.
+A single host supervisor eliminates ambiguity in host process supervision.
 
 ### Failure domain clarity
 launchd allows clearer separation between:
@@ -88,7 +90,7 @@ launchd allows clearer separation between:
 
 ## Alternatives Considered
 
-### PM2 as canonical supervisor
+### PM2 as primary host supervisor
 
 Advantages:
 - convenient CLI (pm2 list, pm2 logs)
@@ -117,7 +119,7 @@ No runtime changes.
 
 Classify each PM2 application:
 
-- canonical runtime
+- host runtime candidate
 - legacy runtime
 - tooling
 - temporary debug process
@@ -126,7 +128,7 @@ Classify each PM2 application:
 
 ### Phase 2 — Build launchd wrappers
 
-Create launchd service definitions for canonical runtime services.
+Create launchd service definitions for host runtime services selected for launchd.
 
 Environment injection continues via:
 
@@ -149,9 +151,9 @@ Verify:
 
 ### Phase 4 — Controlled cutover
 
-Stop PM2 ownership of canonical runtime services.
+Stop PM2 supervision of host runtime services selected for launchd.
 
-Promote launchd ownership.
+Promote launchd supervision authority.
 
 Verify:
 
@@ -188,7 +190,7 @@ Possible outcomes:
 
 Migration is considered successful when:
 
-- canonical runtime services are owned by launchd
+- selected host runtime services are supervised by launchd
 - PM2 does not supervise production runtime services
 - topology inventory confirms single supervisor ownership
 - health checks pass for all runtime endpoints
@@ -205,4 +207,4 @@ g/reports/mac-mini/runtime_topology.md
 
 ## Notes
 
-PM2 may remain available for development workflows but must not supervise canonical runtime services in production.
+PM2 may remain available for development workflows but must not supervise selected production host runtime services.

@@ -8,6 +8,15 @@ Revised: stress-test corrections applied
 
 ---
 
+## Runtime State Note
+
+`repos/option/modules/antigravity/realtime/control_tower.py` is a legacy historical path observed in runtime/process state; file missing in current workspace.
+
+This document remains a design-only endpoint specification and does not assert
+that the legacy path is a maintained source location.
+
+---
+
 ## Problem
 
 After a patch is written to disk, there is no way to confirm whether the running
@@ -46,10 +55,10 @@ the process serving the request only. Multiple instances may exist simultaneousl
   "git_branch": "main",
   "git_dirty": false,
   "started_at": "2026-03-13T03:47:21.123456+00:00",
-  "code_path": "/Users/icmini/0luka/repos/option/modules/antigravity/realtime/control_tower.py",
+  "code_path": "/path/to/process-module.py",
   "python_executable": "/Users/icmini/0luka/repos/option/venv/bin/python3",
   "supervisor_hint": "pm2",
-  "build_fingerprint": "abc1234:/Users/icmini/0luka/repos/option/modules/antigravity/realtime/control_tower.py"
+  "build_fingerprint": "abc1234:/path/to/process-module.py"
 }
 ```
 
@@ -58,7 +67,7 @@ When working tree is dirty:
 {
   "git_commit": "abc1234",
   "git_dirty": true,
-  "build_fingerprint": "abc1234-dirty:/Users/icmini/0luka/repos/option/modules/antigravity/realtime/control_tower.py"
+  "build_fingerprint": "abc1234-dirty:/path/to/process-module.py"
 }
 ```
 
@@ -252,7 +261,9 @@ endpoint and does not change any existing behaviour.
 
 ## File Impact (when implemented)
 
-Single file: `modules/antigravity/realtime/control_tower.py`
+Implementation file path is unresolved in the current workspace runtime state.
+The historical app-local path remains missing:
+`repos/option/modules/antigravity/realtime/control_tower.py`.
 
 Two additions:
 1. `RUNTIME_VERSION_INFO` MappingProxy populated at module load
