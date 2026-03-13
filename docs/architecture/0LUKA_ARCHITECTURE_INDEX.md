@@ -72,6 +72,12 @@ Architecture governance documents:
 - `../runtime/antigravity/jobs/README.md`
   Reserved job manifest directory for future approved worker inputs.
 
+- `../runtime/antigravity/state/artifact_store.py`
+  In-memory artifact store scaffold for runtime analysis artifacts.
+
+- `../runtime/antigravity/state/README.md`
+  State-store scaffold boundary and non-goal definition.
+
 - `capabilities/README.md`
   Canonical capability ownership model and index.
 

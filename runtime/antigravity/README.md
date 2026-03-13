@@ -11,6 +11,7 @@ Antigravity runtime work under `runtime/`.
 - Broker auth remains a separate ops lane.
 - Artifact models under `artifacts/` are analysis-layer only.
 - Worker scaffold at `worker/runtime_worker.py` is approval-gated stub only.
+- In-memory artifact store at `state/artifact_store.py` is scaffolding only.
 
 ## Non-goals
 
