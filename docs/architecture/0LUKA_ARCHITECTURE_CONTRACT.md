@@ -80,3 +80,6 @@ These boundaries must not be collapsed into a single authority claim.
 - `ADR-UNRESOLVED: Host Supervisor Authority Model`
 - `ADR-UNRESOLVED: Antigravity HQ Runtime Ownership`
 - `ADR-UNRESOLVED: Legacy Runtime Entrypoint Classification`
+
+Unresolved items are tracked at:
+`docs/architecture/adr/ADR-UNRESOLVED-INDEX.md`
