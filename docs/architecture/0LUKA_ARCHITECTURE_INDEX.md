@@ -51,6 +51,15 @@ Architecture governance documents:
 - `../runtime/antigravity/`
   Canonical Antigravity runtime Phase R1 scaffolding subtree.
 
+- `../runtime/antigravity/artifacts/antigravity_blocker.py`
+  Structured blocker artifact model for runtime analysis.
+
+- `../runtime/antigravity/artifacts/antigravity_evidence.py`
+  Structured evidence reference artifact model for runtime analysis.
+
+- `../runtime/antigravity/artifacts/antigravity_plan.py`
+  Structured remediation plan artifact model for runtime analysis.
+
 - `capabilities/README.md`
   Canonical capability ownership model and index.
 

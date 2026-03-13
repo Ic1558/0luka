@@ -9,6 +9,7 @@ Antigravity runtime work under `runtime/`.
 - It does not authorize live runtime mutation by itself.
 - It does not replace the current control tower runtime.
 - Broker auth remains a separate ops lane.
+- Artifact models under `artifacts/` are analysis-layer only.
 
 ## Non-goals
 
