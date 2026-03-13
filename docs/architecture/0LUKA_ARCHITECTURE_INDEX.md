@@ -95,7 +95,6 @@ Architecture governance documents:
 Antigravity governance:
 
 - `adr/ADR-AG-001-antigravity-canonical-runtime.md`
-
 - `capabilities/README.md`
   Canonical capability ownership model and index.
 
