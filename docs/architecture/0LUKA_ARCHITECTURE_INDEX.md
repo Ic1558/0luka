@@ -39,14 +39,14 @@ Architecture governance documents:
   Verified Antigravity runtime state, drift classification, and canonical
   runtime ownership.
 
+Antigravity governance:
+
 - `antigravity/ANTIGRAVITY_ARCHITECTURE_CONTRACT.md`
-  Canonical Antigravity runtime contract.
-
 - `antigravity/ANTIGRAVITY_DRIFT_CLASSIFICATION.md`
-  Antigravity runtime drift taxonomy and interpretation rules.
-
 - `antigravity/ANTIGRAVITY_RUNTIME_RECOVERY_RUNBOOK.md`
-  Deterministic Antigravity runtime recovery and decision sequence.
+- `antigravity/ANTIGRAVITY_GUARDRAIL_POLICY.md`
+- `adr/ADR-AG-001-antigravity-canonical-runtime.md`
+- `.github/workflows/architecture-guard.yml`
 
 - `runtime/ANTIGRAVITY_RUNTIME_REMEDIATION_PLAN_2026-03-13.md`
   Canonical remediation plan for evidence-backed Antigravity runtime drift.
