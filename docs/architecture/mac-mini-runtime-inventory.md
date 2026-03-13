@@ -27,18 +27,21 @@ It is not a replacement for runtime topology or evidence logs; it is the classif
 
 | PM2 App | Command | CWD | Classification |
 |---|---|---|---|
-| Antigravity-HQ | dotenvx → python modules/antigravity/realtime/control_tower.py | /Users/icmini/0luka/repos/option | canonical runtime (current live supervisor) |
+| Antigravity-HQ | dotenvx → python modules/antigravity/realtime/control_tower.py | /Users/icmini/0luka/repos/option | observed live runtime process (host state only) |
 | Antigravity-Monitor | dotenvx → python src/antigravity_prod.py | /Users/icmini/0luka/repos/option | legacy runtime (overlap) |
 | OptionBugHunter | dotenvx → node src/live.js | /Users/icmini/0luka/repos/option | tooling / auxiliary runtime |
 
 ---
 
+`repos/option` is delegated implementation space (legacy/delegated), not canonical runtime ownership.
+
 ## Classification Notes
 
 ### Antigravity-HQ
-- role: canonical backend runtime
+- role: observed backend runtime process on host
 - live supervisor: PM2
 - target supervisor: launchd (decision document)
+- canonical ownership note: no canonical runtime wrapper currently defined/documented for Antigravity-HQ; current PM2 process is observed runtime state, not ownership authority.
 
 ### Antigravity-Monitor
 - role: legacy runtime path
