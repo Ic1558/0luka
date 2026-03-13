@@ -48,3 +48,9 @@ Record the evidence currently available for the broker auth blocker.
 - perform or record a fresh isolated market probe
 - validate issuer tuple as one atomic set
 - reduce result to MATCH or MISMATCH or UNKNOWN
+
+## Tuple validation link
+
+Refer to:
+
+- `ISSUER_TUPLE_VALIDATION_REPORT_2026-03-13.md`
