@@ -99,3 +99,15 @@ Observability Intelligence
 - Runtime executes governed actions only.
 - Core defines law, policy, and decisions.
 - Observability records evidence and does not control execution.
+
+## Runtime Supervision Model
+
+PM2 must not directly execute application scripts as first-hop runtime targets.
+
+Canonical supervision should launch runtime-owned service wrappers first:
+
+- `runtime/services/antigravity_scan/runner.zsh`
+- `runtime/services/antigravity_realtime/runner.zsh`
+
+Delegated application scripts may remain under `repos/option/` as legacy
+implementation space, but they are not the canonical runtime ownership layer.
