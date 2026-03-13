@@ -8,8 +8,11 @@ execution work.
 - define local runtime state abstractions
 - support evidence and phase tracking without live mutation
 - provide typed model in `antigravity_runtime_state.py` for executor linkage
+- follow `docs/architecture/runtime/ANTIGRAVITY_STATE_WRITEBACK_CONTRACT.md`
+  for future persistence boundaries
 
 ## Non-goals
 
 - no persistence migration
+- no persistence implementation yet
 - no live runtime state override
