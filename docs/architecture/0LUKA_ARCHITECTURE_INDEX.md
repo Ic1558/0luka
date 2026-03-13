@@ -66,6 +66,12 @@ Architecture governance documents:
 - `../runtime/antigravity/artifacts/antigravity_plan.py`
   Structured remediation plan artifact model for runtime analysis.
 
+- `../runtime/antigravity/worker/runtime_worker.py`
+  Approval-gated runtime worker scaffold.
+
+- `../runtime/antigravity/jobs/README.md`
+  Reserved job manifest directory for future approved worker inputs.
+
 - `capabilities/README.md`
   Canonical capability ownership model and index.
 
