@@ -51,6 +51,12 @@ Architecture governance documents:
 - `../runtime/antigravity/`
   Canonical Antigravity runtime Phase R1 scaffolding subtree.
 
+- `../runtime/antigravity/executor/ANTIGRAVITY_EXECUTOR_CONTRACT.md`
+  Executor boundary contract for non-approved default runtime posture.
+
+- `../runtime/antigravity/runtime_state/antigravity_runtime_state.py`
+  Local typed runtime state model used by the executor scaffold.
+
 - `../runtime/antigravity/artifacts/antigravity_blocker.py`
   Structured blocker artifact model for runtime analysis.
 
