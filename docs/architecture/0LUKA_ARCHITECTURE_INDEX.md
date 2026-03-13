@@ -45,6 +45,9 @@ Architecture governance documents:
 - `runtime/ANTIGRAVITY_RUNTIME_EXECUTION_PLAN_2026-03-13.md`
   Supervised execution sequence for approved runtime remediation.
 
+- `runtime/ANTIGRAVITY_RUNTIME_EXECUTION_APPROVAL_2026-03-13.md`
+  Explicit approval boundary record for runtime remediation execution.
+
 - `capabilities/README.md`
   Canonical capability ownership model and index.
 

@@ -91,3 +91,9 @@ All evidence must be preserved as read-only records.
 
 Execution is blocked until explicit approval is granted for runtime mutation.
 Without explicit approval, this document remains planning-only.
+
+## Approval record link
+
+Refer to:
+
+- `ANTIGRAVITY_RUNTIME_EXECUTION_APPROVAL_2026-03-13.md`
