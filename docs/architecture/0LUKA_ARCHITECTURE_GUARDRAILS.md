@@ -153,6 +153,10 @@ Every architectural capability must have exactly one canonical owner. Other comp
 | Observability Intelligence | docs/architecture/capabilities/observability_intelligence.md | Observability tooling | docs/architecture/0LUKA_OBSERVABILITY_INTELLIGENCE.md | docs/architecture/0LUKA_ARCHITECTURE_DECISION_RECORDS.md |
 | Agent Execution | docs/architecture/capabilities/agent_execution.md | System services | docs/architecture/0LUKA_SYSTEM_CONSTITUTION.md | docs/architecture/0LUKA_ARCHITECTURE_DECISION_RECORDS.md |
 | Antigravity Module | docs/architecture/capabilities/antigravity_module.md | Module runtime (optional) | docs/architecture/0LUKA_ARCHITECTURE_INVARIANTS.md | docs/architecture/0LUKA_ARCHITECTURE_DECISION_RECORDS.md |
+| Runtime supervision | docs/architecture/mac-mini-supervisor-decision.md | Live supervisor (PM2 now, launchd target) | g/reports/mac-mini/runtime_topology.md | docs/architecture/mac-mini-migration-plan.md |
+| Mission Control API surface | interface/operator/mission_control_server.py | Mission Control server process | core/verify/test_mission_control_server.py | docs/architecture/phases/phase-11.0-completion.md |
+| Policy intelligence | tools/ops/policy_intelligence.py | Mission Control policy endpoints | core/verify/test_policy_intelligence.py | docs/architecture/0LUKA_SYSTEM_CONSTITUTION.md |
+| Runtime inventory & topology | docs/architecture/mac-mini-runtime-inventory.md | tools/ops/runtime_inventory.zsh | g/reports/mac-mini/runtime_topology.md | docs/architecture/mac-mini-migration-plan.md |
 
 ---
 

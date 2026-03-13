@@ -26,3 +26,6 @@ This document defines the canonical ownership model for architectural capabiliti
 
 All capability changes must follow:
 - docs/architecture/0LUKA_ARCHITECTURE_DECISION_RECORDS.md
+
+Layer boundaries for all capabilities are defined in:
+- docs/architecture/0LUKA_LAYER_MODEL.md

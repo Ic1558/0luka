@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+<key>Label</key>
+<string>com.antigravity.controltower</string>
+
+<key>ProgramArguments</key>
+<array>
+<string>/Users/icmini/0luka/tools/ops/antigravity_controltower_wrapper.zsh</string>
+</array>
+
+<key>WorkingDirectory</key>
+<string>/Users/icmini/0luka/repos/option</string>
+
+<key>RunAtLoad</key>
+<true/>
+
+<key>ProcessType</key>
+<string>Background</string>
+
+<key>KeepAlive</key>
+<dict>
+  <key>SuccessfulExit</key>
+  <false/>
+</dict>
+
+<key>ThrottleInterval</key>
+<integer>10</integer>
+
+<key>SoftResourceLimits</key>
+<dict>
+  <key>NumberOfFiles</key>
+  <integer>4096</integer>
+</dict>
+
+<key>EnvironmentVariables</key>
+<dict>
+  <key>PATH</key>
+  <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  <key>PYTHONPATH</key>
+  <string>/Users/icmini/0luka/repos/option</string>
+</dict>
+
+<key>StandardOutPath</key>
+<string>/Users/icmini/0luka/repos/option/artifacts/launchd_controltower.out.log</string>
+
+<key>StandardErrorPath</key>
+<string>/Users/icmini/0luka/repos/option/artifacts/launchd_controltower.err.log</string>
+
+</dict>
+</plist>
