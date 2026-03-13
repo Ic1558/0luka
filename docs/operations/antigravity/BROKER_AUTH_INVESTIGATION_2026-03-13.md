@@ -49,3 +49,9 @@ Allowed actions without runtime mutation:
 - inspect auth request structure
 - compare expected issuer tuple
 - collect probe evidence
+
+## Evidence link
+
+Refer to:
+
+- `BROKER_AUTH_EVIDENCE_2026-03-13.md`
