@@ -89,6 +89,9 @@ Antigravity governance:
 - `../runtime/antigravity/engine/runtime_engine.py`
   Additive artifact emitter scaffold for blocker/evidence/plan records.
 
+- `../runtime/antigravity/engine/artifact_engine.py`
+  Pure resolver scaffold for artifact-based runtime decision output.
+
 - `../runtime/antigravity/engine/README.md`
   Engine-layer scaffold boundary and non-goal definition.
 
