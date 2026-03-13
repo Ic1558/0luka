@@ -28,6 +28,12 @@ The canonical architecture sources for this repository are:
 - `docs/architecture/capabilities/*`
 - `docs/architecture/adr/ADR-001-capability-ownership-and-layer-model.md`
 
+Antigravity governance pack (runtime-domain canonical references):
+
+- `docs/architecture/antigravity/ANTIGRAVITY_ARCHITECTURE_CONTRACT.md`
+- `docs/architecture/antigravity/ANTIGRAVITY_DRIFT_CLASSIFICATION.md`
+- `docs/architecture/antigravity/ANTIGRAVITY_RUNTIME_RECOVERY_RUNBOOK.md`
+
 ## Binding Rules
 
 - Architecture law comes from canonical governance documents only.
