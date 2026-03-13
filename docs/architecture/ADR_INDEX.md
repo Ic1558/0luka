@@ -13,3 +13,4 @@
   - Status: Accepted
   - Date: 2026-03-13
   - File: `adr/ADR-AG-001-antigravity-canonical-runtime.md`
+  - Companion policy: `antigravity/ANTIGRAVITY_GUARDRAIL_POLICY.md`

@@ -58,6 +58,9 @@ runtime_first_hop_issues=''
 architecture_invariants_status=PASS
 architecture_invariants_issues=''
 
+antigravity_governance_status=PASS
+antigravity_governance_issues=''
+
 unresolved_rules=''
 
 for rel in \
@@ -234,6 +237,60 @@ if grep -Rho 'ADR-UNRESOLVED: [^`]*' "$DOCS_DIR/0LUKA_ARCHITECTURE_CONTRACT.md" 
   done </tmp/architecture_guard_unresolved.txt
 fi
 
+ag_contract='docs/architecture/antigravity/ANTIGRAVITY_ARCHITECTURE_CONTRACT.md'
+ag_drift='docs/architecture/antigravity/ANTIGRAVITY_DRIFT_CLASSIFICATION.md'
+ag_runbook='docs/architecture/antigravity/ANTIGRAVITY_RUNTIME_RECOVERY_RUNBOOK.md'
+ag_policy='docs/architecture/antigravity/ANTIGRAVITY_GUARDRAIL_POLICY.md'
+ag_adr='docs/architecture/adr/ADR-AG-001-antigravity-canonical-runtime.md'
+
+for rel in "$ag_contract" "$ag_drift" "$ag_runbook" "$ag_policy" "$ag_adr"
+do
+  if ! check_file "$rel"; then
+    antigravity_governance_status=FAIL
+    antigravity_governance_issues=$(append_issue "$antigravity_governance_issues" "missing $rel")
+  fi
+done
+
+ag_present_count=0
+for rel in "$ag_contract" "$ag_drift" "$ag_runbook" "$ag_policy"
+do
+  if check_file "$rel"; then
+    ag_present_count=$((ag_present_count + 1))
+  fi
+done
+
+if [ "$ag_present_count" -gt 0 ] && ! check_file "$ag_adr"; then
+  antigravity_governance_status=FAIL
+  antigravity_governance_issues=$(append_issue "$antigravity_governance_issues" 'ADR binding missing: ADR-AG-001 is required when Antigravity contract docs exist')
+fi
+
+if [ "$ag_present_count" -gt 0 ]; then
+  protected_docs=''
+  for rel in "$ag_contract" "$ag_drift" "$ag_runbook" "$ag_policy"
+  do
+    if check_file "$rel"; then
+      protected_docs=$(append_issue "$protected_docs" "$ROOT_DIR/$rel")
+    fi
+  done
+
+  if [ -n "$protected_docs" ]; then
+    if printf '%s\n' "$protected_docs" | xargs grep -nEi 'auth failure implies history loss' >/dev/null 2>&1; then
+      antigravity_governance_status=FAIL
+      antigravity_governance_issues=$(append_issue "$antigravity_governance_issues" 'prohibited conflation found: auth failure implies history loss')
+    fi
+
+    if printf '%s\n' "$protected_docs" | xargs grep -nEi 'ui missing implies data missing' >/dev/null 2>&1; then
+      antigravity_governance_status=FAIL
+      antigravity_governance_issues=$(append_issue "$antigravity_governance_issues" 'prohibited conflation found: UI missing implies data missing')
+    fi
+
+    if printf '%s\n' "$protected_docs" | xargs grep -nEi 'supervisor state defines historical truth' >/dev/null 2>&1; then
+      antigravity_governance_status=FAIL
+      antigravity_governance_issues=$(append_issue "$antigravity_governance_issues" 'prohibited conflation found: supervisor state defines historical truth')
+    fi
+  fi
+fi
+
 overall=PASS
 exit_code=0
 
@@ -243,7 +300,8 @@ if [ "$canonical_docs_status" = FAIL ] || \
    [ "$layer_mapping_status" = FAIL ] || \
    [ "$runtime_entrypoints_status" = FAIL ] || \
    [ "$runtime_first_hop_status" = FAIL ] || \
-   [ "$architecture_invariants_status" = FAIL ]; then
+   [ "$architecture_invariants_status" = FAIL ] || \
+   [ "$antigravity_governance_status" = FAIL ]; then
   overall=FAIL
   exit_code=1
 fi
@@ -257,6 +315,7 @@ print_status_section 'Layer mapping' "$layer_mapping_status" "$layer_mapping_iss
 print_status_section 'Runtime entrypoints' "$runtime_entrypoints_status" "$runtime_entrypoints_issues"
 print_status_section 'Runtime first-hop ownership' "$runtime_first_hop_status" "$runtime_first_hop_issues"
 print_status_section 'Architecture invariants' "$architecture_invariants_status" "$architecture_invariants_issues"
+print_status_section 'Antigravity governance' "$antigravity_governance_status" "$antigravity_governance_issues"
 printf 'Unresolved rules:\n'
 if [ -n "$unresolved_rules" ]; then
   printf '%s\n' "$unresolved_rules" | while IFS= read -r line; do
