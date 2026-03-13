@@ -14,6 +14,7 @@ Antigravity runtime work under `runtime/`.
 - In-memory artifact store at `state/artifact_store.py` is scaffolding only.
 - Artifact emitter at `engine/runtime_engine.py` is additive scaffolding only.
 - Artifact resolver at `engine/artifact_engine.py` is read-only decision scaffolding.
+- State writeback at `runtime_state/state_writeback.py` is contract-only scaffold.
 
 ## Non-goals
 

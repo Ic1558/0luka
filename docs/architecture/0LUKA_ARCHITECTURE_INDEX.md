@@ -69,6 +69,9 @@ Antigravity governance:
 - `../runtime/antigravity/runtime_state/antigravity_runtime_state.py`
   Local typed runtime state model used by the executor scaffold.
 
+- `../runtime/antigravity/runtime_state/state_writeback.py`
+  Contract-aligned state writeback scaffold (validation and payload preview only).
+
 - `../runtime/antigravity/artifacts/antigravity_blocker.py`
   Structured blocker artifact model for runtime analysis.
 
