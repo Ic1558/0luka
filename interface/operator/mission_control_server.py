@@ -74,8 +74,11 @@ from tools.ops.control_plane_policy_versions import (
 from tools.ops.execution_outcome_reconciler import reconcile_execution_outcome
 from tools.ops.decision_engine import classify_once
 from tools.ops.run_interpreter import interpret_run
+from core.runtime.runtime_state_resolver import (
+    RuntimeStateResolver,
+    resolve_runtime_root as resolve_runtime_state_root,
+)
 
-CANONICAL_RUNTIME_ROOT = Path("/Users/icmini/0luka_runtime")
 CANONICAL_OBSERVABILITY_ROOT = Path("/Users/icmini/0luka/observability")
 SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 7010
@@ -90,10 +93,11 @@ def _observability_root() -> Path:
 
 
 def _runtime_root() -> Path:
-    raw = os.environ.get("LUKA_RUNTIME_ROOT", "").strip()
-    if raw:
-        return Path(raw).expanduser().resolve()
-    return CANONICAL_RUNTIME_ROOT
+    return resolve_runtime_state_root()
+
+
+def _runtime_state_resolver() -> RuntimeStateResolver:
+    return RuntimeStateResolver(_runtime_root())
 
 
 def _activity_feed_path() -> Path:
@@ -101,30 +105,30 @@ def _activity_feed_path() -> Path:
 
 
 def _alerts_path() -> Path:
-    return _runtime_root() / "state" / "alerts.jsonl"
+    return _runtime_state_resolver().alerts_file()
 
 
 def _approval_actions_path() -> Path:
-    return _runtime_root() / "state" / "approval_actions.jsonl"
+    return _runtime_state_resolver().approval_actions_file()
 
 
 def _approval_log_path() -> Path:
-    primary = _runtime_root() / "state" / "approval_log.jsonl"
+    primary = _runtime_state_resolver().approval_log_file()
     if primary.exists():
         return primary
     return _approval_actions_path()
 
 
 def _remediation_history_log_path() -> Path:
-    return _runtime_root() / "state" / "remediation_history.jsonl"
+    return _runtime_state_resolver().remediation_history_file()
 
 
 def _qs_runs_dir() -> Path:
-    return _runtime_root() / "state" / "qs_runs"
+    return _runtime_state_resolver().qs_runs_dir()
 
 
 def _system_model_path() -> Path:
-    return _runtime_root() / "state" / "system_model.json"
+    return _runtime_state_resolver().system_model_file()
 
 
 def _resolve_qs_run_path(run_id: str) -> Path:
