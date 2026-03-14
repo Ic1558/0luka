@@ -57,6 +57,9 @@ Antigravity governance:
 - `runtime/ANTIGRAVITY_RUNTIME_EXECUTION_APPROVAL_2026-03-13.md`
   Explicit approval boundary record for runtime remediation execution.
 
+- `runtime/ANTIGRAVITY_STATE_WRITEBACK_CONTRACT.md`
+  Governance contract for future Antigravity runtime state writeback.
+
 - `../runtime/antigravity/`
   Canonical Antigravity runtime Phase R1 scaffolding subtree.
 
@@ -65,6 +68,9 @@ Antigravity governance:
 
 - `../runtime/antigravity/runtime_state/antigravity_runtime_state.py`
   Local typed runtime state model used by the executor scaffold.
+
+- `../runtime/antigravity/runtime_state/state_writeback.py`
+  Contract-aligned state writeback scaffold (validation and payload preview only).
 
 - `../runtime/antigravity/artifacts/antigravity_blocker.py`
   Structured blocker artifact model for runtime analysis.
