@@ -83,10 +83,17 @@ from core.router import Router
 from core.timeline import emit_event as _timeline_emit
 from runtime.runtime_service import RuntimeService
 
-DISPATCH_RUNTIME_SERVICE = RuntimeService.create(
-    runtime_root=ROOT,
-    service_name="dispatcher",
-)
+_DISPATCH_RUNTIME_SERVICE: RuntimeService | None = None
+
+
+def _get_dispatch_service() -> RuntimeService:
+    global _DISPATCH_RUNTIME_SERVICE
+    if _DISPATCH_RUNTIME_SERVICE is None:
+        _DISPATCH_RUNTIME_SERVICE = RuntimeService.create(
+            runtime_root=ROOT,
+            service_name="dispatcher",
+        )
+    return _DISPATCH_RUNTIME_SERVICE
 
 _dispatch_breaker = CircuitBreaker(
     name="router.execute",
@@ -235,7 +242,7 @@ def _emit_dispatch_start(task_id: str, trace_id: str, intent: str, module: str) 
     except Exception:
         pass
     try:
-        DISPATCH_RUNTIME_SERVICE.record_transition(
+        _get_dispatch_service().record_transition(
             task_id=task_id,
             phase="dispatcher.start",
             status="started",
@@ -280,7 +287,7 @@ def _emit_dispatch_end(
     except Exception:
         pass
     try:
-        DISPATCH_RUNTIME_SERVICE.record_transition(
+        _get_dispatch_service().record_transition(
             task_id=task_id,
             phase="dispatcher.end",
             status=status,
