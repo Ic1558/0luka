@@ -1,0 +1,13 @@
+repos:
+  - repo: local
+    hooks:
+      - id: check-no-machine-paths
+        name: check-no-machine-paths
+        entry: python tools/guards/check_no_machine_paths.py
+        language: system
+        pass_filenames: false
+      - id: check-kernel-boundaries
+        name: check-kernel-boundaries
+        entry: python tools/guards/check_kernel_boundaries.py
+        language: system
+        pass_filenames: false

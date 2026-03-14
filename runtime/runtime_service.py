@@ -16,6 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.runtime.runtime_state_resolver import RuntimeStateResolver
+
 try:
     import yaml  # type: ignore
 except Exception:
@@ -52,6 +54,10 @@ class RuntimeService:
     system_ledger_path: Path = field(init=False)
 
     def __post_init__(self) -> None:
+        if self.runtime_root is None:
+            raise RuntimeError("runtime_root_missing")
+        if not self.runtime_root.exists():
+            raise RuntimeError(f"runtime_root_not_found:{self.runtime_root}")
         if self.service_name not in KNOWN_SERVICES:
             raise ValueError(f"unknown_runtime_service:{self.service_name}")
         self.schema_v2_path = self.runtime_root / "interface" / "schemas" / "task_spec_v2.yaml"
@@ -64,6 +70,13 @@ class RuntimeService:
         cls, *, runtime_root: Optional[str | Path] = None, service_name: str
     ) -> "RuntimeService":
         return cls(runtime_root=resolve_runtime_root(runtime_root), service_name=service_name)
+
+    def get_runtime_state_resolver(
+        self, runtime_root: Optional[str | Path] = None
+    ) -> RuntimeStateResolver:
+        if runtime_root is not None:
+            return RuntimeStateResolver.from_runtime_root(runtime_root)
+        return RuntimeStateResolver(self.runtime_root)
 
     def validate_task_boundary(
         self, task: Dict[str, Any], *, allow_compat_v1: bool = True

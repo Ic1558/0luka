@@ -1,0 +1,20 @@
+name: No Machine Paths
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  invariant:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run no-machine-paths invariant
+        run: python3 tools/guards/check_no_machine_paths.py
+      - name: Run kernel-boundary invariant
+        run: python3 tools/guards/check_kernel_boundaries.py
