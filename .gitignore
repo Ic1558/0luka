@@ -11,8 +11,8 @@ logs/
 reports/
 artifacts/
 g/
-runtime/
-interface/
+/runtime/
+/interface/
 
 # Large file patterns (>10MB typical)
 *.tracev3
