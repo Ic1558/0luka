@@ -38,6 +38,16 @@ def _json_hash(data: Any) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _artifact_outputs_scope_hash(outputs_json: Dict[str, Any], artifacts: list[Any]) -> str:
+    """Hash the finalized result-envelope outputs block.
+
+    This hash intentionally represents artifact/result-envelope scope and is
+    independent from any execution-scope hash carried in the inbound result
+    payload.
+    """
+    return _json_hash({"outputs": outputs_json, "artifacts": artifacts})
+
+
 def _to_file_path(uri: str) -> Path:
     parsed = urlparse(uri)
     if parsed.scheme != "file":
@@ -70,6 +80,7 @@ def _ensure_result_envelope(result: Dict[str, Any]) -> Dict[str, Any]:
     outputs = result.get("outputs") if isinstance(result.get("outputs"), dict) else {}
     artifacts = outputs.get("artifacts") if isinstance(outputs.get("artifacts"), list) else []
     outputs_json = outputs.get("json") if isinstance(outputs.get("json"), dict) else {}
+    artifact_outputs_sha256 = _artifact_outputs_scope_hash(outputs_json, artifacts)
 
     evidence = result.get("evidence") if isinstance(result.get("evidence"), dict) else {}
     logs = evidence.get("logs") if isinstance(evidence.get("logs"), list) else []
@@ -97,8 +108,7 @@ def _ensure_result_envelope(result: Dict[str, Any]) -> Dict[str, Any]:
                     or _json_hash(result.get("inputs", {}))
                 ),
                 "outputs_sha256": str(
-                    (((result.get("provenance") or {}).get("hashes") or {}).get("outputs_sha256"))
-                    or _json_hash({"outputs": outputs_json, "artifacts": artifacts})
+                    artifact_outputs_sha256
                 ),
             },
         },
