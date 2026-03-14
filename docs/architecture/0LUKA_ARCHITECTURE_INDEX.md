@@ -45,6 +45,8 @@ Antigravity governance:
 - `antigravity/ANTIGRAVITY_DRIFT_CLASSIFICATION.md`
 - `antigravity/ANTIGRAVITY_RUNTIME_RECOVERY_RUNBOOK.md`
 - `antigravity/ANTIGRAVITY_GUARDRAIL_POLICY.md`
+- `ANTIGRAVITY_AGENT_BRIDGE_CONTRACT.md`
+  AG Bridge v1 contract.
 - `adr/ADR-AG-001-antigravity-canonical-runtime.md`
 - `.github/workflows/architecture-guard.yml`
 

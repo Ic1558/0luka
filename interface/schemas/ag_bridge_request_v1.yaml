@@ -1,0 +1,30 @@
+# AG Bridge Request Schema v1
+version: 1
+
+required:
+  - id
+  - source
+  - agent
+  - task
+  - args
+  - created_at_utc
+
+properties:
+  id:
+    type: string
+    format: uuid
+  source:
+    type: string
+    enum: ["antigravity"]
+  agent:
+    type: string
+    enum: ["cole", "lisa"]
+  task:
+    type: string
+    enum: ["cole.search_docs", "lisa.exec_shell"]
+  args:
+    type: object
+  created_at_utc:
+    type: string
+    format: iso8601z
+
