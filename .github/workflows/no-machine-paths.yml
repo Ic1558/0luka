@@ -17,4 +17,4 @@ jobs:
       - name: Run no-machine-paths invariant
         run: python3 tools/guards/check_no_machine_paths.py
       - name: Run kernel-boundary invariant
-        run: pytest -q core/verify/test_kernel_boundary_guard.py
+        run: python3 tools/guards/check_kernel_boundaries.py

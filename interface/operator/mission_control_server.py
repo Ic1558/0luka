@@ -79,7 +79,7 @@ from core.runtime.runtime_state_resolver import (
     resolve_runtime_root as resolve_runtime_state_root,
 )
 
-CANONICAL_OBSERVABILITY_ROOT = Path("/Users/icmini/0luka/observability")
+CANONICAL_OBSERVABILITY_ROOT = Path(__file__).resolve().parents[2] / "observability"
 SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 7010
 TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "mission_control.html"

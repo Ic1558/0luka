@@ -37,5 +37,5 @@ class AntigravityRuntimeState:
     approval_state: ApprovalState = ApprovalState.NOT_APPROVED
     blockers: List[str] = field(default_factory=list)
     evidence_refs: List[str] = field(default_factory=list)
-    working_directory: str = "/Users/icmini/0luka/repos/option"
+    working_directory: str = ""
     canonical_entrypoint: str = "modules/antigravity/realtime/control_tower.py"
