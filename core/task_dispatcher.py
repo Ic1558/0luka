@@ -81,6 +81,12 @@ from core.run_provenance import (
 from core.circuit_breaker import CircuitBreaker, CircuitOpenError
 from core.router import Router
 from core.timeline import emit_event as _timeline_emit
+from runtime.runtime_service import RuntimeService
+
+DISPATCH_RUNTIME_SERVICE = RuntimeService.create(
+    runtime_root=ROOT,
+    service_name="dispatcher",
+)
 
 _dispatch_breaker = CircuitBreaker(
     name="router.execute",
@@ -228,6 +234,16 @@ def _emit_dispatch_start(task_id: str, trace_id: str, intent: str, module: str) 
         )
     except Exception:
         pass
+    try:
+        DISPATCH_RUNTIME_SERVICE.record_transition(
+            task_id=task_id,
+            phase="dispatcher.start",
+            status="started",
+            detail="dispatch_cycle_started",
+            meta={"trace_id": trace_id, "intent": intent, "module": module},
+        )
+    except Exception:
+        pass
     return started
 
 
@@ -260,6 +276,21 @@ def _emit_dispatch_end(
             phase="dispatch",
             agent_id="dispatcher",
             extra={"status": status, "source": "dispatcher"},
+        )
+    except Exception:
+        pass
+    try:
+        DISPATCH_RUNTIME_SERVICE.record_transition(
+            task_id=task_id,
+            phase="dispatcher.end",
+            status=status,
+            detail="dispatch_cycle_completed",
+            meta={
+                "trace_id": trace_id,
+                "duration_ms": duration_ms,
+                "outbox_path": outbox_path,
+                "outbox_ref": outbox_ref,
+            },
         )
     except Exception:
         pass

@@ -16,10 +16,30 @@ except Exception:
     print("[FATAL] PyYAML is required. Install: pip install pyyaml", file=sys.stderr)
     raise SystemExit(2)
 
+try:
+    from runtime.runtime_service import RuntimeService
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from runtime.runtime_service import RuntimeService
+
 ISOZ = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+INTENT_LANE_MAP: dict[str, str] = {
+    "cole.search_docs": "cole",
+    "lisa.exec_shell": "lisa",
+    "paula.run_strategy": "paula",
+}
 
 def now_utc_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def resolve_runtime_root(root_arg: str | None = None, runtime_root: str | None = None) -> Path:
+    candidate = root_arg or runtime_root or os.environ.get("RUNTIME_ROOT") or os.environ.get("ROOT")
+    if not candidate or not str(candidate).strip():
+        raise RuntimeError(
+            "runtime_root_missing: provide root arg/--runtime-root or env RUNTIME_ROOT/ROOT"
+        )
+    return Path(str(candidate)).expanduser().resolve()
 
 def repo_rel_guard(p: str) -> None:
     if not isinstance(p, str) or not p.strip():
@@ -61,8 +81,19 @@ def validate(task: dict[str, Any], schema: dict[str, Any]) -> list[str]:
     if not ts or not ISOZ.match(ts):
         errs.append(f"invalid:timestamp_format:{ts}")
 
+    lane_allowed = schema.get("rules", {}).get("lane", {}).get("allowed") or []
     lane = task.get("lane")
-    if lane not in (schema.get("rules", {}).get("lane", {}).get("allowed") or []):
+    intent = str(task.get("intent") or "").strip()
+    expected_lane = INTENT_LANE_MAP.get(intent)
+
+    if not lane:
+        lane = expected_lane or schema.get("defaults", {}).get("lane", "task")
+        task["lane"] = lane
+
+    if expected_lane and lane != expected_lane:
+        errs.append("invalid:lane_intent_mismatch")
+
+    if lane not in lane_allowed:
         errs.append("invalid:lane")
 
     exec_allowed = schema.get("executor", {}).get("allowed") or schema.get("rules", {}).get("executor", {}).get("allowed") or []
@@ -120,6 +151,7 @@ class Paths:
     worker_id: str
     log_file: Path
     save_now: Path | None
+    dry_run: bool = False
 
 class Logger:
     def __init__(self, lane: str | None, worker_id: str, log_file: Path):
@@ -135,11 +167,13 @@ class Logger:
             f.write(line)
         print(line.strip())
 
-    def info(self, msg: str, task_id: str = "-", state: str = "IDLE"):
-        self._write(msg, task_id, state)
+    def info(self, msg: str, task_id: str = "-", state: str = "IDLE", dry_run: bool = False):
+        prefix = "[DRY RUN] " if dry_run else ""
+        self._write(f"{prefix}{msg}", task_id, state)
     
-    def error(self, msg: str, task_id: str = "-", state: str = "ERROR"):
-        self._write(f"ERROR: {msg}", task_id, state)
+    def error(self, msg: str, task_id: str = "-", state: str = "ERROR", dry_run: bool = False):
+        prefix = "[DRY RUN] " if dry_run else ""
+        self._write(f"{prefix}ERROR: {msg}", task_id, state)
 
 def acquire_lock(lock_dir: Path, ttl_sec: int = 600) -> bool:
     import platform
@@ -221,17 +255,20 @@ def p(root: Path, lane: str | None = None, worker_id: str = "bridge-0") -> Paths
         done_base=l_done,
         pending_base=l_pending,
         telemetry_latest=root / "observability/telemetry/bridge_consumer.latest.json",
-        schema=root / "core/schema/task_spec_v1.yaml",
-        schema_v2=root / "core/schema/task_spec_v2.yaml",
+        schema=root / "interface/schemas/task_spec_v1.yaml",
+        schema_v2=root / "interface/schemas/task_spec_v2.yaml",
         lock_dir=l_inflight / ".lock",
         lane=lane,
         worker_id=worker_id,
         log_file=root / f"logs/workers/{worker_id}.log",
         save_now=save_now,
+        dry_run=False,
     )
 
 
 def ensure_dirs(px: Paths) -> None:
+    if px.dry_run:
+        return
     px.processing.mkdir(parents=True, exist_ok=True)
     px.rejected.mkdir(parents=True, exist_ok=True)
     px.evidence_base.mkdir(parents=True, exist_ok=True)
@@ -241,8 +278,10 @@ def ensure_dirs(px: Paths) -> None:
     px.inflight.mkdir(parents=True, exist_ok=True)
     px.pending_base.mkdir(parents=True, exist_ok=True)
 
-def write_evidence(px: Paths, task_id: str, meta: dict[str, Any], timeline_line: dict[str, Any]) -> Path:
+def write_evidence(px: Paths, task_id: str, meta: dict[str, Any], timeline_line: dict[str, Any]) -> Path | None:
     ev = px.evidence_base / task_id
+    if px.dry_run:
+        return None
     ev.mkdir(parents=True, exist_ok=True)
     atomic_write(ev / "meta.json", meta)
     with (ev / "timeline.jsonl").open("a", encoding="utf-8") as f:
@@ -250,7 +289,7 @@ def write_evidence(px: Paths, task_id: str, meta: dict[str, Any], timeline_line:
     return ev
 
 def call_save_now(px: Paths, phase: str, task_id: str, title: str) -> None:
-    if not px.save_now:
+    if not px.save_now or px.dry_run:
         return
     # conservative: if save_now exists, call it; otherwise skip silently
     os.system(f'"{px.save_now}" --phase {phase} --trace-id {task_id} --agent-id bridge --title "{title}" --in "" >/dev/null 2>&1 || true')
@@ -366,12 +405,21 @@ def process_outbox(px: Paths, ts: str) -> tuple[int, int]:
 
     return processed, failed
 
-def process_one(px: Paths, task_path: Path, schema: dict[str, Any], log: Logger) -> int:
+def process_one(
+    px: Paths,
+    task_path: Path,
+    schema: dict[str, Any],
+    log: Logger,
+    runtime_service: RuntimeService,
+) -> int:
     ts = now_utc_iso()
 
     # claim -> processing
     claimed = px.processing / task_path.name
-    task_path.replace(claimed)
+    if not px.dry_run:
+        task_path.replace(claimed)
+    else:
+        claimed = task_path # Read in place for dry run
 
     try:
         # parse
@@ -403,11 +451,24 @@ def process_one(px: Paths, task_path: Path, schema: dict[str, Any], log: Logger)
                 active_schema = load_schema(px.schema_v2) 
             except: pass
             
+        boundary_ok, task, boundary_errors = runtime_service.validate_task_boundary(
+            task, allow_compat_v1=True
+        )
         errs = validate(task, active_schema)
+        if not boundary_ok:
+            errs.extend([f"boundary:{err}" for err in boundary_errors])
         if errs:
             reason = {"ts_utc": ts, "ok": False, "errors": errs}
-            atomic_write(px.rejected / (claimed.name + ".reason.json"), reason)
-            claimed.replace(px.rejected / claimed.name)
+            if not px.dry_run:
+                atomic_write(px.rejected / (claimed.name + ".reason.json"), reason)
+                claimed.replace(px.rejected / claimed.name)
+            runtime_service.record_transition(
+                task_id=str(task.get("task_id", "unknown")),
+                phase="bridge_consumer.validate",
+                status="rejected",
+                detail="taskspec_v2_boundary_validation_failed",
+                meta={"errors": errs[:10]},
+            )
             return 0
 
         task_id = str(task["task_id"])
@@ -417,7 +478,6 @@ def process_one(px: Paths, task_path: Path, schema: dict[str, Any], log: Logger)
 
         # Module #7 & #9: Create Pending State (Worker Contract v2)
         pending_dir = px.pending_base / task_id
-        pending_dir.mkdir(parents=True, exist_ok=True)
         
         meta = {
             "ts_utc": ts,
@@ -434,90 +494,67 @@ def process_one(px: Paths, task_path: Path, schema: dict[str, Any], log: Logger)
             "parent_task_id": task.get("parent_task_id"),
             "handoff": task.get("handoff"),
         }
-        
-        # A1: Worker Contract v2 initialization
-        atomic_write(pending_dir / "meta.json", meta)
-        atomic_write(pending_dir / "payload.json", task)
-        atomic_write(pending_dir / "status.json", {
-            "ts_utc": ts, 
-            "status": "PENDING", 
-            "task_id": task_id, 
-            "worker_id": None,
-            "attempt": 1,
-            "lease_expires_at": None
-        })
-        atomic_write(pending_dir / "attempt.json", {
-            "attempt": 1,
-            "max_attempts": task.get("max_attempts", 3),
-            "last_error_code": None,
-            "last_error_at": None,
-            "next_eligible_at": ts
-        })
-        atomic_write(pending_dir / "lease.json", {
-            "owner": None,
-            "issued_at": None,
-            "expires_at": None
-        })
-        
-        # Initialize empty result/error if needed, or leave for worker
-        
-        # Original Evidence flow
-        tl = {"ts_utc": ts, "event": "START", "task_id": task_id, "intent": intent}
-        write_evidence(px, task_id, meta, tl)
-        
-        # Append to pending timeline too (Module #7 audit)
-        tl_p = {"ts_utc": ts, "event": "PENDING", "task_id": task_id, "intent": intent}
-        with (pending_dir / "timeline.jsonl").open("a", encoding="utf-8") as f:
-            f.write(json.dumps(tl, ensure_ascii=False) + "\n") # START
-            f.write(json.dumps(tl_p, ensure_ascii=False) + "\n") # PENDING
-            if task.get("handoff"):
-                h = task["handoff"]
-                tl_h = {"ts_utc": ts, "event": "HANDOFF", "task_id": task_id, "from": h.get("from_lane"), "to": h.get("to_lane")}
-                f.write(json.dumps(tl_h, ensure_ascii=False) + "\n")
-
-        call_save_now(px, "plan", task_id, title)
 
         # Dispatch (Module #3):
         # We always dispatch to the global executor inbox root
         global_inbox_root = px.root / "interface/inbox/tasks"
         exec_inbox = global_inbox_root / executor
-        exec_inbox.mkdir(parents=True, exist_ok=True)
-
-        tl2 = {"ts_utc": ts, "event": "DISPATCHED", "task_id": task_id, "executor": executor}
-        ev = px.evidence_base / task_id
-        with (ev / "timeline.jsonl").open("a", encoding="utf-8") as f:
-            f.write(json.dumps(tl2, ensure_ascii=False) + "\n")
-        with (pending_dir / "timeline.jsonl").open("a", encoding="utf-8") as f:
-            f.write(json.dumps(tl2, ensure_ascii=False) + "\n")
-
-        # Update Status to DISPATCHED
-        atomic_write(pending_dir / "status.json", {
-            "ts_utc": ts, 
-            "status": "DISPATCHED", 
-            "task_id": task_id, 
-            "executor": executor,
-            "worker_id": None,
-            "attempt": 1,
-            "lease_expires_at": None
-        })
-
+        
         dispatched = exec_inbox / f"{task_id}.task.json"
-        claimed.replace(dispatched)
+        
+        if not px.dry_run:
+            pending_dir.mkdir(parents=True, exist_ok=True)
+            atomic_write(pending_dir / "meta.json", meta)
+            atomic_write(pending_dir / "payload.json", task)
+            atomic_write(pending_dir / "status.json", {
+                "ts_utc": ts, "status": "PENDING", "task_id": task_id, "worker_id": None, "attempt": 1, "lease_expires_at": None
+            })
+            atomic_write(pending_dir / "attempt.json", {
+                "attempt": 1, "max_attempts": task.get("max_attempts", 3), "last_error_code": None, "last_error_at": None, "next_eligible_at": ts
+            })
+            atomic_write(pending_dir / "lease.json", {"owner": None, "issued_at": None, "expires_at": None})
+            
+            tl = {"ts_utc": ts, "event": "START", "task_id": task_id, "intent": intent}
+            write_evidence(px, task_id, meta, tl)
+            
+            tl_p = {"ts_utc": ts, "event": "PENDING", "task_id": task_id, "intent": intent}
+            with (pending_dir / "timeline.jsonl").open("a", encoding="utf-8") as f:
+                f.write(json.dumps(tl, ensure_ascii=False) + "\n")
+                f.write(json.dumps(tl_p, ensure_ascii=False) + "\n")
+                if task.get("handoff"):
+                    h = task["handoff"]
+                    tl_h = {"ts_utc": ts, "event": "HANDOFF", "task_id": task_id, "from": h.get("from_lane"), "to": h.get("to_lane")}
+                    f.write(json.dumps(tl_h, ensure_ascii=False) + "\n")
 
-        # Done marker for the bridge consumer's "dispatch" phase
-        result = {
-            "ts_utc": ts,
-            "task_id": task_id,
-            "ok": True,
-            "status": "DISPATCHED",
-            "executor": executor,
-            "note": "Module #9: Inbox -> Pending -> Dispatched (Worker Contract v2).",
-        }
-        atomic_write(px.done_base / f"{task_id}.done.json", result)
+            exec_inbox.mkdir(parents=True, exist_ok=True)
+            tl2 = {"ts_utc": ts, "event": "DISPATCHED", "task_id": task_id, "executor": executor}
+            ev = px.evidence_base / task_id
+            with (ev / "timeline.jsonl").open("a", encoding="utf-8") as f:
+                f.write(json.dumps(tl2, ensure_ascii=False) + "\n")
+            with (pending_dir / "timeline.jsonl").open("a", encoding="utf-8") as f:
+                f.write(json.dumps(tl2, ensure_ascii=False) + "\n")
+
+            atomic_write(pending_dir / "status.json", {
+                "ts_utc": ts, "status": "DISPATCHED", "task_id": task_id, "executor": executor, "worker_id": None, "attempt": 1, "lease_expires_at": None
+            })
+            claimed.replace(dispatched)
+            
+            result = {
+                "ts_utc": ts, "task_id": task_id, "ok": True, "status": "DISPATCHED", "executor": executor,
+                "note": "Module #9: Inbox -> Pending -> Dispatched (Worker Contract v2).",
+            }
+            atomic_write(px.done_base / f"{task_id}.done.json", result)
 
         call_save_now(px, "done", task_id, title)
         call_save_now(px, "reply", task_id, title)
-        log.info(f"dispatched to {executor}", task_id, "DISPATCHED")
+        log.info(f"dispatched to {executor}", task_id, "DISPATCHED", dry_run=px.dry_run)
+        runtime_service.record_transition(
+            task_id=task_id,
+            phase="bridge_consumer.dispatch",
+            status="dispatched",
+            detail="bridge_consumer_dispatched_to_executor",
+            meta={"executor": executor, "intent": intent, "dry_run": px.dry_run},
+        )
         return 1
 
     except Exception as e:
@@ -595,14 +632,22 @@ def process_retries(px: Paths, ts: str) -> int:
 def main() -> int:
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("root", help="Project root path")
+    parser.add_argument("root", nargs="?", default=None, help="Project root path")
+    parser.add_argument("--runtime-root", dest="runtime_root", default=None)
     parser.add_argument("--lane", default=None, help="Process only this lane")
     parser.add_argument("--worker-id", default="bridge-0", help="Identity of this process")
+    parser.add_argument("--dry-run", action="store_true", help="Print actions but do not modify filesystem")
     args = parser.parse_args()
 
-    root = Path(args.root).resolve()
+    try:
+        root = resolve_runtime_root(args.root, args.runtime_root)
+    except RuntimeError as exc:
+        print(str(exc))
+        return 2
     px = p(root, lane=args.lane, worker_id=args.worker_id)
+    px.dry_run = args.dry_run
     ensure_dirs(px)
+    runtime_service = RuntimeService.create(runtime_root=px.root, service_name="bridge")
     
     log = Logger(px.lane, px.worker_id, px.log_file)
     # Symlink for summary tool visibility
@@ -637,7 +682,7 @@ def main() -> int:
         ts = now_utc_iso()
         processed = 0
         for f in inbox_files:
-            processed += process_one(px, f, schema, log)
+            processed += process_one(px, f, schema, log, runtime_service)
 
         outbox_processed, outbox_failed = process_outbox(px, ts)
         processed += outbox_processed
