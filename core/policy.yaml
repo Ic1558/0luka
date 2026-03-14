@@ -3,6 +3,7 @@ updated_at: "2026-01-26T02:20:00+07:00"
 
 defaults:
   deny_by_default: true
+  freeze_state: false
   allowed_roots:
     - "~/0luka"
   max_task_size_bytes: 1048576
