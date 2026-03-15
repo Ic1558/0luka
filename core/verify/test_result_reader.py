@@ -64,15 +64,20 @@ def test_helper_prefers_envelope_fields():
     assert get_result_execution_events(result)
 
 
-def test_helper_falls_back_without_envelope():
+def test_helper_returns_none_without_envelope():
+    """Phase 3 Authority Freeze: helpers return None/empty when no execution_envelope.
+
+    Mirrors are no longer authoritative; helpers do not fall back to mirror fields.
+    Pre-envelope results (no execution_envelope key) yield None/empty from all helpers.
+    """
     result = _result_without_envelope()
-    assert get_result_status(result) == "legacy-status"
-    assert get_result_summary(result) == "legacy"
+    assert get_result_status(result) is None
+    assert get_result_summary(result) is None
     hashes = get_result_provenance_hashes(result)
-    assert hashes["inputs_sha256"] == "legacy-input"
-    assert hashes["outputs_sha256"] == "legacy-output"
+    assert hashes["inputs_sha256"] == ""
+    assert hashes["outputs_sha256"] == ""
     assert hashes["envelope_sha256"] == ""
-    assert get_result_seal(result)["sig"] == "legacy"
+    assert get_result_seal(result) is None
     assert get_result_execution_events(result) == []
     assert get_result_executor_identity(result) is None
     assert get_result_routing(result) is None

@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-from core.result_reader import get_result_status
+
 
 
 def _set_env(root: Path):
@@ -147,7 +147,7 @@ def test_dispatch_clec_task_e2e() -> None:
             result = dispatcher.dispatch_one(task_file)
 
             assert result["task_id"] == task_id
-            assert get_result_status(result) == "committed", result
+            assert result.get("status") == "committed", result
             assert (root / "interface" / "completed" / f"{task_id}.yaml").exists()
             assert (root / "interface" / "outbox" / "tasks" / f"{task_id}.result.json").exists()
             assert dispatcher.DISPATCH_LOG.exists()
@@ -224,7 +224,7 @@ def test_dispatch_emits_start_end_events() -> None:
 
             dispatcher = _load_dispatcher(root)
             result = dispatcher.dispatch_one(task_file)
-            assert get_result_status(result) in {"committed", "rejected", "error"}, result
+            assert result.get("status") in {"committed", "rejected", "error"}, result
             assert dispatcher.DISPATCH_LOG.exists(), "dispatcher.jsonl missing"
 
             lines = dispatcher.DISPATCH_LOG.read_text(encoding="utf-8").splitlines()
@@ -278,7 +278,7 @@ def test_dispatch_idempotent() -> None:
 
             dispatcher = _load_dispatcher(root)
             result = dispatcher.dispatch_one(task_file)
-            assert get_result_status(result) == "skipped"
+            assert result.get("status") == "skipped"
             assert result["reason"] == "already_processed"
             assert task_file.exists()
             print("test_dispatch_idempotent: ok")
@@ -300,7 +300,7 @@ def test_dispatch_invalid_yaml_is_quarantined() -> None:
 
             dispatcher = _load_dispatcher(root)
             result = dispatcher.dispatch_one(task_file)
-            assert get_result_status(result) == "quarantined", result
+            assert result.get("status") == "quarantined", result
             assert result["reason"] in {"malformed_yaml", "not_a_yaml_object"}, result
             assert not task_file.exists()
 
@@ -339,7 +339,7 @@ def test_dispatch_non_clec_skipped() -> None:
 
             dispatcher = _load_dispatcher(root)
             result = dispatcher.dispatch_one(task_file)
-            assert get_result_status(result) == "skipped", result
+            assert result.get("status") == "skipped", result
             assert (root / "interface" / "rejected" / f"{task_id}.yaml").exists()
             print("test_dispatch_non_clec_skipped: ok")
         finally:
@@ -381,7 +381,7 @@ def test_dispatch_hard_path_rejected() -> None:
 
             dispatcher = _load_dispatcher(root)
             result = dispatcher.dispatch_one(task_file)
-            assert get_result_status(result) == "rejected", result
+            assert result.get("status") == "rejected", result
             assert "hard_path_detected" in result["reason"]
             assert (root / "interface" / "rejected" / f"{task_id}.yaml").exists()
             print("test_dispatch_hard_path_rejected: ok")
@@ -423,7 +423,7 @@ def test_dispatch_runtime_guard_rejects_non_template_root() -> None:
 
             dispatcher = _load_dispatcher(root)
             result = dispatcher.dispatch_one(task_file)
-            assert get_result_status(result) == "rejected", result
+            assert result.get("status") == "rejected", result
             assert "runtime_guard:" in str(result.get("reason", "")), result
             assert "invalid:absolute_root" in str(result.get("reason", "")), result
             assert (root / "interface" / "rejected" / f"{task_id}.yaml").exists()
@@ -461,7 +461,7 @@ def test_dispatch_guard_telemetry_missing_required_fields() -> None:
 
             dispatcher = _load_dispatcher(root)
             result = dispatcher.dispatch_one(task_file)
-            assert get_result_status(result) == "rejected", result
+            assert result.get("status") == "rejected", result
             blocked = [
                 r for r in _read_activity_rows(root)
                 if r.get("action") == "blocked" and r.get("task_id") == task_id
@@ -511,7 +511,7 @@ def test_dispatch_guard_telemetry_root_absolute_no_echo() -> None:
 
             dispatcher = _load_dispatcher(root)
             result = dispatcher.dispatch_one(task_file)
-            assert get_result_status(result) == "rejected", result
+            assert result.get("status") == "rejected", result
             blocked = [
                 r for r in _read_activity_rows(root)
                 if r.get("action") == "blocked" and r.get("task_id") == task_id
@@ -561,7 +561,7 @@ def test_dispatch_guard_valid_task_no_blocked_event() -> None:
 
             dispatcher = _load_dispatcher(root)
             result = dispatcher.dispatch_one(task_file)
-            assert get_result_status(result) in {"committed", "rejected", "error"}, result
+            assert result.get("status") in {"committed", "rejected", "error"}, result
             blocked = [
                 r for r in _read_activity_rows(root)
                 if r.get("action") == "blocked" and r.get("task_id") == task_id and r.get("phase_id") == "PHASE13B_GUARD_TELEMETRY"
@@ -636,11 +636,11 @@ def test_dispatch_rejects_resolved_injection_and_resolves_ref() -> None:
 
             dispatcher = _load_dispatcher(root)
             bad_result = dispatcher.dispatch_one(bad_file)
-            assert get_result_status(bad_result) == "rejected", bad_result
+            assert bad_result.get("status") == "rejected", bad_result
             assert "untrusted_resolved_inbound" in bad_result["reason"]
 
             good_result = dispatcher.dispatch_one(good_file)
-            assert get_result_status(good_result) == "committed", good_result
+            assert good_result.get("status") == "committed", good_result
             audit_file = root / "observability" / "artifacts" / "router_audit" / f"{good_task_id}.json"
             data = json.loads(audit_file.read_text(encoding="utf-8"))
             assert "ref://interface/inbox" in data.get("resolved_refs", []), data
@@ -688,7 +688,7 @@ def test_dispatch_writes_latest_pointer() -> None:
             result = dispatcher.dispatch_one(task_file)
 
             latest = root / "observability" / "artifacts" / "dispatch_latest.json"
-            assert get_result_status(result) in {"committed", "rejected", "error"}, result
+            assert result.get("status") in {"committed", "rejected", "error"}, result
             assert latest.exists(), "dispatch_latest.json not created"
             data = json.loads(latest.read_text(encoding="utf-8"))
             assert data["schema_version"] == "dispatch_latest_v1"
@@ -783,11 +783,11 @@ def test_submit_dispatch_round_trip() -> None:
             dispatcher = _load_dispatcher(root)
             result = dispatcher.dispatch_one(inbox_file)
             assert result["task_id"] == "task_rt_001"
-            assert get_result_status(result) in ("committed", "rejected"), f"unexpected: {result}"
+            assert result.get("status") in ("committed", "rejected"), f"unexpected: {result}"
             assert not inbox_file.exists(), "inbox file should be moved after dispatch"
 
             latest = root / "observability" / "artifacts" / "dispatch_latest.json"
-            if get_result_status(result) == "committed":
+            if result.get("status") == "committed":
                 assert latest.exists(), "dispatch_latest.json not written"
                 data = json.loads(latest.read_text(encoding="utf-8"))
                 assert data["task_id"] == "task_rt_001"

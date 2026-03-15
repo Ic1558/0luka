@@ -16,8 +16,7 @@ def get_result_status(result: Dict[str, Any]) -> Optional[str]:
         status = envelope.get("result", {}).get("status")
         if isinstance(status, str) and status.strip():
             return status
-    status = result.get("status")
-    return status if isinstance(status, str) else None
+    return None
 
 
 def get_result_summary(result: Dict[str, Any]) -> Optional[str]:
@@ -26,8 +25,7 @@ def get_result_summary(result: Dict[str, Any]) -> Optional[str]:
         summary = envelope.get("result", {}).get("summary")
         if isinstance(summary, str) and summary.strip():
             return summary
-    summary = result.get("summary")
-    return summary if isinstance(summary, str) else None
+    return None
 
 
 def get_result_provenance_hashes(result: Dict[str, Any]) -> Dict[str, Any]:
@@ -40,14 +38,6 @@ def get_result_provenance_hashes(result: Dict[str, Any]) -> Dict[str, Any]:
                 "outputs_sha256": str(prov.get("outputs_sha256") or ""),
                 "envelope_sha256": str(prov.get("envelope_sha256") or ""),
             }
-    prov = result.get("provenance") or {}
-    hashes = prov.get("hashes") or {}
-    if isinstance(hashes, dict):
-        return {
-            "inputs_sha256": str(hashes.get("inputs_sha256") or ""),
-            "outputs_sha256": str(hashes.get("outputs_sha256") or ""),
-            "envelope_sha256": "",
-        }
     return {"inputs_sha256": "", "outputs_sha256": "", "envelope_sha256": ""}
 
 
@@ -57,8 +47,7 @@ def get_result_seal(result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         seal = envelope.get("seal")
         if isinstance(seal, dict):
             return seal
-    seal = result.get("seal")
-    return seal if isinstance(seal, dict) else None
+    return None
 
 
 def get_result_execution_events(result: Dict[str, Any]) -> List[Dict[str, Any]]:

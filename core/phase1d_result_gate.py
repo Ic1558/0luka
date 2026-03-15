@@ -22,6 +22,7 @@ except ImportError:
     DRAFT202012 = None
 
 from core.ref_resolver import resolve_ref
+from core.result_integrity import assert_mirror_consistency
 from core.result_reader import get_result_provenance_hashes, get_result_status, get_result_summary
 from core.verify.no_hardpath_guard import find_hardpath_violations
 
@@ -145,7 +146,7 @@ def _normalize_errors(result: Dict[str, Any]) -> None:
         result["error"] = {"code": "ERR_RESULT_GATE", "summary": result["error"], "where": "result.error"}
     elif isinstance(result.get("error"), dict):
         e = result["error"]
-        summary = get_result_summary({"summary": e.get("summary")}) or e.get("message") or ""
+        summary = e.get("summary") or e.get("message") or ""
         result["error"] = {
             "code": e.get("code") or "ERR_RESULT_GATE",
             "summary": summary,
@@ -154,7 +155,10 @@ def _normalize_errors(result: Dict[str, Any]) -> None:
 
 
 def _enforce_evidence_minimum(result: Dict[str, Any]) -> None:
-    status = get_result_status(result)
+    # Gate-internal: read status from envelope first, fall back to direct read.
+    # This function runs on in-flight result bundles before outbox write;
+    # pre-envelope results use the direct status field.
+    status = get_result_status(result) or result.get("status")
     if status != "ok":
         return
     evidence = result.get("evidence") if isinstance(result.get("evidence"), dict) else {}
@@ -166,6 +170,14 @@ def _enforce_evidence_minimum(result: Dict[str, Any]) -> None:
     outputs = result.get("outputs") if isinstance(result.get("outputs"), dict) else {}
     artifacts = outputs.get("artifacts") if isinstance(outputs.get("artifacts"), list) else []
     hashes = get_result_provenance_hashes(result)
+    if not hashes.get("inputs_sha256"):
+        # Gate-internal: fall back to legacy provenance for pre-envelope results.
+        _legacy = (result.get("provenance") or {}).get("hashes") or {}
+        hashes = {
+            "inputs_sha256": str(_legacy.get("inputs_sha256") or ""),
+            "outputs_sha256": str(_legacy.get("outputs_sha256") or ""),
+            "envelope_sha256": "",
+        }
     hash_ok = bool(hashes.get("inputs_sha256")) and bool(hashes.get("outputs_sha256"))
     if not logs and not artifacts and not hash_ok:
         result["status"] = "error"
@@ -175,6 +187,10 @@ def _enforce_evidence_minimum(result: Dict[str, Any]) -> None:
 def gate_outbound_result(result: Dict[str, Any], *, mode: str = "normal") -> Dict[str, Any]:
     if not isinstance(result, dict):
         raise ResultGateError("result must be an object")
+    try:
+        assert_mirror_consistency(result)
+    except RuntimeError as exc:
+        raise ResultGateError(str(exc)) from exc
     _validate_result_schema(result)
 
     out = copy.deepcopy(result)
