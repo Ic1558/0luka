@@ -1,0 +1,146 @@
+{
+  "evidence": {
+    "commands": [
+      "ls -la"
+    ],
+    "logs": [
+      "{\"command\": \"ls -la\", \"returncode\": 0}"
+    ]
+  },
+  "execution_envelope": {
+    "accepted_input": {
+      "schema_version": "clec.v1",
+      "task": {
+        "author": "lisa",
+        "call_sign": "[Lisa]",
+        "executor": "lisa",
+        "intent": "lisa.exec_shell",
+        "lane": "lisa",
+        "ops": [
+          {
+            "command": "ls -la",
+            "op_id": "w1",
+            "type": "run"
+          }
+        ],
+        "root": "${ROOT}",
+        "schema_version": "clec.v1",
+        "task_id": "ag17-closeout-proof-001",
+        "ts_utc": "2026-03-15T00:00:00Z",
+        "verify": []
+      }
+    },
+    "command": {
+      "ops": [
+        {
+          "command": "ls -la",
+          "op_id": "w1",
+          "type": "run"
+        }
+      ]
+    },
+    "envelope_version": "v1",
+    "evidence": {
+      "commands": [
+        "ls -la"
+      ],
+      "execution_events": [
+        {
+          "command": "ls -la",
+          "event": "execution_started",
+          "execution_id": "exec-ag17-closeout-proof-001-97dc67bc",
+          "executor": "system/agents.lisa_executor.py",
+          "op_id": "w1",
+          "task_id": "ag17-closeout-proof-001",
+          "ts_utc": "2026-03-15T00:00:00Z"
+        },
+        {
+          "command": "ls -la",
+          "event": "execution_finished",
+          "execution_id": "exec-ag17-closeout-proof-001-97dc67bc",
+          "executor": "system/agents.lisa_executor.py",
+          "op_id": "w1",
+          "returncode": 0,
+          "task_id": "ag17-closeout-proof-001",
+          "ts_utc": "2026-03-15T07:43:07Z"
+        }
+      ],
+      "logs": [
+        "{\"command\": \"ls -la\", \"returncode\": 0}"
+      ]
+    },
+    "execution_id": "exec-ag17-closeout-proof-001-97dc67bc",
+    "executor": {
+      "executor_id": "system/agents.lisa_executor.py",
+      "executor_version": "lisa"
+    },
+    "intent": {
+      "author": "lisa",
+      "call_sign": "[Lisa]",
+      "executor_request": "lisa",
+      "lane": "lisa",
+      "name": "lisa.exec_shell"
+    },
+    "policy": {
+      "policy_id": "core/policy.yaml",
+      "policy_version": "v1"
+    },
+    "provenance": {
+      "envelope_sha256": "c42795914b0a2ab45522340c15f848504b96c7ba82c2b0a54780fd13c49f72a9",
+      "inputs_sha256": "6a8db2240c8e0ccf6d1c4d3e31a968ec46df4ca3054f2400025ba1b2576ab424",
+      "outputs_sha256": "09ddbe3722769c3116595547b066755590ebeda5203a00fa7835209ecf9a03bc"
+    },
+    "result": {
+      "status": "ok",
+      "summary": "dispatched:ag17-closeout-proof-001"
+    },
+    "routing": {
+      "policy_version": "v1",
+      "route": "lisa",
+      "router": "core/router.py"
+    },
+    "seal": {
+      "alg": "sha256",
+      "value": "621b731e2cfcb27645e55aa183434de4d029681934dd8879dc98c97ba2dc93e6"
+    },
+    "task_id": "ag17-closeout-proof-001",
+    "timestamps": {
+      "created_at": "2026-03-15T00:00:00Z",
+      "finished_at": "2026-03-15T07:43:07Z",
+      "started_at": "2026-03-15T00:00:00Z"
+    },
+    "trace_id": "ag17-closeout-proof-001",
+    "v": "0luka.execution_envelope/v1",
+    "wrapper": {
+      "wrapper_name": "direct_subprocess",
+      "wrapper_version": ""
+    }
+  },
+  "outputs": {
+    "artifacts": [],
+    "json": {}
+  },
+  "provenance": {
+    "ended_at": "2026-03-15T07:43:07Z",
+    "engine": {
+      "host": "Darwin-arm64-Ittipongs-Mac-mini.local",
+      "name": "core",
+      "version": "phase1e"
+    },
+    "hashes": {
+      "inputs_sha256": "6a8db2240c8e0ccf6d1c4d3e31a968ec46df4ca3054f2400025ba1b2576ab424",
+      "outputs_sha256": "9b98cdff8cf1c3eb4d48e87e8aaa3b1bd3696c6c0f9967a36d4ac4cb037a054f"
+    },
+    "started_at": "2026-03-15T07:43:07Z",
+    "trace_id": "ag17-closeout-proof-001"
+  },
+  "seal": {
+    "alg": "hmac-sha256",
+    "sig": "a39010b026af935b745e43b0b82a1267dc7b6df022a4095ab54ea765288b9ff8"
+  },
+  "status": "ok",
+  "summary": "dispatched:ag17-closeout-proof-001",
+  "task_id": "ag17-closeout-proof-001",
+  "type": "task.result",
+  "v": "0luka.result/v1"
+}

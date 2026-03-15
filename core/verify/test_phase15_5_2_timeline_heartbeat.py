@@ -13,6 +13,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from core import timeline
+from core.result_reader import get_result_status, detect_result_authority_mismatches
 from core.task_dispatcher import dispatch_one
 
 @pytest.fixture
@@ -28,7 +29,7 @@ def temp_root():
         (root / "observability" / "artifacts" / "tasks").mkdir(parents=True)
         (root / "observability" / "logs").mkdir(parents=True) # Dispatcher needs this
         
-        with patch("core.task_dispatcher.ROOT", root),              patch("core.timeline.ROOT", root),              patch("core.timeline.ARTIFACTS_DIR", root / "observability" / "artifacts" / "tasks"),              patch("core.task_dispatcher.DISPATCH_LOG", root / "observability" / "logs" / "dispatcher.jsonl"): 
+        with patch("core.task_dispatcher.ROOT", root),              patch("core.timeline.ROOT", root),              patch("core.timeline.ARTIFACTS_DIR", root / "observability" / "artifacts" / "tasks"),              patch("core.task_dispatcher.DISPATCH_LOG", root / "observability" / "logs" / "dispatcher.jsonl"),              patch("core.task_dispatcher.DISPATCH_LATEST", root / "observability" / "artifacts" / "dispatch_latest.json"): 
                 yield root
 
 def test_heartbeat_emit_success(temp_root):
@@ -62,7 +63,8 @@ def test_heartbeat_emit_success(temp_root):
         result = dispatch_one(task_file, dry_run=False)
         
         # Result should be 'committed' (based on audit return)
-        assert result["status"] == "committed"
+        status = get_result_status(result) or result.get("status")
+        assert status == "committed"
         
         # Check timeline artifacts
         timeline_path = temp_root / "observability" / "artifacts" / "tasks" / "test_001" / "timeline.jsonl"
@@ -118,7 +120,8 @@ def test_heartbeat_emit_failure_non_fatal(temp_root):
             except RuntimeError:
                 pytest.fail("Dispatch failed due to timeline emit error (should be non-fatal)")
             
-            assert result["status"] == "committed"
+            status = get_result_status(result) or result.get("status")
+            assert status == "committed"
             # Logic proceeded despite emit failure
 
 def test_heartbeat_emit_rejected(temp_root):
@@ -131,7 +134,8 @@ def test_heartbeat_emit_rejected(temp_root):
     with patch("core.task_dispatcher.gate_inbound_envelope", side_effect=Phase1AResolverError("Gate Closed")):
         result = dispatch_one(task_file, dry_run=False)
         
-        assert result["status"] == "rejected"
+        status = get_result_status(result) or result.get("status")
+        assert status == "rejected"
         
         timeline_path = temp_root / "observability" / "artifacts" / "tasks" / "test_reject" / "timeline.jsonl"
         

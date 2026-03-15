@@ -263,7 +263,7 @@ tools:
   status: candidate
   name: liam_executor
 - id: lisa_executor
-  path: tools/bridge/lisa_executor.py
+  path: system/agents/lisa_executor.py
   lane: bridge
   entrypoint: python3
   invoked_by: orphan

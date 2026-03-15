@@ -22,6 +22,7 @@ except ImportError:
     DRAFT202012 = None
 
 from core.ref_resolver import resolve_ref
+from core.result_reader import get_result_provenance_hashes, get_result_status, get_result_summary
 from core.verify.no_hardpath_guard import find_hardpath_violations
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -144,7 +145,7 @@ def _normalize_errors(result: Dict[str, Any]) -> None:
         result["error"] = {"code": "ERR_RESULT_GATE", "summary": result["error"], "where": "result.error"}
     elif isinstance(result.get("error"), dict):
         e = result["error"]
-        summary = e.get("summary") or e.get("message") or ""
+        summary = get_result_summary({"summary": e.get("summary")}) or e.get("message") or ""
         result["error"] = {
             "code": e.get("code") or "ERR_RESULT_GATE",
             "summary": summary,
@@ -153,7 +154,8 @@ def _normalize_errors(result: Dict[str, Any]) -> None:
 
 
 def _enforce_evidence_minimum(result: Dict[str, Any]) -> None:
-    if result.get("status") != "ok":
+    status = get_result_status(result)
+    if status != "ok":
         return
     evidence = result.get("evidence") if isinstance(result.get("evidence"), dict) else {}
     commands = evidence.get("commands") if isinstance(evidence.get("commands"), list) else []
@@ -163,8 +165,7 @@ def _enforce_evidence_minimum(result: Dict[str, Any]) -> None:
     logs = evidence.get("logs") if isinstance(evidence.get("logs"), list) else []
     outputs = result.get("outputs") if isinstance(result.get("outputs"), dict) else {}
     artifacts = outputs.get("artifacts") if isinstance(outputs.get("artifacts"), list) else []
-    provenance = result.get("provenance") if isinstance(result.get("provenance"), dict) else {}
-    hashes = provenance.get("hashes") if isinstance(provenance.get("hashes"), dict) else {}
+    hashes = get_result_provenance_hashes(result)
     hash_ok = bool(hashes.get("inputs_sha256")) and bool(hashes.get("outputs_sha256"))
     if not logs and not artifacts and not hash_ok:
         result["status"] = "error"

@@ -16,7 +16,7 @@ ERR="$ROOT/logs/components/lisa_executor/error.log"
 
 {
   echo "[$TS] lisa_executor heart-beat"
-  python3 "$ROOT/tools/bridge/lisa_executor.py" --root "$ROOT"
+  python3 "$ROOT/system/agents/lisa_executor.py" --root "$ROOT"
   TS2="$(python3 - <<'PY'
 from datetime import datetime, timezone
 print(datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00","Z"))

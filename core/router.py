@@ -2,6 +2,7 @@ import yaml
 import os
 import json
 import time
+import importlib
 from pathlib import Path
 from datetime import datetime
 from datetime import datetime
@@ -24,6 +25,35 @@ def _resolve_repo_root() -> Path:
 
 REPO_ROOT = _resolve_repo_root()
 _ROUTER_AUDIT_SCHEMA_CACHE = None
+
+
+def _is_lisa_authority(task_spec: dict) -> bool:
+    intent = str(task_spec.get("intent", "")).strip()
+    lane = str(task_spec.get("lane", "")).strip()
+    executor = str(task_spec.get("executor", "")).strip()
+    return intent == "lisa.exec_shell" or lane == "lisa" or executor == "lisa"
+
+
+def _execute_canonical_lisa(task_spec: dict) -> dict:
+    try:
+        lisa_mod = importlib.import_module("system.agents.lisa_executor")
+    except Exception as exc:
+        return {"status": "error", "reason": f"lisa_executor_import_failed:{exc}", "evidence": {}}
+
+    execute_task_spec = getattr(lisa_mod, "execute_task_spec", None)
+    if not callable(execute_task_spec):
+        return {"status": "error", "reason": "lisa_executor_missing_execute_task_spec", "evidence": {}}
+
+    try:
+        status, evidence = execute_task_spec(task_spec, root=_resolve_repo_root())
+    except Exception as exc:
+        return {"status": "error", "reason": f"lisa_executor_error:{exc}", "evidence": {}}
+
+    if status not in {"ok", "error"}:
+        return {"status": "error", "reason": "lisa_executor_invalid_status", "evidence": {}}
+    if not isinstance(evidence, dict):
+        return {"status": "error", "reason": "lisa_executor_invalid_evidence", "evidence": {}}
+    return {"status": status, "evidence": evidence}
 
 def load_policy():
     repo_root = _resolve_repo_root()
@@ -167,6 +197,14 @@ class Router:
     def execute(self, task_spec):
         schema_version = task_spec.get("schema_version")
         if schema_version == "clec.v1":
+            if _is_lisa_authority(task_spec):
+                intent = str(task_spec.get("intent", "")).strip()
+                lane = str(task_spec.get("lane", "")).strip()
+                executor = str(task_spec.get("executor", "")).strip()
+                if intent != "lisa.exec_shell" or lane != "lisa" or executor != "lisa":
+                    return {"status": "error", "reason": "lisa_authority_mismatch", "evidence": {}}
+                return _execute_canonical_lisa(task_spec)
+
             from core.clec_executor import CLECExecutorError, execute_clec_ops
 
             ops = task_spec.get("ops", [])

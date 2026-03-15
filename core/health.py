@@ -45,6 +45,14 @@ except ModuleNotFoundError:
         VERIFY_DIR,
     )
 
+from core.result_reader import (
+    detect_result_authority_mismatches,
+    get_result_execution_events,
+    get_result_provenance_hashes,
+    get_result_status,
+    get_result_summary,
+)
+
 HEARTBEAT = DISPATCH_HEARTBEAT
 DISPATCH_LATEST = DISPATCH_LATEST_PATH
 OUTBOX = OUTBOX_TASKS
@@ -240,12 +248,32 @@ def _check_last_dispatch() -> Optional[Dict[str, Any]]:
     data = _read_json(DISPATCH_LATEST)
     if not data:
         return None
-    return {
+    last_dispatch = {
         "task_id": data.get("task_id", ""),
         "status": data.get("status", ""),
         "ts": data.get("ts", ""),
         "author": data.get("author", ""),
     }
+    result_path = data.get("result_path")
+    if not isinstance(result_path, str) or not result_path.strip():
+        return last_dispatch
+    candidate = Path(result_path)
+    artifact_path = candidate if candidate.is_absolute() else ROOT / candidate
+    result = _read_json(artifact_path)
+    if not result:
+        return last_dispatch
+    hashes = get_result_provenance_hashes(result)
+    last_dispatch.update(
+        {
+            "status": get_result_status(result) or last_dispatch["status"],
+            "summary": get_result_summary(result) or "",
+            "result_path": str(candidate),
+            "execution_events": len(get_result_execution_events(result)),
+            "provenance_hashes": hashes,
+            "authority_mismatches": detect_result_authority_mismatches(result),
+        }
+    )
+    return last_dispatch
 
 
 def _run_tests() -> Dict[str, Any]:
@@ -384,6 +412,13 @@ def _print_human(report: Dict[str, Any]) -> None:
             f"Last dispatch: {last_dispatch['task_id']} -> {last_dispatch['status']} "
             f"({last_dispatch['ts']})"
         )
+        if last_dispatch.get("summary"):
+            print(f"Summary:      {last_dispatch['summary']}")
+        if last_dispatch.get("execution_events") is not None:
+            print(f"Exec events:  {last_dispatch['execution_events']}")
+        mismatches = last_dispatch.get("authority_mismatches") or []
+        if mismatches:
+            print(f"Authority:    {len(mismatches)} mismatch notes")
     else:
         print("Last dispatch: none")
 

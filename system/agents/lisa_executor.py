@@ -4,7 +4,12 @@ import argparse
 import subprocess
 import time
 from pathlib import Path
-from _base_agent import BaseAgent
+from typing import Any, Dict, Tuple
+
+try:
+    from ._base_agent import BaseAgent
+except Exception:
+    from _base_agent import BaseAgent
 
 class LisaExecutor(BaseAgent):
     CALL_SIGN = "[Lisa]"
@@ -91,10 +96,56 @@ class LisaExecutor(BaseAgent):
             "evidence": str(out),
         })
 
+
+def execute_task_spec(task_spec: Dict[str, Any], *, root: Path | None = None) -> Tuple[str, Dict[str, Any]]:
+    """Canonical lisa execution entry for router authority path."""
+    ops = task_spec.get("ops")
+    if not isinstance(ops, list) or not ops:
+        return "error", {"logs": ["missing_ops"], "commands": [], "effects": []}
+
+    task_id = str(task_spec.get("task_id") or task_spec.get("id") or "unknown")
+    logs: list[dict[str, Any]] = []
+    commands: list[str] = []
+    effects: list[str] = []
+    for idx, op in enumerate(ops):
+        if not isinstance(op, dict):
+            return "error", {"logs": [f"invalid_op:{idx}"], "commands": commands, "effects": effects}
+        if op.get("type") != "run":
+            return "error", {"logs": [f"unsupported_op_type:{op.get('type')}"], "commands": commands, "effects": effects}
+        command = str(op.get("command", "")).strip()
+        if not command:
+            return "error", {"logs": [f"empty_command:{idx}"], "commands": commands, "effects": effects}
+
+        binary = command.split()[0]
+        if binary not in LisaExecutor.ALLOW_COMMANDS:
+            return "error", {"logs": [f"command_not_allowlisted:{binary}"], "commands": commands, "effects": effects}
+
+        proc = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+        )
+        commands.append(command)
+        logs.append(
+            {
+                "op_index": idx,
+                "command": command,
+                "returncode": int(proc.returncode),
+                "stdout": proc.stdout,
+                "stderr": proc.stderr,
+            }
+        )
+        effects.append(f"run:{command}")
+        if proc.returncode != 0:
+            return "error", {"logs": logs, "commands": commands, "effects": effects, "task_id": task_id}
+
+    return "ok", {"logs": logs, "commands": commands, "effects": effects, "task_id": task_id}
+
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--task", required=True, help="TaskSpec JSON")
+    p.add_argument("--task", required=False, help="TaskSpec JSON")
+    p.add_argument("--root", required=False, help="Compatibility arg for launchd runner")
     args = p.parse_args()
-
-    LisaExecutor().run(Path(args.task))
-import time
+    if args.task:
+        LisaExecutor().run(Path(args.task))

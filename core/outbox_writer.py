@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -36,6 +37,21 @@ def _utc_now() -> str:
 def _json_hash(data: Any) -> str:
     text = json.dumps(data, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _compute_outputs_sha256(envelope: Dict[str, Any]) -> str:
+    temp = copy.deepcopy(envelope)
+    prov = temp.setdefault("provenance", {})
+    hashes = prov.setdefault("hashes", {})
+    hashes["outputs_sha256"] = ""
+    temp.pop("seal", None)
+    normalized = json.dumps(
+        temp,
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(normalized).hexdigest()
 
 
 def _to_file_path(uri: str) -> Path:
@@ -104,6 +120,9 @@ def _ensure_result_envelope(result: Dict[str, Any]) -> Dict[str, Any]:
         },
     }
 
+    execution_envelope = result.get("execution_envelope")
+    if isinstance(execution_envelope, dict):
+        envelope["execution_envelope"] = execution_envelope
     # Policy for 1E: ok + no logs/commands -> partial
     if envelope["status"] == "ok" and not logs and not commands:
         envelope["status"] = "partial"
@@ -154,6 +173,8 @@ def write_result_to_outbox(
     ref_map_path: str | None = None,
 ) -> Tuple[Path, Dict[str, Any]]:
     envelope = _ensure_result_envelope(result)
+    outputs_hash = _compute_outputs_sha256(envelope)
+    envelope["provenance"]["hashes"]["outputs_sha256"] = outputs_hash
     leaks = find_hardpath_violations(envelope)
     if leaks:
         reason = f"hardpath_detected:{leaks[0]['path']}:{leaks[0]['rule']}"

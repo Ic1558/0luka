@@ -71,6 +71,7 @@ _stats = {
 sys.path.insert(0, str(ROOT))
 DISPATCHER_SESSION_RUN_ID = uuid.uuid4().hex
 
+from core.execution.execution_envelope import ExecutionEnvelope
 from core.phase1a_resolver import Phase1AResolverError, gate_inbound_envelope
 from core.run_provenance import (
     append_event as append_execution_event,
@@ -475,6 +476,11 @@ def _payload_sha256_8(payload: Any) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:8]
 
 
+def _payload_sha256(payload: Any) -> str:
+    canonical = json.dumps(payload if payload is not None else {}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def _classify_root_kind(root_value: Any) -> str:
     if not isinstance(root_value, str):
         return "empty"
@@ -623,6 +629,147 @@ def _build_result_bundle(task_id: str, envelope: Dict[str, Any], task: Dict[str,
         effects.append(item if isinstance(item, str) else json.dumps(item, ensure_ascii=False, sort_keys=True))
     evidence = {"logs": logs, "commands": commands, "effects": effects}
 
+    result_bundle = {
+        "task_id": task_id,
+        "trace_id": str(envelope.get("trace", {}).get("trace_id", task_id)),
+        "status": exec_result.get("status", "error"),
+        "summary": f"dispatched:{task_id}",
+        "outputs": {"json": {}, "artifacts": []},
+        "evidence": evidence,
+        "resolved": task.get("resolved", {}),
+        "gates": {"observed_fs_writes": [], "observed_processes": []},
+        "artifacts": {"outputs": [], "deleted": []},
+        "provenance": {
+            "trace_id": str(envelope.get("trace", {}).get("trace_id", task_id)),
+            "started_at": str(envelope.get("trace", {}).get("ts", _utc_now())),
+            "ended_at": _utc_now(),
+            "engine": {"name": "core", "version": "phase4a", "host": "local"},
+            "hashes": {"inputs_sha256": _payload_sha256(task), "outputs_sha256": ""},
+        },
+    }
+    result_bundle["provenance"]["hashes"]["outputs_sha256"] = _payload_sha256(
+        {
+            "outputs": result_bundle["outputs"].get("json", {}),
+            "artifacts": result_bundle["outputs"].get("artifacts", []),
+        }
+    )
+    _attach_execution_envelope(task_id, task, result_bundle)
+
+    return result_bundle
+
+
+def _attach_execution_envelope(task_id: str, task: Dict[str, Any], result_bundle: Dict[str, Any]) -> None:
+    execution_id = f"exec-{task_id}-{uuid.uuid4().hex[:8]}"
+    intent_payload = {
+        "name": str(task.get("intent", "")),
+        "lane": str(task.get("lane", "")),
+        "executor_request": str(task.get("executor", "")),
+        "author": str(task.get("author", "")),
+        "call_sign": str(task.get("call_sign", "")),
+    }
+    command_payload = {"ops": task.get("ops", [])}
+    accepted_input = {
+        "schema_version": str(task.get("schema_version", "clec.v1")),
+        "task": task,
+    }
+    provenance = result_bundle.get("provenance", {})
+    rb_hashes = provenance.get("hashes", {}) if isinstance(provenance, dict) else {}
+    timestamps = {
+        "created_at": provenance.get("started_at", _utc_now()),
+        "started_at": provenance.get("started_at", _utc_now()),
+        "finished_at": provenance.get("ended_at", _utc_now()),
+    }
+    raw_evidence = result_bundle.get("evidence", {})
+    evidence = {
+        "commands": list(raw_evidence.get("commands", [])) if isinstance(raw_evidence, dict) else [],
+        "logs": list(raw_evidence.get("logs", [])) if isinstance(raw_evidence, dict) else [],
+    }
+    execution_events = _build_execution_events(task_id, execution_id, task, evidence, provenance)
+    evidence["execution_events"] = execution_events
+    result_bundle["evidence"] = evidence
+    result_section = {
+        "status": result_bundle.get("status", "error"),
+        "summary": result_bundle.get("summary", ""),
+    }
+    provenance_payload = {
+        "inputs_sha256": str(rb_hashes.get("inputs_sha256") or provenance.get("inputs_sha256") or ""),
+        "outputs_sha256": str(rb_hashes.get("outputs_sha256") or provenance.get("outputs_sha256") or ""),
+        "envelope_sha256": "",
+    }
+    envelope = ExecutionEnvelope.build(
+        execution_id=execution_id,
+        task_id=task_id,
+        trace_id=result_bundle.get("trace_id", task_id),
+        intent=intent_payload,
+        command=command_payload,
+        accepted_input=accepted_input,
+        routing={
+            "router": "core/router.py",
+            "route": str(task.get("lane", "")),
+            "policy_version": "v1",
+        },
+        executor={
+            "executor_id": "system/agents.lisa_executor.py",
+            "executor_version": str(task.get("executor", "lisa")),
+        },
+        policy={
+            "policy_id": "core/policy.yaml",
+            "policy_version": "v1",
+        },
+        wrapper={
+            "wrapper_name": "direct_subprocess",
+            "wrapper_version": "",
+        },
+        timestamps=timestamps,
+        provenance=provenance_payload,
+        evidence=evidence,
+        result=result_section,
+    ).sealed()
+    result_bundle["execution_envelope"] = envelope.to_dict()
+
+
+def _build_execution_events(
+    task_id: str,
+    execution_id: str,
+    task: Dict[str, Any],
+    evidence: Dict[str, Any],
+    provenance: Dict[str, Any],
+) -> list[Dict[str, Any]]:
+    ops = task.get("ops", []) if isinstance(task.get("ops"), list) else []
+    first_op = ops[0] if ops else {}
+    command = str(first_op.get("command", ""))
+    op_id = str(first_op.get("op_id", ""))
+    started_at = provenance.get("started_at", _utc_now())
+    ended_at = provenance.get("ended_at", _utc_now())
+    returncode = None
+    logs = evidence.get("logs", []) if isinstance(evidence.get("logs"), list) else []
+    if logs:
+        last_log = logs[-1]
+        if isinstance(last_log, dict):
+            returncode = last_log.get("returncode")
+
+    return [
+        {
+            "event": "execution_started",
+            "task_id": task_id,
+            "execution_id": execution_id,
+            "op_id": op_id,
+            "command": command,
+            "executor": "system/agents.lisa_executor.py",
+            "ts_utc": started_at,
+        },
+        {
+            "event": "execution_finished",
+            "task_id": task_id,
+            "execution_id": execution_id,
+            "op_id": op_id,
+            "command": command,
+            "executor": "system/agents.lisa_executor.py",
+            "returncode": returncode if returncode is not None else 0,
+            "ts_utc": ended_at,
+        },
+    ]
+
     return {
         "task_id": task_id,
         "trace_id": str(envelope.get("trace", {}).get("trace_id", task_id)),
@@ -638,7 +785,7 @@ def _build_result_bundle(task_id: str, envelope: Dict[str, Any], task: Dict[str,
             "started_at": str(envelope.get("trace", {}).get("ts", _utc_now())),
             "ended_at": _utc_now(),
             "engine": {"name": "core", "version": "phase4a", "host": "local"},
-            "hashes": {"inputs_sha256": "dispatch", "outputs_sha256": "dispatch"},
+            "hashes": {"inputs_sha256": _payload_sha256(task), "outputs_sha256": ""},
         },
     }
 

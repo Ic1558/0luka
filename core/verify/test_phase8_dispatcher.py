@@ -11,6 +11,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from core.result_reader import (
+    detect_result_authority_mismatches,
+    get_result_execution_events,
+    get_result_provenance_hashes,
+    get_result_status,
+    get_result_summary,
+)
+
 
 def _set_env(root: Path) -> dict:
     old = {"ROOT": os.environ.get("ROOT"), "0LUKA_ROOT": os.environ.get("0LUKA_ROOT")}
@@ -48,10 +56,15 @@ def _seed_task(root: Path, task_id: str) -> Path:
     inbox.mkdir(parents=True, exist_ok=True)
     task = {
         "task_id": task_id,
-        "author": "phase8-test",
+        "author": "lisa",
         "schema_version": "clec.v1",
-        "intent": "phase8.dispatch",
-        "ops": [{"op_id": "w1", "type": "write_text", "target_path": f"artifacts/{task_id}.txt", "content": "ok"}],
+        "ts_utc": "2026-03-15T00:00:00Z",
+        "call_sign": "[Lisa]",
+        "root": "${ROOT}",
+        "intent": "lisa.exec_shell",
+        "lane": "lisa",
+        "executor": "lisa",
+        "ops": [{"op_id": "w1", "type": "run", "command": "ls -la"}],
         "verify": [],
     }
     p = inbox / f"{task_id}.yaml"
@@ -67,6 +80,11 @@ def _read_jsonl(path: Path) -> list[dict]:
         if line.strip():
             rows.append(json.loads(line))
     return rows
+
+
+def _read_result(root: Path, task_id: str) -> dict:
+    path = root / "interface" / "outbox" / "tasks" / f"{task_id}.result.json"
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def test_entrypoint_watch_loop_runs() -> None:
@@ -106,6 +124,43 @@ def test_dispatch_emits_execution_events_and_run_provenance() -> None:
             task_file = _seed_task(root, "task_phase8_events")
             result = dispatcher.dispatch_one(task_file)
             assert result.get("status") in {"committed", "rejected"}
+
+            artifact_path = root / "interface" / "outbox" / "tasks" / "task_phase8_events.result.json"
+            if artifact_path.exists():
+                reader_target = _read_result(root, "task_phase8_events")
+            else:
+                reader_target = dispatcher._build_result_bundle(
+                    "task_phase8_events",
+                    {"trace": {"trace_id": "task_phase8_events", "ts": "2026-03-15T00:00:00Z"}},
+                    {
+                        "task_id": "task_phase8_events",
+                        "author": "lisa",
+                        "schema_version": "clec.v1",
+                        "ts_utc": "2026-03-15T00:00:00Z",
+                        "call_sign": "[Lisa]",
+                        "root": "${ROOT}",
+                        "intent": "lisa.exec_shell",
+                        "lane": "lisa",
+                        "executor": "lisa",
+                        "ops": [{"op_id": "w1", "type": "run", "command": "ls -la"}],
+                        "verify": [],
+                    },
+                    {"status": "ok", "evidence": {"logs": [], "commands": [], "effects": []}},
+                )
+
+            assert get_result_status(reader_target) == "ok"
+            assert isinstance(get_result_summary(reader_target), str)
+            hashes = get_result_provenance_hashes(reader_target)
+            assert hashes["inputs_sha256"]
+            assert hashes["outputs_sha256"]
+            events_from_helper = get_result_execution_events(reader_target)
+            assert [event.get("event") for event in events_from_helper] == [
+                "execution_started",
+                "execution_finished",
+            ]
+            mismatch_fields = {row["field"] for row in detect_result_authority_mismatches(reader_target)}
+            if isinstance(reader_target.get("seal"), dict):
+                assert "seal_schema" in mismatch_fields
 
             events = _read_jsonl(root / "observability" / "events.jsonl")
             assert any(e.get("type") == "execution.started" and e.get("component") == "dispatcher" for e in events)
