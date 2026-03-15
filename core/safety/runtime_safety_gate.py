@@ -18,6 +18,12 @@ logger = logging.getLogger(__name__)
 # Repeated-failure threshold: if failure_count >= this, escalate
 _FAILURE_ESCALATE_THRESHOLD: int = 3
 
+# AG-28: recovery action types — treated as first-class action types
+_RECOVERY_ACTIONS: frozenset[str] = frozenset({
+    "retry_once", "recheck_artifacts", "refresh_runtime_state",
+    "request_operator", "stop",
+})
+
 
 def evaluate_runtime_safety(context: dict[str, Any]) -> str:
     """Evaluate whether a runtime action is safe to proceed.
@@ -46,8 +52,9 @@ def evaluate_runtime_safety(context: dict[str, Any]) -> str:
     protected_zone = bool(context.get("protected_zone", False))
 
     # 1. Emergency stop — highest priority
+    # AG-28: REQUEST_OPERATOR is allowed even during emergency stop (routing only, no execution)
     stop_active = emergency_stop if isinstance(emergency_stop, bool) else is_emergency_stop_active()
-    if stop_active:
+    if stop_active and action_type.lower() not in ("request_operator", "stop"):
         logger.warning("safety_gate STOP: emergency stop active (run=%s)", run_id)
         return "STOP"
 
