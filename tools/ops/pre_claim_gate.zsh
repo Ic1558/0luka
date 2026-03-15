@@ -71,4 +71,8 @@ else
     exit 1
 fi
 
+# 7. AG-17 Result Reader Guard — advisory (prints violations, does not block)
+echo "Checking AG-17 Reader Boundary..."
+python3 tools/guards/check_result_reader_usage.py core 2>&1 | sed 's/^/  /'
+
 echo "🏁 Self-Check Complete."
