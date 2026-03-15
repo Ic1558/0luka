@@ -170,13 +170,14 @@ def plan_allowed(
     if "BLOCK" in verdicts:
         return "BLOCK"
 
-    # AG-22: consult promoted policy registry before ESCALATE short-circuit
+    # AG-22/AG-23: consult promoted policy registry before ESCALATE short-circuit
+    # Only ACTIVE policies are enforced; DEPRECATED/REVOKED/SUPERSEDED/EXPIRED skipped.
     # (fail-open: if registry unavailable, fall through to normal verdict)
     try:
-        from core.policy.policy_registry import list_policies
-        promoted = list_policies()
+        from core.policy.policy_lifecycle import list_active_policies, INACTIVE_STATUSES
+        active_policies = list_active_policies()
         action_types = {str(s.get("action") or "").lower() for s in steps}
-        for policy in promoted:
+        for policy in active_policies:
             rule = str(policy.get("rule") or "").lower()
             if "deny_delete_repo" in rule and "delete_repo" in action_types:
                 return "BLOCK"
