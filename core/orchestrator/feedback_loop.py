@@ -241,6 +241,64 @@ def run_loop(
     verification_result = verify_execution(run_id, execution_result)
     _persist_verification(verification_result)
 
+    # AG-28: autonomous recovery — attempt bounded recovery before adaptation
+    recovery_record: dict[str, Any] = {}
+    if verification_result.get("status") in ("FAILED", "PARTIAL"):
+        try:
+            from core.recovery.recovery_engine import select_recovery_action
+            from core.recovery.recovery_policy import evaluate_recovery_policy
+            from core.recovery.recovery_executor import execute_recovery_action
+            from core.recovery.recovery_store import (
+                append_recovery, write_latest as write_recovery_latest,
+                list_recent as list_recoveries,
+            )
+            from core.safety.runtime_safety_gate import evaluate_runtime_safety
+
+            recovery_ctx = dict(verification_result, run_id=run_id)
+            prior_recoveries = list_recoveries(limit=50)
+            chosen = select_recovery_action(recovery_ctx)
+            policy_v = evaluate_recovery_policy(recovery_ctx, chosen, prior_recoveries)
+
+            if policy_v == "ALLOW":
+                safety_v = evaluate_runtime_safety({
+                    "run_id": run_id,
+                    "action_type": chosen["recovery_action"].lower(),
+                    "policy_verdict": "ALLOW",
+                    "failure_count": 0,
+                    "protected_zone": recovery_ctx.get("protected_zone_related", False),
+                })
+                if safety_v == "ALLOW":
+                    exec_result = execute_recovery_action(chosen, recovery_ctx)
+                    recovery_record = append_recovery({
+                        "run_id": run_id,
+                        "failure_type": recovery_ctx.get("failure_type", "unknown"),
+                        "recovery_action": chosen["recovery_action"],
+                        "policy_verdict": policy_v,
+                        "result": exec_result.get("result", "FAILED"),
+                        "escalated": False,
+                    })
+                else:
+                    recovery_record = append_recovery({
+                        "run_id": run_id,
+                        "failure_type": recovery_ctx.get("failure_type", "unknown"),
+                        "recovery_action": chosen["recovery_action"],
+                        "policy_verdict": policy_v,
+                        "result": f"blocked_by_safety_gate:{safety_v}",
+                        "escalated": True,
+                    })
+            else:
+                recovery_record = append_recovery({
+                    "run_id": run_id,
+                    "failure_type": recovery_ctx.get("failure_type", "unknown"),
+                    "recovery_action": chosen["recovery_action"],
+                    "policy_verdict": policy_v,
+                    "result": "policy_blocked",
+                    "escalated": policy_v in ("ESCALATE", "STOP"),
+                })
+            write_recovery_latest(recovery_record)
+        except ImportError:
+            pass  # AG-28 not available — continue to AG-20 adaptation
+
     # AG-20: adaptive remediation — decide next action based on verification
     adaptation_record: dict[str, Any] = {}
     try:
@@ -290,6 +348,9 @@ def run_loop(
         "adaptation_id": adaptation_record.get("adaptation_id"),
         "adaptation_action": adaptation_record.get("action"),
         "adaptation_gate": adaptation_record.get("gate_verdict"),
+        "recovery_id": recovery_record.get("recovery_id"),
+        "recovery_action": recovery_record.get("recovery_action"),
+        "recovery_result": recovery_record.get("result"),
     }
 
 

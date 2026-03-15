@@ -114,6 +114,13 @@ def verify_execution(
         total = len(executed_steps)
         reason = f"{ok}/{total}_steps_passed"
 
+    # AG-28: structured failure context for recovery engine
+    failure_type = _classify_failure_type(status, execution_result)
+    recoverable = status in ("FAILED", "PARTIAL") and failure_type not in (
+        "protected_zone_violation", "emergency_stop_triggered",
+        "topology_lockdown", "process_concurrency_conflict", "policy_block",
+    )
+
     return {
         "verification_id": verification_id,
         "run_id": run_id,
@@ -121,4 +128,40 @@ def verify_execution(
         "status": status,
         "verified_at": verified_at,
         "reason": reason,
+        # AG-28 recovery context fields
+        "failure_type": failure_type,
+        "recoverable": recoverable,
+        "requires_operator": not recoverable and status != "SUCCESS",
+        "protected_zone_related": failure_type == "protected_zone_violation",
+        "topology_sensitive": failure_type in ("topology_lockdown", "topology_unstable"),
     }
+
+
+def _classify_failure_type(status: str, execution_result: dict[str, Any]) -> str:
+    """Classify failure type for recovery engine consumption."""
+    if status == "SUCCESS":
+        return "none"
+
+    # Check explicit failure tags from executor
+    tags = execution_result.get("failure_tags") or []
+    if "protected_zone" in tags:
+        return "protected_zone_violation"
+    if "emergency_stop" in tags:
+        return "emergency_stop_triggered"
+    if "topology" in tags:
+        return "topology_lockdown"
+    if "process_conflict" in tags:
+        return "process_concurrency_conflict"
+    if "policy_block" in tags:
+        return "policy_block"
+    if "missing_artifact" in tags:
+        return "missing_artifact"
+    if "artifact_mismatch" in tags:
+        return "artifact_mismatch"
+
+    exec_status = str(execution_result.get("status") or "").upper()
+    if exec_status in ("FAILED", "ERROR"):
+        return "execution_failed"
+    if status == "PARTIAL":
+        return "verification_failed"
+    return "verification_failed"
