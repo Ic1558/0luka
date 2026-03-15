@@ -47,6 +47,7 @@ except ModuleNotFoundError:
 
 from core.result_reader import (
     detect_result_authority_mismatches,
+    get_envelope_seal_verified,
     get_result_execution_events,
     get_result_provenance_hashes,
     get_result_status,
@@ -271,6 +272,7 @@ def _check_last_dispatch() -> Optional[Dict[str, Any]]:
             "execution_events": len(get_result_execution_events(result)),
             "provenance_hashes": hashes,
             "authority_mismatches": detect_result_authority_mismatches(result),
+            "envelope_seal_verified": get_envelope_seal_verified(result),
         }
     )
     return last_dispatch
@@ -419,6 +421,10 @@ def _print_human(report: Dict[str, Any]) -> None:
         mismatches = last_dispatch.get("authority_mismatches") or []
         if mismatches:
             print(f"Authority:    {len(mismatches)} mismatch notes")
+        seal_verified = last_dispatch.get("envelope_seal_verified")
+        if seal_verified is not None:
+            seal_label = "verified" if seal_verified else "INVALID"
+            print(f"Envelope:     seal {seal_label}")
     else:
         print("Last dispatch: none")
 
