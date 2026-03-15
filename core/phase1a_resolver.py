@@ -48,6 +48,7 @@ ALLOWED_CLEC_COMMANDS = [
     "git status",
     "git diff",
 ]
+LISA_CANONICAL_ALLOWED_COMMANDS = {"ls -la"}
 
 
 class Phase1AResolverError(RuntimeError):
@@ -240,6 +241,12 @@ def _validate_clec_task(task: Dict[str, Any]) -> None:
     ops = task.get("ops")
     if not isinstance(ops, list) or not ops:
         raise Phase1AResolverError("clec ops missing")
+    intent = str(task.get("intent") or "").strip()
+    lane = str(task.get("lane") or "").strip()
+    executor = str(task.get("executor") or "").strip()
+    lisa_authority = intent == "lisa.exec_shell" or lane == "lisa" or executor == "lisa"
+    if lisa_authority and (intent != "lisa.exec_shell" or lane != "lisa" or executor != "lisa"):
+        raise Phase1AResolverError("lisa_authority_mismatch")
     allowed_types = {"mkdir", "write_text", "copy", "patch_apply", "run"}
     for idx, op in enumerate(ops):
         if not isinstance(op, dict):
@@ -249,7 +256,12 @@ def _validate_clec_task(task: Dict[str, Any]) -> None:
             raise Phase1AResolverError(f"clec unsupported op type: index={idx}")
         if op_type == "run":
             command = op.get("command", "")
-            if not isinstance(command, str) or not _command_allowed(command):
+            if not isinstance(command, str):
+                raise Phase1AResolverError(f"clec unauthorized run command: index={idx}")
+            if lisa_authority:
+                if command.strip() not in LISA_CANONICAL_ALLOWED_COMMANDS:
+                    raise Phase1AResolverError(f"lisa unauthorized proof command: index={idx}")
+            elif not _command_allowed(command):
                 raise Phase1AResolverError(f"clec unauthorized run command: index={idx}")
 
     _validate_clec_verify(task.get("verify"))

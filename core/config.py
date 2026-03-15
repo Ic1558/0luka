@@ -41,8 +41,8 @@ OUTBOX_TASKS = INTERFACE_DIR / "outbox" / "tasks"
 COMPLETED = INTERFACE_DIR / "completed"
 REJECTED = INTERFACE_DIR / "rejected"
 
-DISPATCH_LOG = RUNTIME_LOGS_DIR / "dispatcher.jsonl"
-DISPATCH_LATEST = RUNTIME_ARTIFACTS_DIR / "dispatch_latest.json"
+DISPATCH_LOG = Path(os.environ.get("DISPATCH_LOG") or (RUNTIME_LOGS_DIR / "dispatcher.jsonl")).expanduser()
+DISPATCH_LATEST = Path(os.environ.get("DISPATCH_LATEST") or (RUNTIME_ARTIFACTS_DIR / "dispatch_latest.json")).expanduser()
 DISPATCH_HEARTBEAT = RUNTIME_ARTIFACTS_DIR / "dispatcher_heartbeat.json"
 DISPATCH_LEDGER = RUNTIME_ARTIFACTS_DIR / "dispatch_ledger.json"
 

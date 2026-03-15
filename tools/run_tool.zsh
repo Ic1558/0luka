@@ -10,10 +10,19 @@ shift
 
 case $TOOL_VERB in
     save)
-        MSG="${1:-State Saved by $AGENT_ID}"
-        echo "[0luka] Saving state (Agent: $AGENT_ID)..."
-        git add .
-        git commit -m "$MSG"
+        # BLOCKED — ADR-GIT-001: automated 'git add .' is forbidden against the
+        # live canonical repo. Mass-staging via automation was a contributing
+        # factor in the 2026-03-15 Git object store corruption incident.
+        #
+        # Use save-now v2 protocol instead:
+        #   ~/0luka/tools/save_now.zsh --phase done --agent-id <id> --trace-id <id> --in <file>
+        #
+        # For explicit human-reviewed commits, use git directly from a terminal session.
+        echo "[0luka] ERROR: 'run_tool save' is permanently blocked." >&2
+        echo "  Reason: automated 'git add .' risks corrupting the live Git object store." >&2
+        echo "  Use: ~/0luka/tools/save_now.zsh (artifact-only, no git writes)" >&2
+        echo "  See: docs/architecture/adr/ADR-GIT-001-git-safety-rules.md" >&2
+        exit 1
         ;;
     discover)
         echo "[0luka] Discovering workspace..."

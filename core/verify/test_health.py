@@ -16,9 +16,11 @@ def _set_env(root: Path) -> dict:
     old = {
         "ROOT": os.environ.get("ROOT"),
         "0LUKA_ROOT": os.environ.get("0LUKA_ROOT"),
+        "LUKA_RUNTIME_ROOT": os.environ.get("LUKA_RUNTIME_ROOT"),
     }
     os.environ["ROOT"] = str(root)
     os.environ["0LUKA_ROOT"] = str(root)
+    os.environ["LUKA_RUNTIME_ROOT"] = str(root / "_runtime")
     return old
 
 
@@ -160,10 +162,80 @@ def test_health_counts_queues() -> None:
         _restore_env(old)
 
 
+def test_health_reads_last_dispatch_from_result_artifact() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td).resolve()
+        old = _set_env(root)
+
+        (root / "interface" / "inbox").mkdir(parents=True, exist_ok=True)
+        (root / "interface" / "completed").mkdir(parents=True, exist_ok=True)
+        (root / "interface" / "rejected").mkdir(parents=True, exist_ok=True)
+        outbox = root / "interface" / "outbox" / "tasks"
+        outbox.mkdir(parents=True, exist_ok=True)
+        artifacts = root / "observability" / "artifacts"
+        artifacts.mkdir(parents=True, exist_ok=True)
+
+        schema_dir = root / "core" / "contracts" / "v1"
+        schema_dir.mkdir(parents=True, exist_ok=True)
+        (schema_dir / "0luka_schemas.json").write_text('{"$defs":{}}', encoding="utf-8")
+
+        result_path = outbox / "task_h.result.json"
+        result_path.write_text(
+            json.dumps(
+                {
+                    "v": "0luka.result/v1",
+                    "task_id": "task_h",
+                    "status": "legacy-status",
+                    "summary": "legacy-summary",
+                    "provenance": {
+                        "hashes": {"inputs_sha256": "legacy-in", "outputs_sha256": "legacy-out"},
+                    },
+                    "seal": {"alg": "hmac-sha256", "sig": "legacy"},
+                    "execution_envelope": {
+                        "result": {"status": "ok", "summary": "from-envelope"},
+                        "provenance": {
+                            "inputs_sha256": "env-in",
+                            "outputs_sha256": "env-out",
+                            "envelope_sha256": "e" * 64,
+                        },
+                        "seal": {"alg": "sha256", "value": "s" * 64},
+                        "evidence": {"execution_events": [{"event": "execution_started"}]},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (artifacts / "dispatch_latest.json").write_text(
+            json.dumps(
+                {
+                    "task_id": "task_h",
+                    "status": "legacy-status",
+                    "ts": "2026-02-08T12:00:00Z",
+                    "author": "codex",
+                    "result_path": "interface/outbox/tasks/task_h.result.json",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        health = _load_health(root)
+        report = health.check_health()
+
+        assert report["last_dispatch"]["status"] == "ok"
+        assert report["last_dispatch"]["summary"] == "from-envelope"
+        assert report["last_dispatch"]["execution_events"] == 1
+        assert report["last_dispatch"]["provenance_hashes"]["outputs_sha256"] == "env-out"
+        assert report["last_dispatch"]["authority_mismatches"]
+
+        print("test_health_reads_last_dispatch_from_result_artifact: ok")
+        _restore_env(old)
+
+
 def main() -> int:
     test_health_returns_valid_report()
     test_health_reads_heartbeat()
     test_health_counts_queues()
+    test_health_reads_last_dispatch_from_result_artifact()
     print("test_health: all ok")
     return 0
 

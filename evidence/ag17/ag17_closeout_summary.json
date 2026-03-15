@@ -1,0 +1,12 @@
+{
+  "bundle_provenance_hashes": {
+    "inputs_sha256": "6a8db2240c8e0ccf6d1c4d3e31a968ec46df4ca3054f2400025ba1b2576ab424",
+    "outputs_sha256": "09ddbe3722769c3116595547b066755590ebeda5203a00fa7835209ecf9a03bc"
+  },
+  "artifact_path": "/Users/icmini/0luka/interface/outbox/tasks/ag17-closeout-proof-001.result.json",
+  "embedded_outputs_sha256": "09ddbe3722769c3116595547b066755590ebeda5203a00fa7835209ecf9a03bc",
+  "top_level_outputs_sha256": "9b98cdff8cf1c3eb4d48e87e8aaa3b1bd3696c6c0f9967a36d4ac4cb037a054f",
+  "equal": false,
+  "embedded_non_empty": true,
+  "scope_interpretation": "different_scopes_in_current_runtime"
+}

@@ -16,9 +16,11 @@ def _set_env(root: Path) -> dict:
     old = {
         "ROOT": os.environ.get("ROOT"),
         "0LUKA_ROOT": os.environ.get("0LUKA_ROOT"),
+        "LUKA_RUNTIME_ROOT": os.environ.get("LUKA_RUNTIME_ROOT"),
     }
     os.environ["ROOT"] = str(root)
     os.environ["0LUKA_ROOT"] = str(root)
+    os.environ["LUKA_RUNTIME_ROOT"] = str(root)
     return old
 
 
@@ -78,6 +80,9 @@ def _copy_required_files(root: Path) -> None:
 
 
 def _load_modules(root: Path):
+    config_mod = importlib.import_module("core.config")
+    importlib.reload(config_mod)
+
     smoke_mod = importlib.import_module("core.smoke")
     smoke_mod = importlib.reload(smoke_mod)
     smoke_mod.ROOT = root

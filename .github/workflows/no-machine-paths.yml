@@ -18,3 +18,15 @@ jobs:
         run: python3 tools/guards/check_no_machine_paths.py
       - name: Run kernel-boundary invariant
         run: python3 tools/guards/check_kernel_boundaries.py
+      - name: Check for untracked Python source files in core/
+        run: |
+          # Exclude core/verify/ — untracked test files don't cause import failures,
+          # they simply don't run in CI. The risk is untracked source modules.
+          UNTRACKED=$(git ls-files --others --exclude-standard core/ \
+            | grep '\.py$' | grep -v '^core/verify/' || true)
+          if [ -n "$UNTRACKED" ]; then
+            echo "Untracked Python source files in core/ (local-only, CI cannot import):"
+            echo "$UNTRACKED"
+            exit 1
+          fi
+          echo "No untracked Python source files in core/"

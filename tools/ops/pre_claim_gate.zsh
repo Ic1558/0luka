@@ -61,4 +61,14 @@ else
      echo "❌ SILENT"
 fi
 
+# 6. Git Safety Guard — forbidden commands + stale launchd targets
+echo -n "Checking Git Safety... "
+if python3 tools/ops/git_safety_guard.py --scan --check-registry > /tmp/git_safety_gate.out 2>&1; then
+    echo "✅ CLEAN"
+else
+    echo "❌ VIOLATIONS FOUND"
+    cat /tmp/git_safety_gate.out
+    exit 1
+fi
+
 echo "🏁 Self-Check Complete."
