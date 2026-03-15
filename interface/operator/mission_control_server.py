@@ -2367,6 +2367,22 @@ def create_app():
             app.add_api_route("/api/verifications/latest", verifications_latest, methods=["GET"])
         except Exception:
             pass  # api_plans unavailable — skip gracefully
+        # AG-24: safety API endpoints
+        try:
+            from interface.operator.api_safety import (
+                safety_status, emergency_stop_status,
+                emergency_stop_activate, emergency_stop_clear,
+                topology_mode_status, process_conflicts, protected_zone_violations,
+            )
+            app.add_api_route("/api/safety/status", safety_status, methods=["GET"])
+            app.add_api_route("/api/safety/emergency_stop", emergency_stop_status, methods=["GET"])
+            app.add_api_route("/api/safety/emergency_stop/activate", emergency_stop_activate, methods=["POST"])
+            app.add_api_route("/api/safety/emergency_stop/clear", emergency_stop_clear, methods=["POST"])
+            app.add_api_route("/api/safety/topology_mode", topology_mode_status, methods=["GET"])
+            app.add_api_route("/api/safety/process_conflicts", process_conflicts, methods=["GET"])
+            app.add_api_route("/api/safety/violations", protected_zone_violations, methods=["GET"])
+        except Exception:
+            pass  # api_safety unavailable — skip gracefully
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"])

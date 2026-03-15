@@ -146,6 +146,22 @@ def run_loop(
     except RuntimeError as exc:
         logger.warning("decision persist (post-gate) failed: %s", exc)
 
+    # Step 5b: AG-24A safety gate — emergency stop blocks action path
+    try:
+        from core.safety.emergency_stop import is_emergency_stop_active
+        if is_emergency_stop_active():
+            logger.warning("feedback_loop halted: emergency_stop active (run=%s)", run_id)
+            return {
+                "decision_id": record.decision_id,
+                "classification": record.classification,
+                "action": record.action,
+                "confidence": record.confidence,
+                "verdict": verdict,
+                "result": {"routed": "emergency_stop", "reason": "emergency_stop_active"},
+            }
+    except Exception as exc:
+        logger.warning("emergency_stop check failed (fail-open): %s", exc)
+
     # Step 6: route via AG-19 planner → executor → verifier
     if verdict != "ALLOW":
         try:
