@@ -1,4 +1,6 @@
-"""AG-18: Policy gate — evaluates a DecisionRecord and returns ALLOW | BLOCK | ESCALATE.
+"""AG-18/AG-19: Policy gate — evaluates decisions, plans, and steps.
+
+Returns ALLOW | BLOCK | ESCALATE for each surface.
 
 Rules (evaluated in order):
 1. Destructive actions  → BLOCK
@@ -82,3 +84,73 @@ def policy_verdict(
 
     # Anything else is unknown
     return "ESCALATE"
+
+
+# ---------------------------------------------------------------------------
+# AG-19 plan-level and step-level gates
+# ---------------------------------------------------------------------------
+
+_ALLOWED_STEP_ACTIONS: frozenset[str] = frozenset({"verify_artifacts", "retry_task"})
+_MAX_PLAN_RETRY_STEPS: int = 1
+
+
+def step_allowed(step: dict) -> str:
+    """Return ALLOW, BLOCK, or ESCALATE for a single plan step.
+
+    Rules:
+      - unknown/disallowed action → ESCALATE
+      - destructive action → BLOCK
+      - verify_artifacts → ALLOW
+      - retry_task → ALLOW (caller responsible for retry-count check)
+    """
+    action = str(step.get("action") or "").strip().lower()
+    if not action:
+        return "ESCALATE"
+    if action in {a.lower() for a in DESTRUCTIVE_ACTIONS}:
+        return "BLOCK"
+    if action in _ALLOWED_STEP_ACTIONS:
+        return "ALLOW"
+    return "ESCALATE"
+
+
+def plan_allowed(
+    plan: dict,
+    prior_plans: list[dict] | None = None,
+) -> str:
+    """Return ALLOW, BLOCK, or ESCALATE for an entire plan.
+
+    Rules:
+      - multi-step plan with branching (>2 unique action types) → ESCALATE
+      - any step that is BLOCK or ESCALATE → propagate worst verdict
+      - retry_task count > MAX_PLAN_RETRY_STEPS for same run → BLOCK
+      - empty/no-op plan → ALLOW
+    """
+    steps: list[dict] = plan.get("steps") or []
+
+    if not steps:
+        return "ALLOW"
+
+    # Check individual steps
+    verdicts = [step_allowed(s) for s in steps]
+    if "BLOCK" in verdicts:
+        return "BLOCK"
+    if "ESCALATE" in verdicts:
+        return "ESCALATE"
+
+    # Check retry count across prior plans for the same run
+    run_id = str(plan.get("run_id") or "")
+    retry_steps_in_plan = sum(
+        1 for s in steps if str(s.get("action") or "").lower() == "retry_task"
+    )
+    prior_retry_steps = 0
+    if prior_plans and run_id:
+        for pp in prior_plans:
+            if str(pp.get("run_id") or "") == run_id:
+                for s in (pp.get("steps") or []):
+                    if str(s.get("action") or "").lower() == "retry_task":
+                        prior_retry_steps += 1
+
+    if prior_retry_steps + retry_steps_in_plan > _MAX_PLAN_RETRY_STEPS:
+        return "BLOCK"
+
+    return "ALLOW"

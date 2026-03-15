@@ -2352,6 +2352,21 @@ def create_app():
             app.add_api_route("/api/operator/inbox", operator_inbox, methods=["GET"])
         except Exception:
             pass  # api_decisions unavailable — skip gracefully
+        # AG-19: plan/execution/verification read-only endpoints
+        try:
+            from interface.operator.api_plans import (
+                plans_list, plans_latest,
+                executions_list, executions_latest,
+                verifications_list, verifications_latest,
+            )
+            app.add_api_route("/api/plans", plans_list, methods=["GET"])
+            app.add_api_route("/api/plans/latest", plans_latest, methods=["GET"])
+            app.add_api_route("/api/executions", executions_list, methods=["GET"])
+            app.add_api_route("/api/executions/latest", executions_latest, methods=["GET"])
+            app.add_api_route("/api/verifications", verifications_list, methods=["GET"])
+            app.add_api_route("/api/verifications/latest", verifications_latest, methods=["GET"])
+        except Exception:
+            pass  # api_plans unavailable — skip gracefully
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"])

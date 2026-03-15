@@ -1,26 +1,33 @@
-"""AG-18: Minimal bounded feedback loop.
+"""AG-18/AG-19: Bounded feedback loop — classify → plan → gate → execute → verify.
 
-Flow:
-  classify → persist → policy_gate → ALLOW: bounded retry dispatch
-                                   → BLOCK/ESCALATE: operator queue
+AG-18 flow: classify → persist → policy_gate(decision) → route
+AG-19 flow: classify → persist → policy_gate(decision) → planner → plan_store
+            → policy_gate(plan) → executor → verifier → persist results
 
-Safety constraints:
+Safety:
   - No direct shell execution
   - No git mutation
-  - No repo writes outside runtime state
-  - Only dispatcher-compatible path for actions
-  - max_retry = 1 enforced by policy_gate
+  - No repo writes outside $LUKA_RUNTIME_ROOT
+  - All actions through dispatcher-compatible path
+  - max_retry = 1 enforced at decision + plan level
 """
 from __future__ import annotations
 
+import json
 import logging
+import os
 import time
+from pathlib import Path
 from typing import Any
 
 from core.decision.models import DecisionRecord
 from core.decision import decision_store
+from core.executor.executor import execute_plan
 from core.operator.operator_queue import enqueue_operator_case
-from core.policy.policy_gate import policy_verdict
+from core.planner.planner import create_plan
+from core.planner import plan_store
+from core.policy.policy_gate import plan_allowed, policy_verdict
+from core.verifier.verifier import verify_execution
 from tools.ops.decision_engine import classify_once, map_signal_to_action
 
 logger = logging.getLogger(__name__)
@@ -139,15 +146,65 @@ def run_loop(
     except RuntimeError as exc:
         logger.warning("decision persist (post-gate) failed: %s", exc)
 
-    # Step 6: route
-    if verdict == "ALLOW":
-        result = _execute_allowed_decision(record)
-    else:
+    # Step 6: route via AG-19 planner → executor → verifier
+    if verdict != "ALLOW":
         try:
             enqueue_operator_case(record, reason=verdict)
         except RuntimeError as exc:
             logger.warning("operator queue enqueue failed: %s", exc)
-        result = {"routed": "operator_queue", "reason": verdict}
+        return {
+            "decision_id": record.decision_id,
+            "classification": record.classification,
+            "action": record.action,
+            "confidence": record.confidence,
+            "verdict": verdict,
+            "result": {"routed": "operator_queue", "reason": verdict},
+        }
+
+    # AG-19: plan
+    plan = create_plan(record, run_state={"run_id": run_id})
+    try:
+        plan_store.append_plan(plan)
+        plan_store.write_latest(plan)
+    except RuntimeError as exc:
+        logger.warning("plan persist failed: %s", exc)
+
+    # AG-19: plan-level policy gate
+    prior_plans = plan_store.list_recent(limit=50)
+    plan_verdict = plan_allowed(plan, prior_plans=prior_plans)
+
+    if plan_verdict != "ALLOW":
+        try:
+            enqueue_operator_case(record, reason=f"plan_{plan_verdict}")
+        except RuntimeError as exc:
+            logger.warning("plan escalation enqueue failed: %s", exc)
+        return {
+            "decision_id": record.decision_id,
+            "classification": record.classification,
+            "action": record.action,
+            "confidence": record.confidence,
+            "verdict": verdict,
+            "plan_verdict": plan_verdict,
+            "result": {"routed": "operator_queue", "reason": f"plan_{plan_verdict}"},
+        }
+
+    # AG-19: execute
+    execution_result = execute_plan(plan)
+    _persist_execution(execution_result)
+
+    # AG-19: verify
+    verification_result = verify_execution(run_id, execution_result)
+    _persist_verification(verification_result)
+
+    # escalate if verification failed
+    if verification_result.get("status") in ("FAILED", "PARTIAL"):
+        try:
+            enqueue_operator_case(
+                record,
+                reason=f"verification_{verification_result['status'].lower()}",
+            )
+        except RuntimeError as exc:
+            logger.warning("verification escalation enqueue failed: %s", exc)
 
     return {
         "decision_id": record.decision_id,
@@ -155,5 +212,48 @@ def run_loop(
         "action": record.action,
         "confidence": record.confidence,
         "verdict": verdict,
-        "result": result,
+        "plan_id": plan.get("plan_id"),
+        "plan_verdict": plan_verdict,
+        "execution_id": execution_result.get("execution_id"),
+        "execution_status": execution_result.get("status"),
+        "verification_id": verification_result.get("verification_id"),
+        "verification_status": verification_result.get("status"),
     }
+
+
+def _persist_execution(execution_result: dict[str, Any]) -> None:
+    """Write execution result to execution_log.jsonl and execution_latest.json."""
+    runtime_root = os.environ.get("LUKA_RUNTIME_ROOT", "").strip()
+    if not runtime_root:
+        return
+    state_dir = Path(runtime_root) / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        log = state_dir / "execution_log.jsonl"
+        with log.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(execution_result, sort_keys=True) + "\n")
+        latest = state_dir / "execution_latest.json"
+        tmp = state_dir / "execution_latest.json.tmp"
+        tmp.write_text(json.dumps(execution_result, indent=2) + "\n", encoding="utf-8")
+        os.replace(tmp, latest)
+    except OSError as exc:
+        logger.warning("execution persist failed: %s", exc)
+
+
+def _persist_verification(verification_result: dict[str, Any]) -> None:
+    """Write verification result to verification_log.jsonl and verification_latest.json."""
+    runtime_root = os.environ.get("LUKA_RUNTIME_ROOT", "").strip()
+    if not runtime_root:
+        return
+    state_dir = Path(runtime_root) / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        log = state_dir / "verification_log.jsonl"
+        with log.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(verification_result, sort_keys=True) + "\n")
+        latest = state_dir / "verification_latest.json"
+        tmp = state_dir / "verification_latest.json.tmp"
+        tmp.write_text(json.dumps(verification_result, indent=2) + "\n", encoding="utf-8")
+        os.replace(tmp, latest)
+    except OSError as exc:
+        logger.warning("verification persist failed: %s", exc)
