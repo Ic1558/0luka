@@ -2427,6 +2427,16 @@ def create_app():
             app.add_api_route("/api/supersede_policy", supersede_policy_endpoint, methods=["POST"])
         except Exception:
             pass  # api_policies unavailable — skip gracefully
+        # AG-29: policy effectiveness endpoints
+        try:
+            from interface.operator.api_effectiveness import (
+                effectiveness_list, effectiveness_verification_log, verify_policy_endpoint,
+            )
+            app.add_api_route("/api/policy_effectiveness", effectiveness_list, methods=["GET"])
+            app.add_api_route("/api/policy_verification_log", effectiveness_verification_log, methods=["GET"])
+            app.add_api_route("/api/verify_policy_effectiveness", verify_policy_endpoint, methods=["POST"])
+        except Exception:
+            pass  # api_effectiveness unavailable — skip gracefully
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"])
