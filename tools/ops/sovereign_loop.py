@@ -206,8 +206,38 @@ class SovereignControl:
                     else:
                         self.decisions.append({"action": "rate_limited", "type": ctype, "target": target, "rule_id": rule["id"]})
 
-        # 4. Audit Bundle
+        # 4. AG-18 Feedback Loop integration — classify + persist + policy gate
+        self._run_feedback_loop()
+
+        # 5. Audit Bundle
         self.save_audit()
+
+    def _run_feedback_loop(self):
+        """Wire sovereign_loop signals into AG-18 feedback_loop.run_loop().
+
+        Signal mapping:
+          operator_status  = {"ok": True}  — daemon is alive and running
+          runtime_status   = {"ok": index healthy}  — feed index health proxy
+          policy_drift     = {"drift_count": triggers found}  — consequence triggers as drift signal
+        """
+        try:
+            from core.orchestrator.feedback_loop import run_loop as fl_run_loop
+            import time as _time
+
+            operator_status = {"ok": True}
+            runtime_status = {"ok": getattr(self, "index_status", "stale") == "healthy"}
+            policy_drift = {"drift_count": len(self.triggers_found)}
+
+            fl_run_loop(
+                run_id=self.run_id,
+                operator_status=operator_status,
+                runtime_status=runtime_status,
+                policy_drift=policy_drift,
+                ts_utc=_time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime()),
+            )
+        except Exception as exc:
+            # Fail-open for sovereign_loop itself — feedback_loop errors must not halt consequences
+            self.emit_event("feedback_loop_error", {"reason": str(exc), "run_id": self.run_id})
 
     def save_audit(self):
         AUDIT_DIR.mkdir(parents=True, exist_ok=True)
