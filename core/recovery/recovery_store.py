@@ -12,13 +12,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from core.config import RUNTIME_ROOT
-
-_STATE_DIR = RUNTIME_ROOT / "state"
+import os
 
 
 def _state_dir() -> Path:
-    d = _STATE_DIR
+    runtime_root = os.environ.get("LUKA_RUNTIME_ROOT", "").strip()
+    if not runtime_root:
+        raise RuntimeError("LUKA_RUNTIME_ROOT not set")
+    d = Path(runtime_root) / "state"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
