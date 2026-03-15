@@ -2401,6 +2401,18 @@ def create_app():
             app.add_api_route("/api/recovery/latest", recovery_latest, methods=["GET"])
         except Exception:
             pass  # api_recovery unavailable — skip gracefully
+        # AG-21: learning plane read-only endpoints
+        try:
+            from interface.operator.api_learning import (
+                learning_observations, learning_patterns,
+                learning_policy_candidates, learning_metrics,
+            )
+            app.add_api_route("/api/learning/observations", learning_observations, methods=["GET"])
+            app.add_api_route("/api/learning/patterns", learning_patterns, methods=["GET"])
+            app.add_api_route("/api/learning/policy_candidates", learning_policy_candidates, methods=["GET"])
+            app.add_api_route("/api/learning/metrics", learning_metrics, methods=["GET"])
+        except Exception:
+            pass  # api_learning unavailable — skip gracefully
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"])

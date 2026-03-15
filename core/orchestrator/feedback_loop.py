@@ -333,6 +333,25 @@ def run_loop(
             except RuntimeError as exc:
                 logger.warning("verification escalation enqueue failed: %s", exc)
 
+    # AG-21: learning plane — observe execution cycle (fail-open, never blocks runtime)
+    try:
+        from learning.observation_store import append_observation
+        from learning.pattern_extractor import update_pattern_registry
+        from learning.policy_candidates import generate_policy_candidates
+        append_observation({
+            "run_id": run_id,
+            "decision_id": record.decision_id,
+            "plan_id": plan.get("plan_id", ""),
+            "execution_result": execution_result.get("status", ""),
+            "verifier_status": verification_result.get("status", ""),
+            "adaptation_result": "",  # no AG-20 on main yet — placeholder
+            "policy_verdict": verdict,
+        })
+        update_pattern_registry()
+        generate_policy_candidates()
+    except Exception as exc:
+        logger.debug("learning plane observe failed (fail-open): %s", exc)
+
     return {
         "decision_id": record.decision_id,
         "classification": record.classification,
