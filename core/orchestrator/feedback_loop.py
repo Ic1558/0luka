@@ -241,15 +241,39 @@ def run_loop(
     verification_result = verify_execution(run_id, execution_result)
     _persist_verification(verification_result)
 
-    # escalate if verification failed
-    if verification_result.get("status") in ("FAILED", "PARTIAL"):
-        try:
-            enqueue_operator_case(
-                record,
-                reason=f"verification_{verification_result['status'].lower()}",
-            )
-        except RuntimeError as exc:
-            logger.warning("verification escalation enqueue failed: %s", exc)
+    # AG-20: adaptive remediation — decide next action based on verification
+    adaptation_record: dict[str, Any] = {}
+    try:
+        from core.adaptation.adaptive_router import route_adaptation
+        from core.adaptation.adaptation_store import list_recent as list_adaptations
+        prior_adaptations = list_adaptations(limit=50)
+        adaptation_record = route_adaptation(
+            verification_result=verification_result,
+            execution_context={"run_id": run_id},
+            prior_adaptations=prior_adaptations,
+        )
+        adaptation_action = adaptation_record.get("action", "ESCALATE")
+        adaptation_gate = adaptation_record.get("gate_verdict", "BLOCK")
+
+        # If adaptation says ESCALATE or gate says BLOCK → enqueue
+        if adaptation_action == "ESCALATE" or adaptation_gate in ("BLOCK", "ESCALATE"):
+            try:
+                enqueue_operator_case(record, reason=f"adaptation_{adaptation_action.lower()}")
+            except RuntimeError as exc:
+                logger.warning("adaptation escalation enqueue failed: %s", exc)
+        elif verification_result.get("status") in ("FAILED", "PARTIAL"):
+            # RETRY or SAFE_FALLBACK — log but don't escalate (bounded loop handles it)
+            logger.info("adaptation action=%s gate=%s (run=%s)", adaptation_action, adaptation_gate, run_id)
+    except ImportError:
+        # AG-20 not available — fall back to legacy escalation path
+        if verification_result.get("status") in ("FAILED", "PARTIAL"):
+            try:
+                enqueue_operator_case(
+                    record,
+                    reason=f"verification_{verification_result['status'].lower()}",
+                )
+            except RuntimeError as exc:
+                logger.warning("verification escalation enqueue failed: %s", exc)
 
     return {
         "decision_id": record.decision_id,
@@ -263,6 +287,9 @@ def run_loop(
         "execution_status": execution_result.get("status"),
         "verification_id": verification_result.get("verification_id"),
         "verification_status": verification_result.get("status"),
+        "adaptation_id": adaptation_record.get("adaptation_id"),
+        "adaptation_action": adaptation_record.get("action"),
+        "adaptation_gate": adaptation_record.get("gate_verdict"),
     }
 
 

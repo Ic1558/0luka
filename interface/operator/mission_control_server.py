@@ -2383,6 +2383,15 @@ def create_app():
             app.add_api_route("/api/safety/violations", protected_zone_violations, methods=["GET"])
         except Exception:
             pass  # api_safety unavailable — skip gracefully
+        # AG-20: adaptation read-only endpoints
+        try:
+            from interface.operator.api_adaptations import (
+                adaptations_list, adaptations_latest,
+            )
+            app.add_api_route("/api/adaptations", adaptations_list, methods=["GET"])
+            app.add_api_route("/api/adaptations/latest", adaptations_latest, methods=["GET"])
+        except Exception:
+            pass  # api_adaptations unavailable — skip gracefully
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"])
