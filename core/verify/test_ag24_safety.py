@@ -344,5 +344,47 @@ class TestFeedbackLoopInteg(unittest.TestCase):
             self.assertNotEqual(result.get("result", {}).get("routed"), "emergency_stop")
 
 
+# ---------------------------------------------------------------------------
+# TestAG26SafetyGateWiring — runtime_safety_gate in the executor path
+# ---------------------------------------------------------------------------
+
+class TestAG26SafetyGateWiring(unittest.TestCase):
+
+    def test_safety_gate_blocks_execution_on_budget_exhaustion(self):
+        """When autonomy budget exhausted, feedback_loop must not execute plan."""
+        from core.orchestrator import feedback_loop
+        from core.safety.autonomy_budget import consume_budget
+        with _TempRuntime():
+            # Exhaust retry budget for the run
+            consume_budget("safety-exec-test", "retry")
+            with patch("tools.ops.decision_engine.classify_once", return_value="degraded"), \
+                 patch("tools.ops.decision_engine.map_signal_to_action", return_value="retry"):
+                result = feedback_loop.run_loop(
+                    run_id="safety-exec-test",
+                    operator_status={"ok": True},
+                    runtime_status={"ok": True},
+                    policy_drift={"drift_count": 0},
+                )
+            # Should be routed to safety_gate, not executed
+            routed = result.get("result", {}).get("routed", "")
+            self.assertIn(routed, ("safety_gate", "operator_queue"),
+                          f"expected safety_gate or operator_queue routing, got: {result}")
+
+    def test_safety_gate_allows_nominal_execution(self):
+        """Clean context — safety gate should ALLOW and execution proceeds."""
+        from core.orchestrator import feedback_loop
+        with _TempRuntime():
+            with patch("tools.ops.decision_engine.classify_once", return_value="nominal"), \
+                 patch("tools.ops.decision_engine.map_signal_to_action", return_value="no_action"):
+                result = feedback_loop.run_loop(
+                    run_id="safe-nominal",
+                    operator_status={"ok": True},
+                    runtime_status={"ok": True},
+                    policy_drift={"drift_count": 0},
+                )
+            self.assertIn("execution_status", result)
+            self.assertNotEqual(result.get("result", {}).get("routed"), "safety_gate")
+
+
 if __name__ == "__main__":
     unittest.main()

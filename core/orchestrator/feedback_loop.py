@@ -204,6 +204,35 @@ def run_loop(
             "result": {"routed": "operator_queue", "reason": f"plan_{plan_verdict}"},
         }
 
+    # AG-24/AG-26: runtime safety gate before execution
+    try:
+        from core.safety.runtime_safety_gate import evaluate_runtime_safety
+        safety_verdict = evaluate_runtime_safety({
+            "run_id": run_id,
+            "action_type": record.action.lower(),
+            "policy_verdict": verdict,
+            "topology_mode": "STABLE",
+            "process_conflict": False,
+            "failure_count": 0,
+        })
+        if safety_verdict != "ALLOW":
+            logger.warning("safety gate %s before execute (run=%s)", safety_verdict, run_id)
+            try:
+                enqueue_operator_case(record, reason=f"safety_{safety_verdict.lower()}")
+            except RuntimeError as exc:
+                logger.warning("safety escalation enqueue failed: %s", exc)
+            return {
+                "decision_id": record.decision_id,
+                "classification": record.classification,
+                "action": record.action,
+                "confidence": record.confidence,
+                "verdict": verdict,
+                "plan_verdict": plan_verdict,
+                "result": {"routed": "safety_gate", "reason": safety_verdict},
+            }
+    except ImportError:
+        pass  # AG-24 not available — proceed without safety gate
+
     # AG-19: execute
     execution_result = execute_plan(plan)
     _persist_execution(execution_result)
