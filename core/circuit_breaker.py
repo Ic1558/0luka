@@ -9,6 +9,8 @@ from __future__ import annotations
 import time
 from typing import Any, Callable, Optional
 
+from core.result_reader import get_result_status
+
 
 class CircuitOpenError(RuntimeError):
     """Raised when a call is attempted on an open circuit."""
@@ -69,7 +71,7 @@ class CircuitBreaker:
             self._total_calls += 1
             try:
                 result = fn(*args, **kwargs)
-                if isinstance(result, dict) and result.get("status") == "error":
+                if isinstance(result, dict) and (get_result_status(result) or result.get("status")) == "error":
                     raise RuntimeError(f"error_result:{result.get('reason', 'unknown')}")
                 self._failure_count = 0
                 self._state = self.CLOSED

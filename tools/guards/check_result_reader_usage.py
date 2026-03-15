@@ -14,6 +14,9 @@ from pathlib import Path
 SKIP_FILES = {
     "core/result_reader.py",
     "core/result_integrity.py",
+    # circuit_breaker uses envelope-first (get_result_status) with legacy fallback for
+    # pre-envelope results (router.execute never returns execution_envelope directly).
+    "core/circuit_breaker.py",
 }
 SKIP_DIRS = {"tools/guards"}
 LEGACY_KEYS = ["status", "summary", "provenance", "seal", "evidence"]
