@@ -26,6 +26,7 @@ from core import ledger as ledger_mod
 from core import retention as retention_mod
 from core import submit as submit_mod
 from core import task_dispatcher as dispatcher_mod
+from core.result_reader import get_result_status
 
 
 def _print_json(data: Any) -> None:
@@ -166,7 +167,7 @@ def _cmd_dispatch(args: argparse.Namespace) -> int:
     if args.file:
         result = dispatcher_mod.dispatch_one(Path(args.file), dry_run=args.dry_run)
         _print_json(result)
-        return 0 if result.get("status") in ("committed", "skipped", "dry_run_ok") else 1
+        return 0 if (get_result_status(result) or result.get("status")) in ("committed", "skipped", "dry_run_ok") else 1
 
     results = dispatcher_mod.dispatch_all(dry_run=args.dry_run)
     if args.json:
