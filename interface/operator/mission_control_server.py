@@ -2345,6 +2345,13 @@ def create_app():
         app.add_api_route("/api/policy/versions/{policy_version_id}/rollback", policy_version_rollback_endpoint, methods=["POST"])
         app.add_api_route("/api/policy/auto-lane/unfreeze", policy_auto_lane_unfreeze_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/history", decisions_history_endpoint, methods=["GET"])
+        # AG-18: new decision + operator endpoints from api_decisions module
+        try:
+            from interface.operator.api_decisions import decisions_list, decisions_latest as ag18_latest, operator_inbox
+            app.add_api_route("/api/decisions", decisions_list, methods=["GET"])
+            app.add_api_route("/api/operator/inbox", operator_inbox, methods=["GET"])
+        except Exception:
+            pass  # api_decisions unavailable — skip gracefully
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"])
