@@ -8,6 +8,13 @@ import os
 import re
 from pathlib import Path
 
+# Files excluded from scanning — these are the helper layer itself.
+# result_reader.py reads FROM the execution_envelope dict (that is correct envelope-first reads).
+# result_integrity.py reads both sides intentionally to compare them (mirror consistency check).
+SKIP_FILES = {
+    "core/result_reader.py",
+    "core/result_integrity.py",
+}
 SKIP_DIRS = {"tools/guards"}
 LEGACY_KEYS = ["status", "summary", "provenance", "seal", "evidence"]
 PATTERN = re.compile(r"result\s*\[\s*[\'\"]({})[\'\"]\s*\]".format("|".join(LEGACY_KEYS)))
@@ -32,14 +39,21 @@ def main(directory: str) -> int:
             continue
         if path.samefile(Path(__file__)):
             continue
+        # Skip helper layer self-reads — these are intentional envelope-first reads
+        try:
+            rel = str(path.relative_to(Path.cwd()))
+        except ValueError:
+            rel = str(path)
+        if any(rel.endswith(skip) or rel == skip for skip in SKIP_FILES):
+            continue
         matches = scan_file(path)
         findings.extend(matches)
     if findings:
-        print("check_result_reader_usage: warning - legacy reads detected:")
+        print("check_result_reader_usage: FAIL - direct legacy reads detected:")
         for entry in findings:
             print(entry)
-    else:
-        print("check_result_reader_usage: no legacy reads detected")
+        return 1
+    print("check_result_reader_usage: PASS - no direct legacy reads detected")
     return 0
 
 
