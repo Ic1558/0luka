@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any, Dict, Iterable, List, Optional
 
 
@@ -89,6 +90,24 @@ def get_result_policy(result: Dict[str, Any]) -> Dict[str, Any]:
 
 def _normalize_hashes(hashes: Dict[str, Any]) -> Dict[str, str]:
     return {k: str(v) for k, v in hashes.items() if isinstance(v, str)}
+
+
+def get_envelope_seal_verified(result: Dict[str, Any]) -> Optional[bool]:
+    """Return True if the execution_envelope seal is internally consistent.
+
+    Verifies that seal.value == SHA256(provenance.envelope_sha256).
+    Returns None when no execution_envelope is present (pre-AG-17B results).
+    Returns False when envelope is present but seal cannot be verified.
+    """
+    envelope = _get_execution_envelope(result)
+    if not envelope:
+        return None
+    envelope_sha256 = str((envelope.get("provenance") or {}).get("envelope_sha256") or "")
+    seal_value = str((envelope.get("seal") or {}).get("value") or "")
+    if not envelope_sha256 or not seal_value:
+        return False
+    expected = hashlib.sha256(envelope_sha256.encode("utf-8")).hexdigest()
+    return expected == seal_value
 
 
 def detect_result_authority_mismatches(result: Dict[str, Any]) -> List[Dict[str, Any]]:
