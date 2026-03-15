@@ -1,0 +1,51 @@
+# launchd_entrypoint_registry.yaml
+#
+# Registry of launchd/PM2 entrypoint files that are NOT tracked in git.
+# Purpose: prevent `git clean` and migration scripts from silently deleting
+#          files that live launchd plists depend on.
+#
+# RULE: Before any `git clean` on the 0luka working tree, verify that all
+#       entries with status: ACTIVE have the file present on disk.
+#       Run: python3 tools/ops/git_safety_guard.py --check-registry
+#
+# status values:
+#   ACTIVE           — file must be present; plist is loaded and expected to run
+#   SUSPENDED        — plist unloaded (but may be re-enabled); file may or may not exist
+#   DISABLED         — plist permanently removed; entry kept for forensic record
+#   PENDING_RESTORE  — plist suspended; file missing; must be restored before re-enabling
+
+entrypoints:
+
+  - id: antigravity-hq
+    plist: com.antigravity.hq.plist
+    plist_path: ~/Library/LaunchAgents/com.antigravity.hq.plist
+    plist_status: SUSPENDED    # renamed: com.antigravity.hq.plist.SUSPENDED_NO_SCRIPT.20260316
+    target_path: repos/option/modules/antigravity/realtime/control_tower.py
+    git_tracked: false
+    status: PENDING_RESTORE
+    last_known_present: "2026-03-12"    # .pyc mtime confirms file ran on Mar 12 23:29
+    deleted_by: "git reset --hard 0luka-runtime-v1 && git clean -fdx (session 0A764B8A, Mar 13)"
+    restore_action: >
+      Recover control_tower.py source (check git stash, backup, or Gemini session
+      artifacts in ~/.gemini/antigravity/brain/f21069f8-*/). Once restored:
+        mv ~/Library/LaunchAgents/com.antigravity.hq.plist.SUSPENDED_NO_SCRIPT.20260316 \
+           ~/Library/LaunchAgents/com.antigravity.hq.plist
+        launchctl load ~/Library/LaunchAgents/com.antigravity.hq.plist
+
+  - id: antigravity-controltower-duplicate
+    plist: com.antigravity.controltower.plist
+    plist_path: ~/Library/LaunchAgents/com.antigravity.controltower.plist
+    plist_status: DISABLED     # renamed: com.antigravity.controltower.plist.DISABLED.20260316
+    target_path: repos/option/modules/antigravity/realtime/control_tower.py
+    git_tracked: false
+    status: DISABLED
+    last_known_present: "2026-03-12"
+    deleted_by: "same event as antigravity-hq"
+    restore_action: >
+      DO NOT restore. This plist was a broken duplicate of com.antigravity.hq.plist
+      missing PYTHONPATH. Permanently disabled 2026-03-16.
+
+# Validation command (add to pre_claim_gate.zsh):
+#   python3 tools/ops/git_safety_guard.py --check-registry
+#
+# Last updated: 2026-03-16 (incident closure)
