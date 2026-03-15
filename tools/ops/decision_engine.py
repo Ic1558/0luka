@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from tools.ops.control_plane_persistence import (
@@ -8,6 +9,8 @@ from tools.ops.control_plane_persistence import (
     read_latest_decision,
     write_pending_decision,
 )
+from core.decision.models import DecisionRecord
+from core.decision import decision_store
 
 
 SIGNAL_TO_ACTION = {
@@ -51,6 +54,52 @@ def classify_once(
     if drift_count > 0:
         return "drift_detected"
     return "nominal"
+
+
+def classify_and_persist(
+    operator_status: Any,
+    runtime_status: Any,
+    policy_drift: Any,
+    *,
+    source_run_id: str = "unknown",
+) -> DecisionRecord | None:
+    """Classify the system state and persist the result as a DecisionRecord.
+
+    classify_once() remains a pure classifier. This wrapper builds a
+    DecisionRecord, appends it to decision_log.jsonl, and writes
+    decision_latest.json atomically. Returns the record, or None if
+    classification produced no result.
+    """
+    classification = classify_once(operator_status, runtime_status, policy_drift)
+    if classification is None:
+        return None
+
+    action = map_signal_to_action(classification.upper())
+    operator_ok = _read_ok(operator_status)
+    runtime_ok = _read_ok(runtime_status)
+    drift_count = _read_drift_count(policy_drift)
+    if operator_ok and runtime_ok and (drift_count or 0) == 0:
+        confidence = 0.9
+    elif operator_ok is None or runtime_ok is None or drift_count is None:
+        confidence = 0.3
+    else:
+        confidence = 0.6
+
+    record = DecisionRecord.make(
+        source_run_id=source_run_id,
+        classification=classification,
+        action=action,
+        confidence=confidence,
+        ts_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    )
+
+    try:
+        decision_store.append_decision(record)
+        decision_store.write_latest(record)
+    except RuntimeError as exc:
+        logging.warning("decision persistence failed: %s", exc)
+
+    return record
 
 
 def map_signal_to_action(signal_received: Any) -> str:

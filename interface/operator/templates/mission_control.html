@@ -2625,6 +2625,141 @@
     refreshDecisionHistory();
     refreshProofInventory();
     refreshQsRuns();
+
+    /* ── AG-18 Decision Panel ─────────────────────────────────────────────
+       Three read-only sections:
+         1. Decision Timeline   → /api/decisions  (api_decisions.py)
+         2. Latest Policy Verdict → /api/decisions/latest
+         3. Operator Inbox      → /api/operator/inbox (api_decisions.py)
+
+       NOTE: endpoints /api/decisions and /api/operator/inbox are served by
+       interface/operator/api_decisions.py (standalone on port 7011 or
+       registered into mission_control_server). If unavailable the panel
+       shows a graceful "unavailable" state.
+    ────────────────────────────────────────────────────────────────────── */
+
+    function _ag18ApiBase() {
+      /* Auto-detect: if running on 7010 use relative paths (requires
+         api_decisions routes registered in mission_control_server);
+         otherwise fall back to absolute port 7011. */
+      return '';
+    }
+
+    async function ag18Fetch(path) {
+      try {
+        const r = await fetch(_ag18ApiBase() + path);
+        if (!r.ok) return null;
+        return await r.json();
+      } catch (_) { return null; }
+    }
+
+    function ag18RenderTimeline(data) {
+      const el = document.getElementById('ag18-timeline-list');
+      const st = document.getElementById('ag18-timeline-status');
+      if (!data || !data.ok) {
+        st.textContent = 'Decision log unavailable (start api_decisions.py on port 7011).';
+        return;
+      }
+      const items = data.items || [];
+      st.textContent = items.length ? '' : 'No decisions recorded yet.';
+      el.innerHTML = items.slice().reverse().map(d =>
+        `<li><span class="proof-meta">${d.ts_utc || ''}</span> ` +
+        `<strong>${d.classification || '?'}</strong> → ${d.action || '?'} ` +
+        `[${d.policy_verdict || '?'}] <em>${d.source_run_id || ''}</em></li>`
+      ).join('');
+    }
+
+    function ag18RenderVerdict(data) {
+      const el = document.getElementById('ag18-verdict-panel');
+      if (!data || !data.ok || !data.record) {
+        el.innerHTML = '<p class="proof-meta">No decision available.</p>';
+        return;
+      }
+      const d = data.record;
+      const colour = d.policy_verdict === 'ALLOW' ? '#2a7a2a'
+                   : d.policy_verdict === 'BLOCK'  ? '#9c2a2a' : '#7a6a2a';
+      el.innerHTML =
+        `<dl>` +
+        `<dt>decision_id</dt><dd>${d.decision_id || '—'}</dd>` +
+        `<dt>classification</dt><dd>${d.classification || '—'}</dd>` +
+        `<dt>action</dt><dd>${d.action || '—'}</dd>` +
+        `<dt>confidence</dt><dd>${d.confidence != null ? d.confidence.toFixed(2) : '—'}</dd>` +
+        `<dt>verdict</dt><dd style="color:${colour};font-weight:700">${d.policy_verdict || '—'}</dd>` +
+        `<dt>reason</dt><dd>${d.reason || '—'}</dd>` +
+        `<dt>ts_utc</dt><dd>${d.ts_utc || '—'}</dd>` +
+        `</dl>`;
+    }
+
+    function ag18RenderInbox(data) {
+      const el = document.getElementById('ag18-inbox-list');
+      const st = document.getElementById('ag18-inbox-status');
+      if (!data || !data.ok) {
+        st.textContent = 'Operator inbox unavailable (start api_decisions.py on port 7011).';
+        return;
+      }
+      const items = data.items || [];
+      st.textContent = items.length ? '' : 'Operator inbox empty.';
+      el.innerHTML = items.slice().reverse().map(c =>
+        `<li><span class="proof-meta">${c.ts_utc || ''}</span> ` +
+        `<strong>${c.reason || '?'}</strong> — ${c.action || '?'} ` +
+        `<em>${c.source_run_id || ''}</em></li>`
+      ).join('');
+    }
+
+    async function ag18Refresh() {
+      const [timeline, latest, inbox] = await Promise.all([
+        ag18Fetch('/api/decisions'),
+        ag18Fetch('/api/decisions/latest'),
+        ag18Fetch('/api/operator/inbox'),
+      ]);
+      ag18RenderTimeline(timeline);
+      ag18RenderVerdict(latest);
+      ag18RenderInbox(inbox);
+    }
+
+    ag18Refresh();
+    setInterval(ag18Refresh, 5000);
   </script>
+
+  <!-- ── AG-18 Decision Panels ─────────────────────────────────────── -->
+  <style>
+    #ag18-panels { margin-top: 32px; border-top: 1px solid var(--line, #d8ccba); padding-top: 24px; }
+    #ag18-panels h2 { font-size: 1.1rem; margin: 0 0 10px; }
+    #ag18-panels .card { margin-bottom: 16px; }
+    #ag18-panels dl { display: grid; grid-template-columns: 140px 1fr; gap: 4px 8px; font-size: 0.85rem; margin: 0; }
+    #ag18-panels dt { font-weight: 600; color: var(--muted, #5f5a4f); }
+    #ag18-panels dd { margin: 0; }
+    #ag18-panels ul { list-style: none; padding: 0; margin: 0; font-size: 0.82rem; }
+    #ag18-panels li { border-bottom: 1px solid var(--line, #d8ccba); padding: 4px 0; }
+    #ag18-panels .proof-meta { color: var(--muted, #5f5a4f); font-size: 0.78rem; }
+  </style>
+
+  <main id="ag18-panels">
+    <div class="grid">
+
+      <!-- 1. Decision Timeline -->
+      <div class="card">
+        <h2>Decision Timeline</h2>
+        <p id="ag18-timeline-status" class="proof-meta">Loading…</p>
+        <ul id="ag18-timeline-list"></ul>
+      </div>
+
+      <!-- 2. Latest Policy Verdict -->
+      <div class="card">
+        <h2>Latest Policy Verdict</h2>
+        <div id="ag18-verdict-panel"><p class="proof-meta">Loading…</p></div>
+      </div>
+
+      <!-- 3. Operator Inbox -->
+      <div class="card">
+        <h2>Operator Inbox</h2>
+        <p id="ag18-inbox-status" class="proof-meta">Loading…</p>
+        <ul id="ag18-inbox-list"></ul>
+      </div>
+
+    </div>
+  </main>
+  <!-- ── end AG-18 ──────────────────────────────────────────────────── -->
+
 </body>
 </html>
