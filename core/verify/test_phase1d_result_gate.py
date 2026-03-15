@@ -84,6 +84,19 @@ def test_schema_missing_task_id_reject() -> None:
     _assert_raises(lambda: gate_outbound_result(result), ResultGateError)
 
 
+
+def test_different_hash_scopes_are_not_a_mismatch_defect() -> None:
+    result = _base_result()
+    result["evidence"]["commands"] = ["proc.run"]
+    # Intentionally different scopes (execution-envelope vs artifact/result scope).
+    result["provenance"]["hashes"] = {
+        "inputs_sha256": "abc",
+        "outputs_sha256": "execution-envelope-scope-hash",
+    }
+    out = gate_outbound_result(result)
+    assert out["status"] == "ok"
+    assert out["provenance"]["hashes"]["outputs_sha256"] == "execution-envelope-scope-hash"
+
 def main() -> int:
     os.environ.setdefault("0LUKA_ROOT", str(Path(__file__).resolve().parents[2]))
     test_ok_plain()
@@ -92,6 +105,7 @@ def main() -> int:
     test_error_message_sanitized()
     test_back_resolve_trusted_uri()
     test_schema_missing_task_id_reject()
+    test_different_hash_scopes_are_not_a_mismatch_defect()
     print("test_phase1d_result_gate: ok")
     return 0
 

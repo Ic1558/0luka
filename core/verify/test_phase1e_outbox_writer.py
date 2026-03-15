@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from core.outbox_writer import OutboxWriterError, write_result_to_outbox
+from core.outbox_writer import OutboxWriterError, _artifact_outputs_scope_hash, write_result_to_outbox
 
 
 def _base_result() -> dict:
@@ -80,11 +80,52 @@ def test_ok_without_evidence_becomes_partial() -> None:
         assert env["status"] == "partial"
 
 
+
+def test_outputs_hash_is_artifact_scope_and_non_empty() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        os.environ["0LUKA_ROOT"] = str(root)
+        (root / "interface/outbox").mkdir(parents=True, exist_ok=True)
+        map_path = root / "map.yaml"
+        map_path.write_text(
+            "version: '1'\n"
+            "hosts:\n"
+            "  default:\n"
+            "    root: '${0LUKA_ROOT}'\n"
+            "refs:\n"
+            "  'ref://interface/outbox': '${root}/interface/outbox'\n",
+            encoding="utf-8",
+        )
+
+        item = _base_result()
+        # Simulate execution-envelope scope hash at seal time (intentionally different scope).
+        item["provenance"]["hashes"]["outputs_sha256"] = "execution-envelope-scope-hash"
+        item["outputs"] = {"json": {"k": "v", "n": 1}, "artifacts": ["a.txt"]}
+
+        _, env = write_result_to_outbox(item, ref_map_path=str(map_path))
+        outputs_sha = env["provenance"]["hashes"]["outputs_sha256"]
+        assert isinstance(outputs_sha, str) and outputs_sha
+
+        expected = _artifact_outputs_scope_hash(env["outputs"]["json"], env["outputs"]["artifacts"])
+        assert outputs_sha == expected
+        assert outputs_sha != "execution-envelope-scope-hash"
+
+
+def test_outputs_hash_stable_for_same_result_outputs_payload() -> None:
+    payload_json = {"stable": True, "x": [1, 2, 3]}
+    payload_artifacts = ["f1", "f2"]
+    h1 = _artifact_outputs_scope_hash(payload_json, payload_artifacts)
+    h2 = _artifact_outputs_scope_hash(payload_json, payload_artifacts)
+    assert h1 and h2
+    assert h1 == h2
+
 def main() -> int:
     os.environ.setdefault("0LUKA_ROOT", str(Path(__file__).resolve().parents[2]))
     test_atomic_write_and_schema()
     test_missing_status_reject()
     test_ok_without_evidence_becomes_partial()
+    test_outputs_hash_is_artifact_scope_and_non_empty()
+    test_outputs_hash_stable_for_same_result_outputs_payload()
     print("test_phase1e_outbox_writer: ok")
     return 0
 

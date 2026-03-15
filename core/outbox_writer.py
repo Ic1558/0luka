@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import copy
 import hashlib
 import json
 import os
@@ -39,19 +38,14 @@ def _json_hash(data: Any) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _compute_outputs_sha256(envelope: Dict[str, Any]) -> str:
-    temp = copy.deepcopy(envelope)
-    prov = temp.setdefault("provenance", {})
-    hashes = prov.setdefault("hashes", {})
-    hashes["outputs_sha256"] = ""
-    temp.pop("seal", None)
-    normalized = json.dumps(
-        temp,
-        sort_keys=True,
-        ensure_ascii=False,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(normalized).hexdigest()
+def _artifact_outputs_scope_hash(outputs_json: Dict[str, Any], artifacts: list[Any]) -> str:
+    """Hash the finalized result-envelope outputs block.
+
+    This hash intentionally represents artifact/result-envelope scope and is
+    independent from any execution-scope hash carried in the inbound result
+    payload.
+    """
+    return _json_hash({"outputs": outputs_json, "artifacts": artifacts})
 
 
 def _to_file_path(uri: str) -> Path:
@@ -86,6 +80,7 @@ def _ensure_result_envelope(result: Dict[str, Any]) -> Dict[str, Any]:
     outputs = result.get("outputs") if isinstance(result.get("outputs"), dict) else {}
     artifacts = outputs.get("artifacts") if isinstance(outputs.get("artifacts"), list) else []
     outputs_json = outputs.get("json") if isinstance(outputs.get("json"), dict) else {}
+    artifact_outputs_sha256 = _artifact_outputs_scope_hash(outputs_json, artifacts)
 
     evidence = result.get("evidence") if isinstance(result.get("evidence"), dict) else {}
     logs = evidence.get("logs") if isinstance(evidence.get("logs"), list) else []
@@ -113,16 +108,12 @@ def _ensure_result_envelope(result: Dict[str, Any]) -> Dict[str, Any]:
                     or _json_hash(result.get("inputs", {}))
                 ),
                 "outputs_sha256": str(
-                    (((result.get("provenance") or {}).get("hashes") or {}).get("outputs_sha256"))
-                    or _json_hash({"outputs": outputs_json, "artifacts": artifacts})
+                    artifact_outputs_sha256
                 ),
             },
         },
     }
 
-    execution_envelope = result.get("execution_envelope")
-    if isinstance(execution_envelope, dict):
-        envelope["execution_envelope"] = execution_envelope
     # Policy for 1E: ok + no logs/commands -> partial
     if envelope["status"] == "ok" and not logs and not commands:
         envelope["status"] = "partial"
@@ -173,8 +164,6 @@ def write_result_to_outbox(
     ref_map_path: str | None = None,
 ) -> Tuple[Path, Dict[str, Any]]:
     envelope = _ensure_result_envelope(result)
-    outputs_hash = _compute_outputs_sha256(envelope)
-    envelope["provenance"]["hashes"]["outputs_sha256"] = outputs_hash
     leaks = find_hardpath_violations(envelope)
     if leaks:
         reason = f"hardpath_detected:{leaks[0]['path']}:{leaks[0]['rule']}"
