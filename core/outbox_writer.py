@@ -118,6 +118,11 @@ def _ensure_result_envelope(result: Dict[str, Any]) -> Dict[str, Any]:
     if envelope["status"] == "ok" and not logs and not commands:
         envelope["status"] = "partial"
         envelope["summary"] = envelope["summary"] or "missing evidence for ok result"
+
+    # AG-17B: preserve execution_envelope from dispatcher when present
+    if isinstance(result.get("execution_envelope"), dict):
+        envelope["execution_envelope"] = result["execution_envelope"]
+
     return envelope
 
 
