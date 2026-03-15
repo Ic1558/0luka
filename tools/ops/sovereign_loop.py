@@ -206,11 +206,34 @@ class SovereignControl:
                     else:
                         self.decisions.append({"action": "rate_limited", "type": ctype, "target": target, "rule_id": rule["id"]})
 
-        # 4. AG-18 Feedback Loop integration — classify + persist + policy gate
+        # 4. AG-24A safety gate — emergency stop check before any action
+        if self._safety_check_blocks():
+            self.save_audit()
+            return
+
+        # 5. AG-18 Feedback Loop integration — classify + persist + policy gate
         self._run_feedback_loop()
 
-        # 5. Audit Bundle
+        # 6. Audit Bundle
         self.save_audit()
+
+    def _safety_check_blocks(self) -> bool:
+        """AG-24A: Check emergency stop and protected zone before acting.
+
+        Returns True if the run should be halted (no feedback loop, no consequences).
+        Fail-open: safety import errors do not halt the daemon.
+        """
+        try:
+            from core.safety.emergency_stop import is_emergency_stop_active
+            if is_emergency_stop_active():
+                self.emit_event("sovereign_safety_stop", {
+                    "reason": "emergency_stop_active",
+                    "run_id": self.run_id,
+                })
+                return True
+        except Exception as exc:
+            self.emit_event("safety_check_error", {"reason": str(exc), "run_id": self.run_id})
+        return False
 
     def _run_feedback_loop(self):
         """Wire sovereign_loop signals into AG-18 feedback_loop.run_loop().

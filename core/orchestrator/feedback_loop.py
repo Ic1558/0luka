@@ -146,6 +146,22 @@ def run_loop(
     except RuntimeError as exc:
         logger.warning("decision persist (post-gate) failed: %s", exc)
 
+    # Step 5b: AG-24A safety gate — emergency stop blocks action path
+    try:
+        from core.safety.emergency_stop import is_emergency_stop_active
+        if is_emergency_stop_active():
+            logger.warning("feedback_loop halted: emergency_stop active (run=%s)", run_id)
+            return {
+                "decision_id": record.decision_id,
+                "classification": record.classification,
+                "action": record.action,
+                "confidence": record.confidence,
+                "verdict": verdict,
+                "result": {"routed": "emergency_stop", "reason": "emergency_stop_active"},
+            }
+    except Exception as exc:
+        logger.warning("emergency_stop check failed (fail-open): %s", exc)
+
     # Step 6: route via AG-19 planner → executor → verifier
     if verdict != "ALLOW":
         try:
@@ -187,6 +203,35 @@ def run_loop(
             "plan_verdict": plan_verdict,
             "result": {"routed": "operator_queue", "reason": f"plan_{plan_verdict}"},
         }
+
+    # AG-24/AG-26: runtime safety gate before execution
+    try:
+        from core.safety.runtime_safety_gate import evaluate_runtime_safety
+        safety_verdict = evaluate_runtime_safety({
+            "run_id": run_id,
+            "action_type": record.action.lower(),
+            "policy_verdict": verdict,
+            "topology_mode": "STABLE",
+            "process_conflict": False,
+            "failure_count": 0,
+        })
+        if safety_verdict != "ALLOW":
+            logger.warning("safety gate %s before execute (run=%s)", safety_verdict, run_id)
+            try:
+                enqueue_operator_case(record, reason=f"safety_{safety_verdict.lower()}")
+            except RuntimeError as exc:
+                logger.warning("safety escalation enqueue failed: %s", exc)
+            return {
+                "decision_id": record.decision_id,
+                "classification": record.classification,
+                "action": record.action,
+                "confidence": record.confidence,
+                "verdict": verdict,
+                "plan_verdict": plan_verdict,
+                "result": {"routed": "safety_gate", "reason": safety_verdict},
+            }
+    except ImportError:
+        pass  # AG-24 not available — proceed without safety gate
 
     # AG-19: execute
     execution_result = execute_plan(plan)
