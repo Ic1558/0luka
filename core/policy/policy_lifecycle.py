@@ -134,6 +134,7 @@ def supersede_policy(
         "operator_id": operator_id,
         "status": "SUPERSEDED",
         "superseded_by": new_policy_id,
+        "new_policy_id": new_policy_id,   # AG-23: alias for API consumers
     })
     return {"ok": True, "policy_id": old_policy_id, "reason": f"superseded by {new_policy_id}"}
 
@@ -204,6 +205,11 @@ def list_active_policies() -> list[dict[str, Any]]:
         p for p in load_registry().values()
         if p.get("status", "ACTIVE") not in INACTIVE_STATUSES
     ]
+
+
+def expire_policies(ttl_seconds: int = DEFAULT_TTL_SECONDS) -> list[str]:
+    """Alias for expire_stale_policies() — matches the AG-23 public API name."""
+    return expire_stale_policies(ttl_seconds)
 
 
 def list_policies_by_status(status: str) -> list[dict[str, Any]]:
