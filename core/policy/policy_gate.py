@@ -169,6 +169,20 @@ def plan_allowed(
     verdicts = [step_allowed(s) for s in steps]
     if "BLOCK" in verdicts:
         return "BLOCK"
+
+    # AG-22: consult promoted policy registry before ESCALATE short-circuit
+    # (fail-open: if registry unavailable, fall through to normal verdict)
+    try:
+        from core.policy.policy_registry import list_policies
+        promoted = list_policies()
+        action_types = {str(s.get("action") or "").lower() for s in steps}
+        for policy in promoted:
+            rule = str(policy.get("rule") or "").lower()
+            if "deny_delete_repo" in rule and "delete_repo" in action_types:
+                return "BLOCK"
+    except Exception:
+        pass  # registry unavailable — proceed without promoted policy check
+
     if "ESCALATE" in verdicts:
         return "ESCALATE"
 

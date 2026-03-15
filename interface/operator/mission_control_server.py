@@ -2413,6 +2413,16 @@ def create_app():
             app.add_api_route("/api/learning/metrics", learning_metrics, methods=["GET"])
         except Exception:
             pass  # api_learning unavailable — skip gracefully
+        # AG-22: policy promotion endpoints
+        try:
+            from interface.operator.api_policies import (
+                policies_list, policy_activation_log, promote_policy_endpoint,
+            )
+            app.add_api_route("/api/policies", policies_list, methods=["GET"])
+            app.add_api_route("/api/policy_activation_log", policy_activation_log, methods=["GET"])
+            app.add_api_route("/api/promote_policy", promote_policy_endpoint, methods=["POST"])
+        except Exception:
+            pass  # api_policies unavailable — skip gracefully
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"])
