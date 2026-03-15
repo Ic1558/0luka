@@ -1,0 +1,42 @@
+---
+# AG-17 Runtime Registry
+# Records the canonical activation state of the AG-17 Authority Freeze system.
+# This file is the single source of truth for AG-17 activation status.
+schema_version: ag17_runtime_registry_v1
+registered_at: "2026-03-16T00:00:00Z"
+
+activation:
+  status: ACTIVE
+  activation_surface: dispatcher
+  head_sha: cd8ec2c575f64b8d16e75b861627a775e412d8c7
+  merged_prs:
+    - pr: 346
+      title: "AG-17B: preserve execution_envelope through outbox_writer"
+      merge_commit: b4a1f62
+    - pr: 347
+      title: "AG-17: seal telemetry in health.py"
+      merge_commit: 11ba0c37
+    - pr: 348
+      title: "AG-17C3A: promote guard to enforcement (exit 1)"
+      merge_commit: d973ff2
+    - pr: 349
+      title: "AG-17C3A: wire guard into pre_claim_gate advisory"
+      merge_commit: 96c8b94
+    - pr: 350
+      title: "AG-17C3B: circuit_breaker envelope-first migration"
+      merge_commit: dbf6633
+    - pr: 351
+      title: "AG-17C3B: cli.py:169 envelope-first migration"
+      merge_commit: cd8ec2c
+
+components:
+  execution_envelope: core/execution/execution_envelope.py
+  result_reader: core/result_reader.py
+  outbox_writer: core/outbox_writer.py
+  guard: tools/guards/check_result_reader_usage.py
+  circuit_breaker: core/circuit_breaker.py
+  cli: core/cli.py
+
+inputs_sha256: c02823f258f739fe9e3582a240237e602cd2858276fc22b12ae6ffbac4ff7bb0
+
+proof_task_id: ag17-activation-proof-001
