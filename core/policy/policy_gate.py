@@ -86,6 +86,41 @@ def policy_verdict(
     return "ESCALATE"
 
 
+def policy_verdict_with_learning_signal(
+    decision: "Union[DecisionRecord, dict]",
+    prior_decisions: "list[dict] | None" = None,
+) -> dict:
+    """Like policy_verdict() but returns verdict + AG-21 learning metadata.
+
+    Extra keys: learning_signal (bool), pattern_tag (str).
+    Does NOT change verdict logic — metadata only.
+    """
+    verdict = policy_verdict(decision, prior_decisions)
+    if isinstance(decision, DecisionRecord):
+        action = decision.action
+        confidence = float(decision.confidence)
+    else:
+        action = str(decision.get("action") or "")
+        confidence = float(decision.get("confidence") or 0.0)
+
+    # Derive learning signal and pattern tag from verdict + action
+    learning_signal = verdict in ("BLOCK", "ESCALATE")
+    if verdict == "BLOCK":
+        pattern_tag = f"policy_block:{action.lower()}"
+    elif verdict == "ESCALATE" and confidence < CONFIDENCE_THRESHOLD:
+        pattern_tag = "low_confidence_escalate"
+    elif verdict == "ESCALATE":
+        pattern_tag = f"unknown_action_escalate:{action.lower()}"
+    else:
+        pattern_tag = ""
+
+    return {
+        "verdict": verdict,
+        "learning_signal": learning_signal,
+        "pattern_tag": pattern_tag,
+    }
+
+
 # ---------------------------------------------------------------------------
 # AG-19 plan-level and step-level gates
 # ---------------------------------------------------------------------------
