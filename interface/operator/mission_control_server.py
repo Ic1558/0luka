@@ -2617,6 +2617,13 @@ def create_app():
     except Exception:
         pass
 
+    # AG-47: Runtime Self-Awareness System (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_self_awareness import register_self_awareness_routes
+        register_self_awareness_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 
