@@ -2659,6 +2659,13 @@ def create_app():
     except Exception:
         pass
 
+    # AG-53: Operator Decision Flow Integrity (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_operator_integrity import register_operator_integrity_routes
+        register_operator_integrity_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 
