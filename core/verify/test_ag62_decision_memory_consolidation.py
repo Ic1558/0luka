@@ -1,7 +1,6 @@
 """AG-62 tests: Decision Memory Consolidation Layer."""
 import json, os, sys
 import pytest
-sys.path.insert(0, "/Users/icmini/0luka")
 
 
 def test_consolidate_empty_trace(tmp_path):
