@@ -50,8 +50,11 @@ def emit_event(
         if v is None or v == "":
             raise ValueError(f"Missing required field: {f}")
 
+    event_id = str(uuid.uuid4())
+    if not event_id:
+        raise RuntimeError("event_id generation failed")
     event = {
-        "event_id": str(uuid.uuid4()),
+        "event_id": event_id,
         "trace_id": trace_id,
         "entity_type": entity_type,
         "entity_id": entity_id,

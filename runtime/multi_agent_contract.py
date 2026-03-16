@@ -52,6 +52,9 @@ def validate_result(result: dict) -> tuple[bool, str]:
 
 def register_contract_task(task: dict) -> dict:
     """Register a task under the multi-agent contract."""
+    # Fail-closed: actor_id must be present and non-empty
+    if not task.get("actor_id"):
+        raise ValueError("actor_id cannot be null or empty")
     valid, reason = validate_task(task)
     contract_id = str(uuid.uuid4())
     record = {
