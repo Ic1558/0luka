@@ -2485,6 +2485,12 @@ def create_app():
             register_baseline_realign_routes(app)
         except Exception:
             pass  # api_baseline_realign unavailable — skip gracefully
+        # AG-37: drift intelligence layer endpoints
+        try:
+            from interface.operator.api_drift_intelligence import register_drift_intelligence_routes
+            register_drift_intelligence_routes(app)
+        except Exception:
+            pass  # api_drift_intelligence unavailable — skip gracefully
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"])
