@@ -2725,10 +2725,17 @@ def _build_ag29_ag30_routes() -> list:
     except Exception:
         pass
 
+<<<<<<< HEAD
+    # AG-59: Recommendation Lifecycle Trace (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_recommendation_trace import register_recommendation_trace_routes
+        register_recommendation_trace_routes(app)
+=======
     # AG-58: Mission Control Chain Runner (graceful — no-op if unavailable)
     try:
         from interface.operator.api_chain_runner import register_chain_runner_routes
         register_chain_runner_routes(app)
+>>>>>>> origin/main
     except Exception:
         pass
 
