@@ -130,8 +130,10 @@ def build_decision_queue(
     for pkg in packages:
         did = pkg.get("decision_id", "")
         persisted = queue_state.get(did, {})
-        # Status from persisted state takes precedence; fall back to package status
-        status = persisted.get("status") or pkg.get("status", "OPEN")
+        # Status from persisted state takes precedence; fall back to package status.
+        # AG-43 packages start as "PROPOSED" — normalise to "OPEN" for queue purposes.
+        raw_status = persisted.get("status") or pkg.get("status", "OPEN")
+        status = "OPEN" if raw_status == "PROPOSED" else raw_status
 
         # Compute score + class using current operating mode
         score = score_queue_entry(pkg, operating_mode)
