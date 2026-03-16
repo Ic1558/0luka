@@ -40,7 +40,14 @@ jobs:
         run: |
           set -euo pipefail
           # Get list of changed files
-          CHANGED_FILES=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          CHANGED_FILES=$(git fetch --no-tags --prune --depth=50 origin \
+  "+refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}" \
+  "+refs/pull/${{ github.event.pull_request.number }}/head:refs/remotes/pull/${{ github.event.pull_request.number }}/head"
+
+BASE_REF="refs/remotes/origin/${{ github.base_ref }}"
+HEAD_REF="refs/remotes/pull/${{ github.event.pull_request.number }}/head"
+
+git diff --name-only "$BASE_REF" "$HEAD_REF")
           
           if [ -z "$CHANGED_FILES" ]; then
             echo "No files changed."
