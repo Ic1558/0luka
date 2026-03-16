@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, "/Users/icmini/0luka")
 
 
 def _state_dir():
-    return os.path.join(os.environ.get("LUKA_RUNTIME_ROOT", "/Users/icmini/0luka_runtime"), "state")
+    return os.path.join(os.environ.get("LUKA_RUNTIME_ROOT", str(Path.home() / "0luka_runtime")), "state")
 
 
 def _step_effectiveness():
