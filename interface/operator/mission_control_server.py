@@ -2624,6 +2624,13 @@ def create_app():
     except Exception:
         pass
 
+    # AG-48: Runtime Claim Verifier (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_claim_verifier import register_claim_verifier_routes
+        register_claim_verifier_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 
