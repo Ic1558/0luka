@@ -54,26 +54,39 @@ def _submit_to_dispatcher(decision: DecisionRecord) -> dict[str, Any]:
 
 
 def _record_block(decision: DecisionRecord) -> dict[str, Any]:
-    """Write a block record to activity feed (read path only — no execution)."""
+    """Write a block record to activity feed (read path only — no execution).
+
+    Block records carry emit_mode="runtime_block" so verifier origin filters
+    can exclude them from verdict-upgrade logic (D-1 sovereign seal fix).
+    """
     record = {
         "ts_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "event": "policy.block",
+        "emit_mode": "runtime_block",  # Explicit provenance class — not verifiable runtime evidence
+        "task_id": "",                 # Block records are not task-scoped
         "decision_id": decision.decision_id,
         "action": decision.action,
         "source_run_id": decision.source_run_id,
         "classification": decision.classification,
     }
     try:
-        import os
-        import json
-        from pathlib import Path
-
-        runtime_root = os.environ.get("LUKA_RUNTIME_ROOT", "").strip()
-        if runtime_root:
-            feed = Path(runtime_root) / "logs" / "activity_feed.jsonl"
-            feed.parent.mkdir(parents=True, exist_ok=True)
-            with feed.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(record, sort_keys=True) + "\n")
+        from core.activity_feed_guard import guarded_append_activity_feed
+        from pathlib import Path as _Path
+        # guarded_append_activity_feed writes to CANONICAL_PRODUCTION_FEED_PATH (same RUNTIME_ROOT path).
+        # Participate in hash chain where possible; returns False if guard is unavailable.
+        written = guarded_append_activity_feed(_Path("."), record)
+        if not written:
+            # Guard unavailable (no anchor yet) — fall back to direct write with provenance enforced.
+            import os
+            import json
+            from pathlib import Path
+            runtime_root = os.environ.get("LUKA_RUNTIME_ROOT", "").strip()
+            if runtime_root:
+                feed = Path(runtime_root) / "logs" / "activity_feed.jsonl"
+                feed.parent.mkdir(parents=True, exist_ok=True)
+                assert record.get("emit_mode"), "emit_mode must be set before writing"
+                with feed.open("a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(record, sort_keys=True) + "\n")
     except Exception as exc:
         logger.warning("feedback_router block record write failed: %s", exc)
     return {"blocked": True, "record": record}
