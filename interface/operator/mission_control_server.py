@@ -2601,7 +2601,38 @@ def create_app():
             Route("/api/approval/expiry", approval_expiry_endpoint, methods=["POST"]),
             Route("/", root_endpoint),
         ]
+        + _build_ag29_ag30_routes()
     )
+
+
+def _build_ag29_ag30_routes() -> list:
+    """Build AG-29 and AG-30 Starlette Route objects (graceful — empty list if unavailable)."""
+    routes = []
+    try:
+        from interface.operator.api_effectiveness import (
+            effectiveness_list, effectiveness_verification_log, verify_policy_endpoint,
+        )
+        routes += [
+            Route("/api/policy_effectiveness", effectiveness_list),
+            Route("/api/policy_verification_log", effectiveness_verification_log),
+            Route("/api/verify_policy_effectiveness", verify_policy_endpoint, methods=["POST"]),
+        ]
+    except Exception:
+        pass
+    try:
+        from interface.operator.api_outcome import (
+            outcome_governance_list, outcome_governance_log,
+            outcome_action_endpoint, run_outcome_governance_endpoint,
+        )
+        routes += [
+            Route("/api/policy_outcome_governance", outcome_governance_list),
+            Route("/api/policy_outcome_log", outcome_governance_log),
+            Route("/api/policy_outcome_action", outcome_action_endpoint, methods=["POST"]),
+            Route("/api/run_outcome_governance", run_outcome_governance_endpoint, methods=["POST"]),
+        ]
+    except Exception:
+        pass
+    return routes
 
     # AG-44: Supervisory Decision Queue Governance (graceful — no-op if unavailable)
     try:
@@ -2694,12 +2725,139 @@ def create_app():
     except Exception:
         pass
 
+<<<<<<< HEAD
+    # AG-62: Decision Memory Consolidation Layer
+=======
+<<<<<<< HEAD
+    # AG-59: Recommendation Lifecycle Trace (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_recommendation_trace import register_recommendation_trace_routes
+        register_recommendation_trace_routes(app)
+=======
+    # AG-58: Mission Control Chain Runner (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_chain_runner import register_chain_runner_routes
+        register_chain_runner_routes(app)
+>>>>>>> origin/main
+    except Exception:
+        pass
+
 
 
     # AG-67: Learning-to-Policy Bridge
     try:
         from interface.operator.api_learning_policy_bridge import register_learning_policy_bridge_routes
         register_learning_policy_bridge_routes(app)
+    except Exception:
+        pass
+
+    # AG-58: Mission Control Chain Runner
+    try:
+        from interface.operator.api_chain_runner import register_chain_runner_routes
+        register_chain_runner_routes(app)
+    except Exception:
+        pass
+
+    # AG-59: Recommendation Lifecycle Trace
+    try:
+        from interface.operator.api_recommendation_trace import register_recommendation_trace_routes
+        register_recommendation_trace_routes(app)
+    except Exception:
+        pass
+
+    # AG-60: Operator Decision Recording Interface
+    try:
+        from interface.operator.api_operator_decision_record import register_operator_decision_record_routes
+        register_operator_decision_record_routes(app)
+    except Exception:
+        pass
+
+    # AG-61: Recommendation State Machine
+    try:
+        from interface.operator.api_recommendation_state import register_recommendation_state_routes
+        register_recommendation_state_routes(app)
+    except Exception:
+        pass
+
+    # AG-62: Decision Memory Consolidation
+>>>>>>> origin/main
+    try:
+        from interface.operator.api_decision_memory_consolidation import register_decision_memory_consolidation_routes
+        register_decision_memory_consolidation_routes(app)
+    except Exception:
+        pass
+
+<<<<<<< HEAD
+=======
+    # AG-63: Runtime Event Bus Normalization
+    try:
+        from interface.operator.api_event_bus import register_event_bus_routes
+        register_event_bus_routes(app)
+    except Exception:
+        pass
+
+    # AG-64: Cross-Layer Audit Graph
+    try:
+        from interface.operator.api_audit_graph import register_audit_graph_routes
+        register_audit_graph_routes(app)
+    except Exception:
+        pass
+
+    # AG-65: Runtime Replay
+    try:
+        from interface.operator.api_runtime_replay import register_runtime_replay_routes
+        register_runtime_replay_routes(app)
+    except Exception:
+        pass
+
+    # AG-66: Policy Promotion Workflow Hardening
+    try:
+        from interface.operator.api_policy_workflow import register_policy_workflow_routes
+        register_policy_workflow_routes(app)
+    except Exception:
+        pass
+
+    # AG-68: Operator Workbench
+    try:
+        from interface.operator.api_operator_workbench import register_operator_workbench_routes
+        register_operator_workbench_routes(app)
+    except Exception:
+        pass
+
+    # AG-69: Headless Runtime Supervisor
+    try:
+        from interface.operator.api_headless_supervisor import register_headless_supervisor_routes
+        register_headless_supervisor_routes(app)
+    except Exception:
+        pass
+
+    # AG-70: Governed Inference Fabric
+    try:
+        from interface.operator.api_governed_inference import register_governed_inference_routes
+        register_governed_inference_routes(app)
+    except Exception:
+        pass
+
+    # AG-71: Multi-Agent Execution Contract
+    try:
+        from interface.operator.api_multi_agent_contract import register_multi_agent_contract_routes
+        register_multi_agent_contract_routes(app)
+    except Exception:
+        pass
+
+    # AG-72: Sovereign Operator Mode
+    try:
+        from interface.operator.api_sovereign_operator import register_sovereign_operator_routes
+        register_sovereign_operator_routes(app)
+    except Exception:
+        pass
+>>>>>>> origin/main
+
+
+    # AG-64: Cross-Layer Audit Graph
+    try:
+        from interface.operator.api_audit_graph import register_audit_graph_routes
+        register_audit_graph_routes(app)
     except Exception:
         pass
 app = create_app()
