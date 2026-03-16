@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-os.environ.setdefault("LUKA_RUNTIME_ROOT", "/Users/icmini/0luka_runtime")
+os.environ.setdefault("LUKA_RUNTIME_ROOT", str(Path.home() / "0luka_runtime"))
 
 from core.outbox_writer import write_result_to_outbox
 from core.task_dispatcher import _payload_sha256
