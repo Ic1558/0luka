@@ -2694,6 +2694,13 @@ def create_app():
     except Exception:
         pass
 
+    # AG-60: Operator Decision Recording Interface (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_operator_decision_record import register_operator_decision_record_routes
+        register_operator_decision_record_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 
