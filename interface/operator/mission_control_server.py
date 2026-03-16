@@ -2694,6 +2694,13 @@ def create_app():
     except Exception:
         pass
 
+    # AG-62: Decision Memory Consolidation Layer
+    try:
+        from interface.operator.api_decision_memory_consolidation import register_decision_memory_consolidation_routes
+        register_decision_memory_consolidation_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 
