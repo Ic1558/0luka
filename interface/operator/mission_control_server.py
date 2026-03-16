@@ -2610,6 +2610,13 @@ def create_app():
     except Exception:
         pass
 
+    # AG-45: Operator Decision Session Memory (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_decision_memory import register_decision_memory_routes
+        register_decision_memory_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 
