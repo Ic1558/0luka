@@ -1,3 +1,4 @@
+from pathlib import Path
 """AG-60: Operator Decision Record API."""
 from __future__ import annotations
 import json, os
@@ -13,7 +14,7 @@ except ImportError:
 
 
 def _state_dir():
-    return Path(os.environ.get("LUKA_RUNTIME_ROOT", "/Users/icmini/0luka_runtime")) / "state"
+    return Path(os.environ.get("LUKA_RUNTIME_ROOT", str(Path.home() / "0luka_runtime"))) / "state"
 
 def _load(f):
     p = _state_dir() / f

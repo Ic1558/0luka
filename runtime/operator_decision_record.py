@@ -1,3 +1,4 @@
+from pathlib import Path
 """AG-60: Operator Decision Recording Interface."""
 from __future__ import annotations
 import json, os, uuid
@@ -7,7 +8,7 @@ from typing import Any
 
 
 def _state_dir() -> Path:
-    rt = os.environ.get("LUKA_RUNTIME_ROOT", "/Users/icmini/0luka_runtime")
+    rt = os.environ.get("LUKA_RUNTIME_ROOT", str(Path.home() / "0luka_runtime"))
     d = Path(rt) / "state"
     d.mkdir(parents=True, exist_ok=True)
     return d
