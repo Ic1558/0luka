@@ -2645,6 +2645,20 @@ def create_app():
     except Exception:
         pass
 
+    # AG-51: Operator Confidence Calibration (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_operator_confidence import register_operator_confidence_routes
+        register_operator_confidence_routes(app)
+    except Exception:
+        pass
+
+    # AG-52: Runtime Recommendation Governance Gate (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_governance_gate import register_governance_gate_routes
+        register_governance_gate_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 
