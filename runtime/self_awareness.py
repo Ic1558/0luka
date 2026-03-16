@@ -60,7 +60,10 @@ def _read_jsonl(path: Path) -> list[dict]:
 
 def _atomic_write(path: Path, data: Any) -> None:
     tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    with tmp.open("w", encoding="utf-8") as fh:
+        fh.write(json.dumps(data, indent=2))
+        fh.flush()
+        os.fsync(fh.fileno())
     os.replace(tmp, path)
 
 

@@ -204,6 +204,44 @@ def run_loop(
             "result": {"routed": "operator_queue", "reason": f"plan_{plan_verdict}"},
         }
 
+    # AG-P1G: execution approval gate — fail-closed for plans with dispatch steps
+    _has_dispatch_steps = any(
+        str(s.get("action") or "").lower() == "retry_task"
+        for s in (plan.get("steps") or [])
+    )
+    if _has_dispatch_steps:
+        try:
+            from tools.ops.approval_state import load_approval_state
+            _ap = load_approval_state()
+            _lane = _ap["lanes"].get("task_execution", {})
+            if not _lane.get("approved_effective"):
+                _reason = "approval_expired" if _lane.get("expired") else "approval_missing"
+                logger.warning("approval gate denied execution (run=%s reason=%s)", run_id, _reason)
+                try:
+                    enqueue_operator_case(record, reason=f"approval_{_reason}")
+                except RuntimeError as _exc:
+                    logger.warning("approval escalation enqueue failed: %s", _exc)
+                return {
+                    "decision_id": record.decision_id,
+                    "classification": record.classification,
+                    "action": record.action,
+                    "confidence": record.confidence,
+                    "verdict": verdict,
+                    "plan_verdict": plan_verdict,
+                    "result": {"routed": "approval_gate", "reason": _reason},
+                }
+        except Exception as _exc:
+            logger.warning("approval gate check failed (fail-closed): %s", _exc)
+            return {
+                "decision_id": record.decision_id,
+                "classification": record.classification,
+                "action": record.action,
+                "confidence": record.confidence,
+                "verdict": verdict,
+                "plan_verdict": plan_verdict,
+                "result": {"routed": "approval_gate", "reason": f"approval_check_error:{_exc}"},
+            }
+
     # AG-24/AG-26: runtime safety gate before execution
     try:
         from core.safety.runtime_safety_gate import evaluate_runtime_safety

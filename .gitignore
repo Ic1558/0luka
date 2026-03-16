@@ -12,7 +12,14 @@ reports/
 artifacts/
 g/
 /runtime/
-/interface/
+# interface/ source is tracked — only pipeline runtime state dirs and cache are ignored:
+interface/completed/
+interface/inbox/
+interface/outbox/
+interface/processing/
+interface/rejected/
+interface/plans/
+interface/evidence/
 
 # Large file patterns (>10MB typical)
 *.tracev3

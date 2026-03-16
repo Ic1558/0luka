@@ -28,6 +28,30 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _call_anthropic(prompt: str) -> str:
+    """Call Anthropic Messages API via httpx. Raises on missing key or HTTP error."""
+    import httpx
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("anthropic_key_missing")
+    resp = httpx.post(
+        "https://api.anthropic.com/v1/messages",
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 64,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+        timeout=30.0,
+    )
+    resp.raise_for_status()
+    return resp.json()["content"][0]["text"]
+
+
 def route_inference(
     prompt: str,
     preferred_provider: str | None = None,
@@ -45,7 +69,9 @@ def route_inference(
     provider = preferred_provider if preferred_provider in PROVIDERS else DEFAULT_PROVIDER
 
     request_id = str(uuid.uuid4())
+    response = _call_anthropic(prompt) if provider == "claude" else None
     record = {
+        "inference_id": request_id,
         "request_id": request_id,
         "operator_id": operator_id,
         "provider": provider,
@@ -53,7 +79,7 @@ def route_inference(
         "prompt_len": len(prompt),
         "governed": True,
         "version": INFERENCE_VERSION,
-        "response": None,  # populated by actual provider call outside this layer
+        "response": response,
         "ts_routed": _now(),
     }
 
