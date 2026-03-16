@@ -2509,6 +2509,12 @@ def create_app():
             register_campaign_outcome_routes(app)
         except Exception:
             pass  # api_campaign_outcome unavailable — skip gracefully
+        # AG-42: supervisory runtime strategy endpoints
+        try:
+            from interface.operator.api_runtime_strategy import register_runtime_strategy_routes
+            register_runtime_strategy_routes(app)
+        except Exception:
+            pass  # api_runtime_strategy unavailable — skip gracefully
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"])
