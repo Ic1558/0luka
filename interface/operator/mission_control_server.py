@@ -2603,6 +2603,13 @@ def create_app():
         ]
     )
 
+    # AG-44: Supervisory Decision Queue Governance (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_decision_queue import register_decision_queue_routes
+        register_decision_queue_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 
