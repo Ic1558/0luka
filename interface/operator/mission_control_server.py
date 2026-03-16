@@ -2694,6 +2694,13 @@ def create_app():
     except Exception:
         pass
 
+    # AG-59: Recommendation Lifecycle Trace (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_recommendation_trace import register_recommendation_trace_routes
+        register_recommendation_trace_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 
