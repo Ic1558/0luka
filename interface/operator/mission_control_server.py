@@ -2601,7 +2601,38 @@ def create_app():
             Route("/api/approval/expiry", approval_expiry_endpoint, methods=["POST"]),
             Route("/", root_endpoint),
         ]
+        + _build_ag29_ag30_routes()
     )
+
+
+def _build_ag29_ag30_routes() -> list:
+    """Build AG-29 and AG-30 Starlette Route objects (graceful — empty list if unavailable)."""
+    routes = []
+    try:
+        from interface.operator.api_effectiveness import (
+            effectiveness_list, effectiveness_verification_log, verify_policy_endpoint,
+        )
+        routes += [
+            Route("/api/policy_effectiveness", effectiveness_list),
+            Route("/api/policy_verification_log", effectiveness_verification_log),
+            Route("/api/verify_policy_effectiveness", verify_policy_endpoint, methods=["POST"]),
+        ]
+    except Exception:
+        pass
+    try:
+        from interface.operator.api_outcome import (
+            outcome_governance_list, outcome_governance_log,
+            outcome_action_endpoint, run_outcome_governance_endpoint,
+        )
+        routes += [
+            Route("/api/policy_outcome_governance", outcome_governance_list),
+            Route("/api/policy_outcome_log", outcome_governance_log),
+            Route("/api/policy_outcome_action", outcome_action_endpoint, methods=["POST"]),
+            Route("/api/run_outcome_governance", run_outcome_governance_endpoint, methods=["POST"]),
+        ]
+    except Exception:
+        pass
+    return routes
 
     # AG-44: Supervisory Decision Queue Governance (graceful — no-op if unavailable)
     try:
@@ -2691,6 +2722,13 @@ def create_app():
     try:
         from interface.operator.api_system_self_audit import register_system_self_audit_routes
         register_system_self_audit_routes(app)
+    except Exception:
+        pass
+
+    # AG-58: Mission Control Chain Runner (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_chain_runner import register_chain_runner_routes
+        register_chain_runner_routes(app)
     except Exception:
         pass
 
