@@ -472,11 +472,54 @@ Blocked patterns:
 
 ---
 
+## 16. Runtime OS Verdict (Live)
+
+### Current Verdict: RUNTIME_OS_COHERENT
+
+**Milestone tag:** `runtime_os_coherent_20260317` @ commit `c284c54`
+**Proof report:** `g/reports/final_runtime_proof/final_runtime_spine_proof_20260317.md`
+**Baseline confirmation:** `g/reports/final_runtime_proof/runtime_spine_baseline_confirmation_20260317.md`
+
+### AG Coverage
+
+| Range | Status |
+|-------|--------|
+| AG-17 → AG-30 | Proven — canonical spine coherent (12/12 artifacts) |
+| AG-43 → AG-57 | Proven — supervisory runtime coherent (9/10 artifacts; AG-47 gap) |
+| AG-58 → AG-72 | Merged + proof-scoped — RUNTIME_OS_COHERENT |
+
+### Proof Score
+
+| Result | Count |
+|--------|-------|
+| PASS | 7 |
+| PARTIAL | 8 |
+| FAIL | 0 |
+
+### What Is Proven
+
+- Operator remains final authority at every governance layer
+- Chain runner, recommendation continuity, decision memory, event bus, audit graph, and replay are operationally proven
+- All 73 AG-58→72 unit tests pass; machine-path guard clean
+
+### What Is NOT Yet Proven (remaining for SOVEREIGN_READY)
+
+- **MCS HTTP routes for AG-44→72 are unreachable** — dead code after `return routes` in `_build_ag29_ag30_routes()`
+- AG-47 self_awareness runtime artifact not yet persisted from a live daemon call
+- AG-66 promotion_check silently bypasses ImportError for `list_active_policies`
+- AG-67 bridge returns 0 records against existing PENDING candidates
+- AG-70 inference_id null; AG-71 contract_task_id null; AG-72 final_authority null
+- No real inference provider proven (mock only)
+- No boot recovery proof for AG-69 headless supervisor
+
+---
+
 ## Changelog
 
 | Date | Version | Change |
 |------|---------|--------|
 | 2026-02-02 | 1.0 | Initial deep analysis and documentation |
+| 2026-03-17 | 1.1 | Runtime OS verdict added: RUNTIME_OS_COHERENT. AG-17→72 milestone checkpoint. |
 
 ---
 

@@ -58,7 +58,7 @@ def run_review(policy_id: str, operator_id: str) -> dict:
     # Stage 2: promotion_check
     def _promotion_check():
         try:
-            from core.policy.policy_registry import list_active_policies
+            from core.policy.policy_lifecycle import list_active_policies
             active = list_active_policies()
             matched = [p for p in active if p.get("policy_id") == policy_id]
             return f"active_matched={len(matched)}"

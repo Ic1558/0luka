@@ -2634,101 +2634,97 @@ def _build_ag29_ag30_routes() -> list:
         pass
     return routes
 
-    # AG-44: Supervisory Decision Queue Governance (graceful — no-op if unavailable)
+
+def _register_extra_routes(app) -> None:
+    """Mount AG-44 → AG-72 routes onto the running app. Graceful no-op per module."""
+    # AG-44: Supervisory Decision Queue Governance
     try:
         from interface.operator.api_decision_queue import register_decision_queue_routes
         register_decision_queue_routes(app)
     except Exception:
         pass
 
-    # AG-45: Operator Decision Session Memory (graceful — no-op if unavailable)
+    # AG-45: Operator Decision Session Memory
     try:
         from interface.operator.api_decision_memory import register_decision_memory_routes
         register_decision_memory_routes(app)
     except Exception:
         pass
 
-    # AG-47: Runtime Self-Awareness System (graceful — no-op if unavailable)
+    # AG-47: Runtime Self-Awareness System
     try:
         from interface.operator.api_self_awareness import register_self_awareness_routes
         register_self_awareness_routes(app)
     except Exception:
         pass
 
-    # AG-48: Runtime Claim Verifier (graceful — no-op if unavailable)
+    # AG-48: Runtime Claim Verifier
     try:
         from interface.operator.api_claim_verifier import register_claim_verifier_routes
         register_claim_verifier_routes(app)
     except Exception:
         pass
 
-    # AG-49: Runtime Claim Trust Index (graceful — no-op if unavailable)
+    # AG-49: Runtime Claim Trust Index
     try:
         from interface.operator.api_claim_trust import register_claim_trust_routes
         register_claim_trust_routes(app)
     except Exception:
         pass
 
-    # AG-50: Runtime Trust-Aware Operator Guidance (graceful — no-op if unavailable)
+    # AG-50: Runtime Trust-Aware Operator Guidance
     try:
         from interface.operator.api_trust_guidance import register_trust_guidance_routes
         register_trust_guidance_routes(app)
     except Exception:
         pass
 
-    # AG-51: Operator Confidence Calibration (graceful — no-op if unavailable)
+    # AG-51: Operator Confidence Calibration
     try:
         from interface.operator.api_operator_confidence import register_operator_confidence_routes
         register_operator_confidence_routes(app)
     except Exception:
         pass
 
-    # AG-52: Runtime Recommendation Governance Gate (graceful — no-op if unavailable)
+    # AG-52: Runtime Recommendation Governance Gate
     try:
         from interface.operator.api_governance_gate import register_governance_gate_routes
         register_governance_gate_routes(app)
     except Exception:
         pass
 
-    # AG-53: Operator Decision Flow Integrity (graceful — no-op if unavailable)
+    # AG-53: Operator Decision Flow Integrity
     try:
         from interface.operator.api_operator_integrity import register_operator_integrity_routes
         register_operator_integrity_routes(app)
     except Exception:
         pass
 
-    # AG-54: Recommendation Feedback Loop (graceful — no-op if unavailable)
+    # AG-54: Recommendation Feedback Loop
     try:
         from interface.operator.api_recommendation_feedback import register_recommendation_feedback_routes
         register_recommendation_feedback_routes(app)
     except Exception:
         pass
 
-    # AG-55: Governance Alert System (graceful — no-op if unavailable)
+    # AG-55: Governance Alert System
     try:
         from interface.operator.api_governance_alerts import register_governance_alerts_routes
         register_governance_alerts_routes(app)
     except Exception:
         pass
 
-    # AG-56: Autonomous Supervision Dashboard (graceful — no-op if unavailable)
+    # AG-56: Autonomous Supervision Dashboard
     try:
         from interface.operator.api_supervision_dashboard import register_supervision_dashboard_routes
         register_supervision_dashboard_routes(app)
     except Exception:
         pass
 
-    # AG-57: System Self-Audit Layer (graceful — no-op if unavailable)
+    # AG-57: System Self-Audit Layer
     try:
         from interface.operator.api_system_self_audit import register_system_self_audit_routes
         register_system_self_audit_routes(app)
-    except Exception:
-        pass
-
-    # AG-67: Learning-to-Policy Bridge
-    try:
-        from interface.operator.api_learning_policy_bridge import register_learning_policy_bridge_routes
-        register_learning_policy_bridge_routes(app)
     except Exception:
         pass
 
@@ -2795,6 +2791,13 @@ def _build_ag29_ag30_routes() -> list:
     except Exception:
         pass
 
+    # AG-67: Learning-to-Policy Bridge
+    try:
+        from interface.operator.api_learning_policy_bridge import register_learning_policy_bridge_routes
+        register_learning_policy_bridge_routes(app)
+    except Exception:
+        pass
+
     # AG-68: Operator Workbench
     try:
         from interface.operator.api_operator_workbench import register_operator_workbench_routes
@@ -2830,7 +2833,9 @@ def _build_ag29_ag30_routes() -> list:
     except Exception:
         pass
 
+
 app = create_app()
+_register_extra_routes(app)
 
 
 def main() -> int:

@@ -37,7 +37,11 @@ def _activity_events_for_run(run_id: str) -> list[dict[str, Any]]:
                 continue
             try:
                 e = json.loads(line)
-                if isinstance(e, dict) and str(e.get("task_id") or "") == run_id:
+                # D-2 sovereign seal: only admit runtime evidence for verdict logic.
+                # Records missing emit_mode or with non-runtime provenance are excluded.
+                if (isinstance(e, dict)
+                        and str(e.get("task_id") or "") == run_id
+                        and e.get("emit_mode") == "runtime_auto"):
                     events.append(e)
             except json.JSONDecodeError:
                 continue

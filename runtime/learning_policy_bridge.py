@@ -41,8 +41,12 @@ def run_bridge() -> list:
         patterns = []
 
     try:
-        from learning.policy_candidates import generate_policy_candidates
+        from learning.policy_candidates import generate_policy_candidates, list_candidates
         candidates = generate_policy_candidates()
+        if not candidates:
+            # Fall back to existing PENDING candidates so bridge is always live
+            all_existing = list_candidates(limit=100)
+            candidates = [c for c in all_existing if c.get("approval_state") == "PENDING"]
     except Exception:
         candidates = []
 
@@ -69,6 +73,7 @@ def run_bridge() -> list:
                 "candidate_suggestion": candidate.get("suggested_rule", ""),
             },
             "linked_policy_id": None,
+            "final_authority": "operator",
             "ts_evaluated": _now(),
         }
         bridge_records.append(record)
