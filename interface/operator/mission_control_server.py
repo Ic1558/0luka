@@ -2694,6 +2694,20 @@ def create_app():
     except Exception:
         pass
 
+    # AG-62: Decision Memory Consolidation
+    try:
+        from interface.operator.api_decision_memory_consolidation import register_decision_memory_consolidation_routes
+        register_decision_memory_consolidation_routes(app)
+    except Exception:
+        pass
+
+    # AG-63: Runtime Event Bus Normalization
+    try:
+        from interface.operator.api_event_bus import register_event_bus_routes
+        register_event_bus_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 
