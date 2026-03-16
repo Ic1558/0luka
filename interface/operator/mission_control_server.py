@@ -2455,6 +2455,12 @@ def create_app():
             register_self_audit_routes(app)
         except Exception:
             pass  # api_self_audit unavailable — skip gracefully
+        # AG-32: drift governance endpoints
+        try:
+            from interface.operator.api_drift_governance import register_drift_governance_routes
+            register_drift_governance_routes(app)
+        except Exception:
+            pass  # api_drift_governance unavailable — skip gracefully
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"])
