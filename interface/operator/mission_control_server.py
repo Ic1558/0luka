@@ -2694,6 +2694,13 @@ def create_app():
     except Exception:
         pass
 
+    # AG-61: Recommendation State Machine (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_recommendation_state import register_recommendation_state_routes
+        register_recommendation_state_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 

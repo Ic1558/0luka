@@ -1,0 +1,16 @@
+"""AG-61: Recommendation state machine policy."""
+STATES = ["CREATED","VERIFIED","GATED","QUEUED","ACTIONED","RETAINED","REJECTED","SUPERSEDED","CLOSED"]
+INITIAL_STATE = "CREATED"
+TERMINAL_STATES = ["CLOSED"]
+
+TRANSITIONS: dict[str, list[str]] = {
+    "CREATED":    ["VERIFIED", "REJECTED", "CLOSED"],
+    "VERIFIED":   ["GATED", "REJECTED", "CLOSED"],
+    "GATED":      ["QUEUED", "REJECTED", "CLOSED"],
+    "QUEUED":     ["ACTIONED", "REJECTED", "CLOSED"],
+    "ACTIONED":   ["RETAINED", "REJECTED", "SUPERSEDED", "CLOSED"],
+    "RETAINED":   ["SUPERSEDED", "CLOSED"],
+    "REJECTED":   ["CLOSED"],
+    "SUPERSEDED": ["CLOSED"],
+    "CLOSED":     [],
+}
