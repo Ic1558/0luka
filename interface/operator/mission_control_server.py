@@ -2673,6 +2673,13 @@ def create_app():
     except Exception:
         pass
 
+    # AG-55: Governance Alert System (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_governance_alerts import register_governance_alerts_routes
+        register_governance_alerts_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 
