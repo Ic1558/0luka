@@ -13,7 +13,7 @@ except ImportError:
 
 
 def _state_dir():
-    rt = os.environ.get("LUKA_RUNTIME_ROOT", "/Users/icmini/0luka_runtime")
+    rt = os.environ.get("LUKA_RUNTIME_ROOT", str(Path.home() / "0luka_runtime"))
     return Path(rt) / "state"
 
 def _load(f):
