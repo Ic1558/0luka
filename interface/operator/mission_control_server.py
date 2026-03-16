@@ -2515,6 +2515,12 @@ def create_app():
             register_runtime_strategy_routes(app)
         except Exception:
             pass  # api_runtime_strategy unavailable — skip gracefully
+        # AG-43: operator decision assist endpoints
+        try:
+            from interface.operator.api_decision_assist import register_decision_assist_routes
+            register_decision_assist_routes(app)
+        except Exception:
+            pass  # api_decision_assist unavailable — skip gracefully
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"])
