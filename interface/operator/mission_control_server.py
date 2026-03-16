@@ -2695,6 +2695,13 @@ def create_app():
         pass
 
 
+
+    # AG-64: Cross-Layer Audit Graph
+    try:
+        from interface.operator.api_audit_graph import register_audit_graph_routes
+        register_audit_graph_routes(app)
+    except Exception:
+        pass
 app = create_app()
 
 
