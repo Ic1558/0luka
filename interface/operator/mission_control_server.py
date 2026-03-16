@@ -2725,25 +2725,6 @@ def _build_ag29_ag30_routes() -> list:
     except Exception:
         pass
 
-<<<<<<< HEAD
-    # AG-62: Decision Memory Consolidation Layer
-=======
-<<<<<<< HEAD
-    # AG-59: Recommendation Lifecycle Trace (graceful — no-op if unavailable)
-    try:
-        from interface.operator.api_recommendation_trace import register_recommendation_trace_routes
-        register_recommendation_trace_routes(app)
-=======
-    # AG-58: Mission Control Chain Runner (graceful — no-op if unavailable)
-    try:
-        from interface.operator.api_chain_runner import register_chain_runner_routes
-        register_chain_runner_routes(app)
->>>>>>> origin/main
-    except Exception:
-        pass
-
-
-
     # AG-67: Learning-to-Policy Bridge
     try:
         from interface.operator.api_learning_policy_bridge import register_learning_policy_bridge_routes
@@ -2780,15 +2761,12 @@ def _build_ag29_ag30_routes() -> list:
         pass
 
     # AG-62: Decision Memory Consolidation
->>>>>>> origin/main
     try:
         from interface.operator.api_decision_memory_consolidation import register_decision_memory_consolidation_routes
         register_decision_memory_consolidation_routes(app)
     except Exception:
         pass
 
-<<<<<<< HEAD
-=======
     # AG-63: Runtime Event Bus Normalization
     try:
         from interface.operator.api_event_bus import register_event_bus_routes
@@ -2851,15 +2829,7 @@ def _build_ag29_ag30_routes() -> list:
         register_sovereign_operator_routes(app)
     except Exception:
         pass
->>>>>>> origin/main
 
-
-    # AG-64: Cross-Layer Audit Graph
-    try:
-        from interface.operator.api_audit_graph import register_audit_graph_routes
-        register_audit_graph_routes(app)
-    except Exception:
-        pass
 app = create_app()
 
 
