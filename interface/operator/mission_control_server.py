@@ -2631,6 +2631,13 @@ def create_app():
     except Exception:
         pass
 
+    # AG-49: Runtime Claim Trust Index (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_claim_trust import register_claim_trust_routes
+        register_claim_trust_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 
