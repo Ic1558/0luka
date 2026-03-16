@@ -2695,6 +2695,13 @@ def create_app():
         pass
 
 
+
+    # AG-65: Runtime Replay
+    try:
+        from interface.operator.api_runtime_replay import register_runtime_replay_routes
+        register_runtime_replay_routes(app)
+    except Exception:
+        pass
 app = create_app()
 
 
