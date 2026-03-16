@@ -2687,6 +2687,13 @@ def create_app():
     except Exception:
         pass
 
+    # AG-57: System Self-Audit Layer (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_system_self_audit import register_system_self_audit_routes
+        register_system_self_audit_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 
