@@ -2695,6 +2695,13 @@ def create_app():
         pass
 
 
+
+    # AG-67: Learning-to-Policy Bridge
+    try:
+        from interface.operator.api_learning_policy_bridge import register_learning_policy_bridge_routes
+        register_learning_policy_bridge_routes(app)
+    except Exception:
+        pass
 app = create_app()
 
 
