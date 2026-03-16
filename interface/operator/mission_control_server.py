@@ -2449,6 +2449,12 @@ def create_app():
             app.add_api_route("/api/run_outcome_governance", run_outcome_governance_endpoint, methods=["POST"])
         except Exception:
             pass  # api_outcome unavailable — skip gracefully
+        # AG-31: runtime self-audit endpoints
+        try:
+            from interface.operator.api_self_audit import register_self_audit_routes
+            register_self_audit_routes(app)
+        except Exception:
+            pass  # api_self_audit unavailable — skip gracefully
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"])
