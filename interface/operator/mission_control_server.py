@@ -2666,6 +2666,13 @@ def create_app():
     except Exception:
         pass
 
+    # AG-54: Recommendation Feedback Loop (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_recommendation_feedback import register_recommendation_feedback_routes
+        register_recommendation_feedback_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 
