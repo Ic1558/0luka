@@ -2437,6 +2437,18 @@ def create_app():
             app.add_api_route("/api/verify_policy_effectiveness", verify_policy_endpoint, methods=["POST"])
         except Exception:
             pass  # api_effectiveness unavailable — skip gracefully
+        # AG-30: policy outcome governance endpoints
+        try:
+            from interface.operator.api_outcome import (
+                outcome_governance_list, outcome_governance_log,
+                outcome_action_endpoint, run_outcome_governance_endpoint,
+            )
+            app.add_api_route("/api/policy_outcome_governance", outcome_governance_list, methods=["GET"])
+            app.add_api_route("/api/policy_outcome_log", outcome_governance_log, methods=["GET"])
+            app.add_api_route("/api/policy_outcome_action", outcome_action_endpoint, methods=["POST"])
+            app.add_api_route("/api/run_outcome_governance", run_outcome_governance_endpoint, methods=["POST"])
+        except Exception:
+            pass  # api_outcome unavailable — skip gracefully
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"])
