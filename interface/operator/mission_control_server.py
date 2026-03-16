@@ -2479,6 +2479,12 @@ def create_app():
             register_repair_reconciliation_routes(app)
         except Exception:
             pass  # api_repair_reconciliation unavailable — skip gracefully
+        # AG-36: baseline realignment + structural drift prevention endpoints
+        try:
+            from interface.operator.api_baseline_realign import register_baseline_realign_routes
+            register_baseline_realign_routes(app)
+        except Exception:
+            pass  # api_baseline_realign unavailable — skip gracefully
         app.add_api_route("/api/decisions/latest/approve", decisions_latest_approve_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/reject", decisions_latest_reject_endpoint, methods=["POST"])
         app.add_api_route("/api/decisions/latest/execute", decisions_latest_execute_endpoint, methods=["POST"])
