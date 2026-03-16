@@ -142,3 +142,6 @@ plan_epoch.txt
 
 # Generated runtime-style summary artifact
 reports/summary/latest.md
+
+# Nested repos (separate git checkouts — never track contents in outer repo)
+/repos/qs/
