@@ -2680,6 +2680,13 @@ def create_app():
     except Exception:
         pass
 
+    # AG-56: Autonomous Supervision Dashboard (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_supervision_dashboard import register_supervision_dashboard_routes
+        register_supervision_dashboard_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 
