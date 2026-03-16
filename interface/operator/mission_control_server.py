@@ -2638,6 +2638,13 @@ def create_app():
     except Exception:
         pass
 
+    # AG-50: Runtime Trust-Aware Operator Guidance (graceful — no-op if unavailable)
+    try:
+        from interface.operator.api_trust_guidance import register_trust_guidance_routes
+        register_trust_guidance_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 
