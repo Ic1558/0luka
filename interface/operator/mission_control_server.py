@@ -2694,6 +2694,13 @@ def create_app():
     except Exception:
         pass
 
+    # AG-66: Policy Promotion Workflow Hardening
+    try:
+        from interface.operator.api_policy_workflow import register_policy_workflow_routes
+        register_policy_workflow_routes(app)
+    except Exception:
+        pass
+
 
 app = create_app()
 
