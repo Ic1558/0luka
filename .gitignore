@@ -153,3 +153,4 @@ reports/summary/latest.md
 
 # Nested repos (separate git checkouts — never track contents in outer repo)
 /repos/qs/
+*.pyc

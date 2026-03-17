@@ -216,7 +216,9 @@ def evaluate_paper_trade(
         if sl_hit:
             close_kwargs = {"new_status": "closed_sl", "exit_price": sl}
     if close_kwargs is None:
-        for tp_name in ("TP1", "TP2", "TP3"):
+        # AG-P16.10: TP1/TP2 stripped from new paper trades (FULL-TP-first policy).
+        # Check TP3, FULL, and any additional TP keys beyond TP2.
+        for tp_name in ("TP1", "TP2", "TP3", "FULL"):
             tp_val = tp_levels.get(tp_name)
             if tp_val is None:
                 continue

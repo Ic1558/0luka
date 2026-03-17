@@ -20,8 +20,18 @@ OPTION_REPO = Path("/Users/icmini/0luka/repos/option")
 _ASSET_SL_DIST: dict[str, float] = {
     "XAUUSD": 12.0, "GC": 12.0,
     "S50": 3.0, "S50H26": 3.0, "SET50": 3.0,
-    "BTCUSD": 500.0, "BTCUSD": 500.0,
+    "BTCUSD": 500.0,
     "USTEC": 80.0, "NQ": 80.0,
+}
+
+# AG-P16.10: Full TP distances per asset (conf["tp"] from system-context).
+# FULL TP: avg_entry - tp_dist (SHORT) | avg_entry + tp_dist (LONG)
+# Required so RR = tp_dist/sl_dist >= 1.5 (aligns with make_decision R:R >= 1.5).
+_ASSET_TP_DIST: dict[str, float] = {
+    "XAUUSD": 25.0, "GC": 25.0,
+    "S50": 5.0, "S50H26": 5.0, "SET50": 5.0,
+    "BTCUSD": 1000.0,
+    "USTEC": 150.0, "NQ": 150.0,
 }
 
 
@@ -284,8 +294,15 @@ def build_paper_trade_intent(summary: dict) -> dict:
     elif recommendation.upper().startswith("SHORT"):
         direction = "SHORT"
 
-    # Collect TP levels
-    tp_levels = {k: v for k, v in levels.items() if k.startswith("TP") and v is not None}
+    # AG-P16.10: TP policy — keep only TP3+ (strip TP1/TP2 that drag avg_rr below 1.0).
+    # Primary exit target is FULL TP (conf["tp"] from asset config).
+    # FULL TP (RR=2.08 for XAUUSD) makes avg_rr >= 1.0 achievable at ~65% win rate.
+    # TP3 (RR=1.167) kept as safety net in case FULL not reached.
+    _TP_EXEC_INCLUDE = {"TP3", "TP4", "TP5", "FULL"}
+    tp_levels = {
+        k: v for k, v in levels.items()
+        if k in _TP_EXEC_INCLUDE and v is not None
+    }
 
     # Entry hierarchy (P16.7): decision_levels > weighted_avg > signal.price > null
     sl_val = levels.get("SL") or levels.get("sl") or 0
@@ -316,6 +333,17 @@ def build_paper_trade_intent(summary: dict) -> dict:
 
     entry_hint_reason = None if entry_hint else "entry_not_in_decision_levels_only_tp_sl_available"
 
+    # AG-P16.10: Add FULL TP from asset config if not already present.
+    # FULL = entry_hint - tp_dist (SHORT) | entry_hint + tp_dist (LONG)
+    if entry_hint and direction in {"LONG", "SHORT"} and "FULL" not in tp_levels:
+        _sym_key = symbol.upper().replace("-", "").replace(" ", "").replace("=F", "")
+        _tp_dist = _ASSET_TP_DIST.get(_sym_key)
+        if _tp_dist:
+            if direction == "SHORT":
+                tp_levels["FULL"] = round(entry_hint - _tp_dist, 4)
+            else:
+                tp_levels["FULL"] = round(entry_hint + _tp_dist, 4)
+
     return {
         "symbol": decisions_summary.get("last_symbol") or "",
         "direction": direction,
@@ -336,7 +364,7 @@ def build_paper_trade_intent(summary: dict) -> dict:
 # ---------------------------------------------------------------------------
 # AG-P16.8: Strategy-governed pre-trade filter
 # ---------------------------------------------------------------------------
-MIN_RR_FOR_TRADE = 1.0  # At least one TP must yield RR >= this to allow execution
+MIN_RR_FOR_TRADE = 1.5  # AG-P16.10: Raised from 1.0. Aligns with make_decision() R:R >= 1.5.
 
 
 def _compute_rr_summary(intent: dict) -> dict[str, float]:
