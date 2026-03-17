@@ -191,12 +191,15 @@ def summarize_option_state(raw: dict) -> dict:
     # --- next_action_recommendation: from latest decision ---
     if decisions:
         latest = decisions[-1]
+        signal_price_raw = (latest.get("signal") or {}).get("price")
+        signal_price = float(signal_price_raw) if signal_price_raw and float(signal_price_raw) > 0 else None
         summary["next_action_recommendation"] = {
             "recommendation": latest.get("recommendation"),
             "actionable_bias": latest.get("actionable_bias"),
             "global_score": latest.get("global_score"),
             "timestamp": latest.get("timestamp"),
             "levels": latest.get("levels", {}),
+            "signal_price": signal_price,
         }
     else:
         summary["next_action_recommendation"] = {"status": "no_data"}
@@ -250,14 +253,20 @@ def build_paper_trade_intent(summary: dict) -> dict:
     # Collect TP levels
     tp_levels = {k: v for k, v in levels.items() if k.startswith("TP") and v is not None}
 
-    entry_hint = levels.get("entry") or levels.get("Entry") or None
-    entry_hint_reason = None if entry_hint else "entry_not_in_decision_levels_only_tp_sl_available"
+    entry_hint = levels.get("entry") or levels.get("Entry") or rec.get("signal_price") or None
+    if entry_hint:
+        entry_source = "signal.price_at_decision" if rec.get("signal_price") and not (levels.get("entry") or levels.get("Entry")) else "decision_levels"
+        entry_hint_reason = None
+    else:
+        entry_source = None
+        entry_hint_reason = "entry_not_in_decision_levels_only_tp_sl_available"
 
     return {
         "symbol": decisions_summary.get("last_symbol") or "",
         "direction": direction,
         "entry_hint": entry_hint,
         "entry_hint_reason": entry_hint_reason,
+        "entry_source": entry_source,
         "tp_levels": tp_levels,
         "sl": levels.get("SL") or levels.get("sl") or 0,
         "confidence": rec.get("actionable_bias") or "",
