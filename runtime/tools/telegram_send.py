@@ -23,9 +23,10 @@ def telegram_send(payload: dict) -> dict:
     if not message:
         return {"ok": False, "message_id": None, "error": "message_empty"}
 
+    # Credential resolution: explicit payload > GGMESH env var.
+    # No silent fallback chain — a bad/missing token is a hard error, not a masked bypass.
     bot_token = (payload.get("bot_token")
-                 or os.environ.get("TELEGRAM_BOT_TOKEN_GGMESH", "").strip()
-                 or os.environ.get("TELEGRAM_BOT_TOKEN_IC_NOTIFY", "").strip())
+                 or os.environ.get("TELEGRAM_BOT_TOKEN_GGMESH", "").strip())
     chat_id = (payload.get("chat_id")
                or os.environ.get("TELEGRAM_CHAT_ID_GGMESH", "").strip()
                or "-1002324084957")
