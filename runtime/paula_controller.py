@@ -250,10 +250,14 @@ def build_paper_trade_intent(summary: dict) -> dict:
     # Collect TP levels
     tp_levels = {k: v for k, v in levels.items() if k.startswith("TP") and v is not None}
 
+    entry_hint = levels.get("entry") or levels.get("Entry") or None
+    entry_hint_reason = None if entry_hint else "entry_not_in_decision_levels_only_tp_sl_available"
+
     return {
         "symbol": decisions_summary.get("last_symbol") or "",
         "direction": direction,
-        "entry_hint": levels.get("entry") or levels.get("Entry") or None,
+        "entry_hint": entry_hint,
+        "entry_hint_reason": entry_hint_reason,
         "tp_levels": tp_levels,
         "sl": levels.get("SL") or levels.get("sl") or 0,
         "confidence": rec.get("actionable_bias") or "",

@@ -87,13 +87,36 @@ def _read_approval() -> bool:
 
 
 def _read_watchdog() -> bool:
-    """True only if supervised_heartbeat has beat > 0."""
-    p = _state_dir() / "supervised_heartbeat.json"
+    """True if self-audit verdict is not BROKEN/UNKNOWN and medium findings < 10."""
+    p = _state_dir() / "runtime_self_audit.json"
     try:
-        hb = json.loads(p.read_text())
-        return int(hb.get("beat", 0)) > 0
+        audit = json.loads(p.read_text())
+        verdict = audit.get("overall_verdict", "UNKNOWN")
+        mediums = len([f for f in audit.get("findings", [])
+                       if f.get("severity") == "MEDIUM"])
+        return verdict not in {"BROKEN", "UNKNOWN"} and mediums < 10
     except Exception:
         return False
+
+
+PAULA_APPROVAL_KEY = "paula_live_execution"
+
+
+def _ensure_paula_approval_lane() -> None:
+    """Initialize paula_live_execution approval lane (approved=false) if absent."""
+    p = _state_dir() / "approval_state.json"
+    try:
+        state = json.loads(p.read_text()) if p.exists() else {}
+    except Exception:
+        state = {}
+    if PAULA_APPROVAL_KEY not in state:
+        state[PAULA_APPROVAL_KEY] = {
+            "approved": False,
+            "approved_at": None,
+            "approved_by": None,
+            "expires_at": None,
+        }
+        _atomic_write(p, state)
 
 
 def _live_flag_enabled() -> bool:
@@ -160,7 +183,7 @@ def _check_live_flag(enabled: bool) -> tuple[bool, str]:
 
 def _check_watchdog(healthy: bool) -> tuple[bool, str]:
     if not healthy:
-        return False, "supervised_heartbeat.beat=0 or unavailable"
+        return False, "self_audit verdict BROKEN/UNKNOWN or medium_findings >= 10 or unavailable"
     return True, "watchdog_active"
 
 
@@ -191,6 +214,8 @@ def run_paula_live_gate(operator_id: str = "boss") -> dict:
     Fail-closed: missing metrics always fail.
     Does NOT modify repos/, option, or any execution state.
     """
+    _ensure_paula_approval_lane()
+
     ts = _now()
     hex8 = secrets.token_hex(4)
     trace_id = f"trace_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
