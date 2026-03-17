@@ -11,7 +11,8 @@ logs/
 reports/
 artifacts/
 g/
-/runtime/
+# runtime/ contains source — only generated state and logs are ignored (see below)
+runtime/state/
 # interface/ source is tracked — only pipeline runtime state dirs and cache are ignored:
 interface/completed/
 interface/inbox/
