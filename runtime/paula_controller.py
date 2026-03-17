@@ -12,6 +12,40 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 OPTION_REPO = Path("/Users/icmini/0luka/repos/option")
 
+# ---------------------------------------------------------------------------
+# AG-P16.7: Strategy entry model constants (from system-context / make_decision)
+# SL distances per asset in native price units.
+# Formula: avg_entry = SL - sl_dist (SHORT) | SL + sl_dist (LONG)
+# ---------------------------------------------------------------------------
+_ASSET_SL_DIST: dict[str, float] = {
+    "XAUUSD": 12.0, "GC": 12.0,
+    "S50": 3.0, "S50H26": 3.0, "SET50": 3.0,
+    "BTCUSD": 500.0, "BTCUSD": 500.0,
+    "USTEC": 80.0, "NQ": 80.0,
+}
+
+
+def _compute_weighted_entry(
+    signal_price: float, sl: float, direction: str, symbol: str
+) -> tuple[float | None, str]:
+    """Derive weighted avg_entry algebraically from the strategy SL formula.
+
+    make_decision() sets:  SL = avg_entry − d × conf["sl"]  (d: +1 LONG, -1 SHORT)
+    Inverting:  LONG  → avg_entry = SL + conf["sl"]
+                SHORT → avg_entry = SL - conf["sl"]
+
+    Returns (avg_entry, source) or (None, fallback_reason).
+    """
+    sym_key = symbol.upper().replace("-", "").replace(" ", "").replace("=F", "")
+    sl_dist = _ASSET_SL_DIST.get(sym_key)
+    if sl_dist is None or not sl or direction not in {"LONG", "SHORT"}:
+        return None, "signal.price_at_decision"
+    if direction == "LONG":
+        avg_entry = sl + sl_dist
+    else:
+        avg_entry = sl - sl_dist
+    return round(avg_entry, 4), "weighted_avg_entry_derived_from_sl"
+
 SAFE_READ_PATHS: dict[str, Path] = {
     "decision_history": OPTION_REPO / "artifacts/hq_decision_history.jsonl",
     "watchdog": OPTION_REPO / "artifacts/watchdog.log",
@@ -253,13 +287,34 @@ def build_paper_trade_intent(summary: dict) -> dict:
     # Collect TP levels
     tp_levels = {k: v for k, v in levels.items() if k.startswith("TP") and v is not None}
 
-    entry_hint = levels.get("entry") or levels.get("Entry") or rec.get("signal_price") or None
-    if entry_hint:
-        entry_source = "signal.price_at_decision" if rec.get("signal_price") and not (levels.get("entry") or levels.get("Entry")) else "decision_levels"
-        entry_hint_reason = None
-    else:
-        entry_source = None
-        entry_hint_reason = "entry_not_in_decision_levels_only_tp_sl_available"
+    # Entry hierarchy (P16.7): decision_levels > weighted_avg > signal.price > null
+    sl_val = levels.get("SL") or levels.get("sl") or 0
+    signal_price = rec.get("signal_price")
+    symbol = decisions_summary.get("last_symbol") or ""
+
+    entry_hint: float | None = None
+    entry_source: str | None = None
+
+    if levels.get("entry") or levels.get("Entry"):
+        # Tier 1: explicit entry in decision levels
+        entry_hint = levels.get("entry") or levels.get("Entry")
+        entry_source = "decision_levels"
+    elif signal_price and sl_val and direction in {"LONG", "SHORT"} and symbol:
+        # Tier 2: weighted avg_entry derived algebraically from SL formula
+        weighted, w_source = _compute_weighted_entry(signal_price, sl_val, direction, symbol)
+        if weighted is not None:
+            entry_hint = weighted
+            entry_source = w_source
+        else:
+            # Tier 3: raw signal.price_at_decision
+            entry_hint = signal_price
+            entry_source = "signal.price_at_decision"
+    elif signal_price:
+        # Tier 3 fallback (no SL available)
+        entry_hint = signal_price
+        entry_source = "signal.price_at_decision"
+
+    entry_hint_reason = None if entry_hint else "entry_not_in_decision_levels_only_tp_sl_available"
 
     return {
         "symbol": decisions_summary.get("last_symbol") or "",
