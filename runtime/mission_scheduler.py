@@ -139,8 +139,40 @@ def _append_jsonl(path: Path, record: dict) -> None:
 # ──────────────────────────────────────────
 
 def _dispatch_mission(mission: dict, window: str) -> dict:
-    """Run one mission via tools/ops/run_mission.py path."""
+    """Run one mission. Supports two dispatch paths:
+    - handler path: import a Python function directly (e.g. run_paula_brief)
+    - prompt path:  send a prompt to run_mission → LLM inference
+    """
     mission_id = f"{mission['mission_id']}_{window}"
+
+    # ── Handler path: direct Python function call ──────────────────────
+    if "handler" in mission:
+        try:
+            import importlib
+            module_path, func_name = mission["handler"].rsplit(".", 1)
+            mod = importlib.import_module(module_path)
+            func = getattr(mod, func_name)
+            result = func(
+                operator_id=mission.get("operator_id", "boss"),
+                provider=mission.get("provider", "claude"),
+            )
+            return {
+                "mission_id": mission_id,
+                "task_id": result.get("brief_id") or result.get("task_id"),
+                "inference_id": result.get("inference_id"),
+                "status": result.get("status", "executed"),
+                "block_reason": result.get("block_reason"),
+                "artifact_path": None,
+            }
+        except Exception as exc:
+            return {
+                "mission_id": mission_id,
+                "status": "error",
+                "error": str(exc)[:300],
+                "ts_end": _now(),
+            }
+
+    # ── Prompt path: LLM inference via run_mission ─────────────────────
     try:
         # Load run_mission by absolute file path to bypass namespace package resolution
         # issues when launchd strips PYTHONPATH and dotenvx provides a minimal environment.
