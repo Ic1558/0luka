@@ -1,6 +1,6 @@
-# Paula Mission Pack — Read-Only Trading Brief (repos/option)
+# Paula Mission Pack — Read-Only Trading Brief + Paper-Execution Adapter (repos/option)
 
-**Phase:** AG-P11
+**Phase:** AG-P12 (extends AG-P11)
 **Status:** Active
 **Role:** Governed read-only trading controller over `repos/option`
 **Constraint:** NO live order execution. NO writes to repos/option.
@@ -68,9 +68,61 @@ print(json.dumps(result, indent=2)[:1000])
 ## Evidence
 
 Every run writes:
-- `$LUKA_RUNTIME_ROOT/state/paula_brief_latest.json` — atomic pointer to latest brief
+- `$LUKA_RUNTIME_ROOT/state/paula_brief_latest.json` — atomic pointer to latest brief (includes `paper_trade`, `paper_trade_id`, `paper_trade_status`)
 - `$LUKA_RUNTIME_ROOT/state/paula_brief_log.jsonl` — append log of all briefs
 - `$LUKA_RUNTIME_ROOT/artifacts/paula/<brief_id>.json` — durable artifact per brief
+- `$LUKA_RUNTIME_ROOT/state/paula_paper_latest.json` — atomic pointer to latest paper trade record
+- `$LUKA_RUNTIME_ROOT/state/paula_paper_log.jsonl` — append log of all paper trade records
+- `$LUKA_RUNTIME_ROOT/artifacts/paula/<paper_trade_id>.json` — durable artifact per paper trade
+
+---
+
+## Paper Trade Pipeline (P12)
+
+```
+run_paula_brief(operator_id)
+  → _check_approval()                          # fail-closed
+  → read_option_state()                        # read-only, path-guarded
+  → summarize_option_state(raw)                # pure normalize
+  → build_brief_prompt(summary)
+  → route_inference(prompt, provider)          # governed inference
+  → build_paper_trade_intent(summary)          # extract structured intent
+  → validate_paper_trade(intent)               # risk gate (fail-closed)
+  → record_paper_trade(intent, brief_id)       # write paper record
+  → write evidence (brief + paper_trade fields)
+  → return record
+```
+
+### Paper Trade Record Schema
+
+```json
+{
+  "paper_trade_id": "paula_paper_<id>",
+  "brief_id": "...",
+  "operator_id": "...",
+  "symbol": "XAUUSD",
+  "direction": "SHORT",
+  "entry_hint": null,
+  "tp_levels": {"TP1": 5177.9, "TP2": 5172.9, "TP3": 5164.9},
+  "sl": 5190.9,
+  "confidence": "WEAK_BEARISH_XAUUSD",
+  "recommendation": "SHORT_ENTRY_XAUUSD",
+  "global_score": 0,
+  "mode": "paper",
+  "executed": false,
+  "governed": true,
+  "status": "recorded",
+  "ts": "..."
+}
+```
+
+### Validation Hard Rules (block if any fail)
+
+- `symbol` present and non-empty
+- `direction` in `{LONG, SHORT}`
+- `sl` present and non-zero
+- at least one TP level in `tp_levels`
+- `recommendation` not empty
 
 ---
 
@@ -96,6 +148,22 @@ Every run writes:
 ## Proof Cases
 
 ```python
+# V-P12A: Paper intent generation
+from runtime.paula_controller import read_option_state, summarize_option_state, build_paper_trade_intent
+raw = read_option_state()
+summary = summarize_option_state(raw)
+intent = build_paper_trade_intent(summary)
+assert intent["symbol"]
+assert intent["direction"] in {"LONG", "SHORT"}
+assert intent["tp_levels"]
+assert intent["sl"]
+
+# V-P12B: Risk gating
+from runtime.paula_controller import validate_paper_trade
+bad = {"symbol": "XAUUSD", "direction": "SHORT", "sl": 0, "tp_levels": {}, "recommendation": ""}
+ok, reason = validate_paper_trade(bad)
+assert ok == False
+
 # V-P11A: Repo audit proof
 from runtime.paula_controller import read_option_state
 raw = read_option_state()

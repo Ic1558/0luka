@@ -1,4 +1,4 @@
-"""AG-P11: Paula Controller — governed read-only trading brief for repos/option."""
+"""AG-P12: Paula Controller — governed read-only trading brief + paper-execution adapter."""
 from __future__ import annotations
 
 import json
@@ -227,6 +227,96 @@ def build_brief_prompt(summary: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
+# P12: Paper trade intent, validation, and recording
+# ---------------------------------------------------------------------------
+
+def build_paper_trade_intent(summary: dict) -> dict:
+    """Extract structured paper trade intent from summarize_option_state() output."""
+    rec = summary.get("next_action_recommendation", {})
+    levels = rec.get("levels", {})
+
+    # Direction: prefer signal.signal, fall back to recommendation prefix
+    signal_block = {}
+    decisions_summary = summary.get("strategy_mode", {})
+    # We need the raw signal — fetch from latest decision via strategy_mode last_symbol approach,
+    # but next_action_recommendation doesn't carry signal directly. Re-derive from recommendation.
+    recommendation = rec.get("recommendation") or ""
+    direction = "UNKNOWN"
+    if recommendation.upper().startswith("LONG"):
+        direction = "LONG"
+    elif recommendation.upper().startswith("SHORT"):
+        direction = "SHORT"
+
+    # Collect TP levels
+    tp_levels = {k: v for k, v in levels.items() if k.startswith("TP") and v is not None}
+
+    return {
+        "symbol": decisions_summary.get("last_symbol") or "",
+        "direction": direction,
+        "entry_hint": levels.get("entry") or levels.get("Entry") or None,
+        "tp_levels": tp_levels,
+        "sl": levels.get("SL") or levels.get("sl") or 0,
+        "confidence": rec.get("actionable_bias") or "",
+        "recommendation": recommendation,
+        "global_score": rec.get("global_score") or 0,
+        "status": "proposed",
+        "mode": "paper",
+        "executed": False,
+    }
+
+
+def validate_paper_trade(intent: dict) -> tuple[bool, str]:
+    """Risk gate — fail-closed on hard checks; soft checks append to warnings only."""
+    # Hard checks
+    if not intent.get("symbol"):
+        return False, "block_reason: symbol_missing"
+    if intent.get("direction") not in {"LONG", "SHORT"}:
+        return False, f"block_reason: direction_invalid={intent.get('direction')}"
+    if not intent.get("sl"):
+        return False, "block_reason: sl_missing_or_zero"
+    if not intent.get("tp_levels"):
+        return False, "block_reason: no_tp_levels"
+    if not intent.get("recommendation"):
+        return False, "block_reason: recommendation_empty"
+    return True, "ok"
+
+
+def record_paper_trade(intent: dict, brief_id: str, operator_id: str) -> dict:
+    """Write paper trade record atomically to state/ and artifacts/paula/."""
+    ts = _now()
+    uid8 = uuid.uuid4().hex[:8]
+    paper_trade_id = f"paula_paper_{uid8}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+
+    paper_record: dict = {
+        "paper_trade_id": paper_trade_id,
+        "brief_id": brief_id,
+        "operator_id": operator_id,
+        "symbol": intent.get("symbol"),
+        "direction": intent.get("direction"),
+        "entry_hint": intent.get("entry_hint"),
+        "tp_levels": intent.get("tp_levels", {}),
+        "sl": intent.get("sl"),
+        "confidence": intent.get("confidence"),
+        "recommendation": intent.get("recommendation"),
+        "global_score": intent.get("global_score"),
+        "mode": "paper",
+        "executed": False,
+        "governed": True,
+        "status": "recorded",
+        "ts": ts,
+    }
+
+    sd = _state_dir()
+    _atomic_write(sd / "paula_paper_latest.json", paper_record)
+    _append_jsonl(sd / "paula_paper_log.jsonl", paper_record)
+
+    ad = _artifacts_dir()
+    _atomic_write(ad / f"{paper_trade_id}.json", paper_record)
+
+    return paper_record
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -270,6 +360,17 @@ def run_paula_brief(operator_id: str = "boss", provider: str = "claude") -> dict
     inference_result = route_inference(prompt, provider, operator_id)
     brief_text: str | None = inference_result.get("response")
 
+    # --- paper trade intent + validation ---
+    intent = build_paper_trade_intent(summary)
+    paper_valid, paper_reason = validate_paper_trade(intent)
+
+    paper_record = None
+    if paper_valid:
+        paper_record = record_paper_trade(intent, brief_id, operator_id)
+        paper_status = "recorded"
+    else:
+        paper_status = f"blocked:{paper_reason}"
+
     record = {
         "brief_id": brief_id,
         "task_id": "paula_brief",
@@ -283,6 +384,9 @@ def run_paula_brief(operator_id: str = "boss", provider: str = "claude") -> dict
         "summary": summary,
         "inference_id": inference_result.get("inference_id"),
         "brief": brief_text,
+        "paper_trade_id": paper_record["paper_trade_id"] if paper_record else None,
+        "paper_trade_status": paper_status,
+        "paper_trade": paper_record,
         "status": "executed",
     }
 
