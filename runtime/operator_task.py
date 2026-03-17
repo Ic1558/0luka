@@ -65,16 +65,19 @@ def submit_operator_task(
     operator_id: str = "system",
     provider: str = "claude",
     plan_steps: list | None = None,
+    auto_plan: bool = False,
 ) -> dict:
     """Submit an operator task through governed inference + planning path.
 
     Args:
-        prompt:     Natural language task prompt.
+        prompt:      Natural language task prompt.
         operator_id: Caller identity.
-        provider:   Inference provider (default: claude).
-        plan_steps: Optional explicit step list. Each step:
-                    {"action": "tool_dispatch", "tool": "...", "params": {...}}
-                    If None, a default no_op plan is generated.
+        provider:    Inference provider (default: claude).
+        plan_steps:  Explicit step list (AG-P8). If None and auto_plan=False,
+                     a default no_op plan is generated.
+        auto_plan:   AG-P9 flag. When True and plan_steps is None, calls the
+                     LLM planner to generate a structured plan from the prompt.
+                     Malformed planner output → status=plan_parse_error (blocked).
 
     Returns a result dict always. Never raises — errors recorded in result.
     """
@@ -103,32 +106,77 @@ def submit_operator_task(
         _append_jsonl(sd / "operator_task_log.jsonl", record)
         return record
 
-    # Step 2: governed inference
-    inf: dict = {}
-    try:
-        from runtime.governed_inference import route_inference
-        inf = route_inference(prompt, preferred_provider=provider, operator_id=operator_id)
-    except Exception as exc:
-        record = {
-            "task_id": task_id,
-            "operator_id": operator_id,
-            "provider": provider,
-            "prompt_len": len(prompt),
-            "ts_submitted": ts,
-            "status": "error",
-            "block_reason": str(exc),
-            "inference_id": None,
-            "request_id": None,
-            "response": None,
-            "plan": None,
-            "execution": None,
-            "governed": True,
-        }
-        _append_jsonl(sd / "operator_task_log.jsonl", record)
-        _atomic_write(sd / "operator_task_latest.json", record)
-        return record
+    # Step 2a: AG-P9 auto-plan — LLM generates structured plan from goal
+    if auto_plan and plan_steps is None:
+        try:
+            from runtime.operator_planner import generate_plan_from_goal
+            planner = generate_plan_from_goal(task_id, operator_id, prompt, provider)
+        except Exception as exc:
+            planner = {
+                "inference_id": None, "provider": provider,
+                "raw_planner_output": None, "plan_steps": None,
+                "parse_error": None, "planner_error": str(exc)[:200],
+            }
 
-    # Step 3: generate → validate → execute plan (AG-P8)
+        error = planner.get("planner_error") or planner.get("parse_error")
+        if error or planner.get("plan_steps") is None:
+            record = {
+                "task_id": task_id,
+                "operator_id": operator_id,
+                "provider": provider,
+                "prompt_len": len(prompt),
+                "ts_submitted": ts,
+                "status": "plan_parse_error",
+                "block_reason": error or "plan_steps_none",
+                "inference_id": planner.get("inference_id"),
+                "request_id": planner.get("inference_id"),
+                "response": planner.get("raw_planner_output"),
+                "plan": None,
+                "execution": None,
+                "governed": True,
+                "auto_plan": True,
+            }
+            _append_jsonl(sd / "operator_task_log.jsonl", record)
+            _atomic_write(sd / "operator_task_latest.json", record)
+            return record
+
+        # Planner succeeded — use generated steps, synthetic inf record
+        plan_steps = planner["plan_steps"]
+        inf: dict = {
+            "inference_id": planner["inference_id"],
+            "request_id": planner["inference_id"],
+            "provider": planner["provider"],
+            "response": planner["raw_planner_output"],
+            "governed": True,
+            "ts_routed": _now(),
+        }
+
+    else:
+        # Step 2b: standard governed inference (P4/P8 path)
+        try:
+            from runtime.governed_inference import route_inference
+            inf = route_inference(prompt, preferred_provider=provider, operator_id=operator_id)
+        except Exception as exc:
+            record = {
+                "task_id": task_id,
+                "operator_id": operator_id,
+                "provider": provider,
+                "prompt_len": len(prompt),
+                "ts_submitted": ts,
+                "status": "error",
+                "block_reason": str(exc),
+                "inference_id": None,
+                "request_id": None,
+                "response": None,
+                "plan": None,
+                "execution": None,
+                "governed": True,
+            }
+            _append_jsonl(sd / "operator_task_log.jsonl", record)
+            _atomic_write(sd / "operator_task_latest.json", record)
+            return record
+
+    # Step 3: generate → validate → execute plan (AG-P8/P9)
     plan: dict = {}
     execution: dict = {}
     plan_verdict = "ALLOW"
@@ -150,6 +198,7 @@ def submit_operator_task(
         plan_verdict, validation_reason = validate_plan(plan)
         plan["policy_verdict"] = plan_verdict
         plan["validation_reason"] = validation_reason
+        plan["auto_plan"] = auto_plan
 
         if plan_verdict == "ALLOW":
             execution = execute_operator_plan(plan, operator_id=operator_id)
@@ -177,6 +226,7 @@ def submit_operator_task(
         "plan_id": plan.get("plan_id"),
         "plan_verdict": plan_verdict,
         "execution_status": execution.get("execution_status"),
+        "auto_plan": auto_plan,
     }
 
     _append_jsonl(sd / "operator_task_log.jsonl", record)

@@ -1,10 +1,18 @@
-"""AG-P8: Operator Planning Layer — structured plan generation, validation, execution.
+"""AG-P8/P9: Operator Planning Layer — structured plan generation, validation, execution.
 
-Runtime path:
+P8 runtime path (explicit steps):
     generate_plan(task_id, inference_result, steps)
     → validate_plan(plan)          — kernel BLOCK check + operator whitelist
     → execute_operator_plan(plan)  — dispatch allowed steps via runtime/tools/
     → evidence written
+
+P9 runtime path (LLM-as-planner):
+    generate_plan_from_goal(task_id, operator_id, goal)
+    → _call_planner_llm(goal)      — Anthropic call with planner system prompt
+    → parse_planner_response(raw)  — safe JSON parse; fail-closed on malform
+    → generate_plan(...)           — wraps parsed steps into plan struct
+    → validate_plan(plan)          — same P8 two-layer policy gate
+    → execute_operator_plan(plan)  — same P8 execution path
 
 Step actions:
     Allowed  : tool_dispatch, log, no_op
@@ -16,6 +24,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -274,3 +283,149 @@ def write_plan_evidence(plan: dict, execution: dict) -> Path:
     _atomic_write(sd / "operator_plan_latest.json", record)
     _append_jsonl(sd / "operator_plan_log.jsonl", record)
     return sd / "operator_plan_latest.json"
+
+
+# ──────────────────────────────────────────
+# AG-P9: LLM-as-planner
+# ──────────────────────────────────────────
+
+_PLANNER_SYSTEM_PROMPT = """\
+You are a governed task planner for the 0luka runtime.
+Given an operator goal, return ONLY a JSON object — no markdown, no explanation, no code fences.
+
+Required output format (strict):
+{"plan_steps":[{"step_id":"s1","action":"<action>","tool":"<tool>","params":{}}]}
+
+Rules:
+- action must be exactly one of: tool_dispatch, log, no_op
+- For tool_dispatch: "tool" must be "telegram_send"; "params" must contain {"message":"<relevant text>"}
+- For log: "params" must contain {"message":"<brief description>"}
+- For no_op: "params" is {}
+- Maximum 3 steps
+- Output ONLY the JSON object — nothing before or after it\
+"""
+
+
+def _call_planner_llm(goal: str, provider: str = "claude") -> str:
+    """Call Anthropic with planner system prompt. Returns raw text response.
+
+    Uses claude-haiku for cost efficiency. max_tokens=300 (sufficient for ≤3 steps).
+    Raises RuntimeError on missing key or HTTP error.
+    """
+    import httpx
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("anthropic_key_missing")
+    resp = httpx.post(
+        "https://api.anthropic.com/v1/messages",
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 300,
+            "system": _PLANNER_SYSTEM_PROMPT,
+            "messages": [{"role": "user", "content": f"Operator goal: {goal}"}],
+        },
+        timeout=30.0,
+    )
+    resp.raise_for_status()
+    return resp.json()["content"][0]["text"]
+
+
+def parse_planner_response(raw: str) -> tuple[list | None, str | None]:
+    """Safely parse LLM planner output into a plan_steps list.
+
+    Returns (steps_list, None) on success.
+    Returns (None, error_reason) on any failure — never raises.
+
+    Handles:
+    - markdown code fences (```json ... ```)
+    - bare JSON objects
+    - malformed / non-JSON output → blocked
+    """
+    if not raw or not raw.strip():
+        return None, "planner_output_empty"
+
+    text = raw.strip()
+
+    # Strip markdown code fences if present
+    fence = re.match(r"^```(?:json)?\s*\n?([\s\S]*?)```\s*$", text, re.IGNORECASE)
+    if fence:
+        text = fence.group(1).strip()
+
+    # Must start with { for a JSON object
+    if not text.startswith("{"):
+        return None, f"not_json_object:starts_with_{text[:20]!r}"
+
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        return None, f"json_parse_error:{exc}"
+
+    if not isinstance(data, dict):
+        return None, "parsed_value_not_dict"
+
+    plan_steps = data.get("plan_steps")
+    if not isinstance(plan_steps, list):
+        return None, "plan_steps_missing_or_not_list"
+
+    if len(plan_steps) == 0:
+        return None, "plan_steps_empty"
+
+    for i, step in enumerate(plan_steps):
+        if not isinstance(step, dict):
+            return None, f"step_{i}_not_dict"
+        if "action" not in step:
+            return None, f"step_{i}_action_missing"
+
+    return plan_steps, None
+
+
+def generate_plan_from_goal(
+    task_id: str,
+    operator_id: str,
+    goal: str,
+    provider: str = "claude",
+) -> dict:
+    """Generate a governed plan from a natural-language operator goal.
+
+    Returns:
+        {
+            "inference_id": str,
+            "provider": str,
+            "raw_planner_output": str | None,
+            "plan_steps": list | None,
+            "parse_error": str | None,
+            "planner_error": str | None,
+        }
+
+    On any failure returns parse_error or planner_error populated, plan_steps=None.
+    Caller must treat plan_steps=None as BLOCKED.
+    """
+    inference_id = str(uuid.uuid4())
+    raw: str | None = None
+
+    try:
+        raw = _call_planner_llm(goal, provider=provider)
+    except Exception as exc:
+        return {
+            "inference_id": inference_id,
+            "provider": provider,
+            "raw_planner_output": raw,
+            "plan_steps": None,
+            "parse_error": None,
+            "planner_error": str(exc)[:300],
+        }
+
+    plan_steps, parse_error = parse_planner_response(raw)
+    return {
+        "inference_id": inference_id,
+        "provider": provider,
+        "raw_planner_output": raw,
+        "plan_steps": plan_steps,
+        "parse_error": parse_error,
+        "planner_error": None,
+    }
