@@ -24,9 +24,16 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Ensure project root is on sys.path regardless of how this module is invoked.
+# Needed when run directly by launchd where PYTHONPATH may not be set.
+_project_root = str(Path(__file__).resolve().parents[1])
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 
 # ──────────────────────────────────────────
@@ -135,7 +142,14 @@ def _dispatch_mission(mission: dict, window: str) -> dict:
     """Run one mission via tools/ops/run_mission.py path."""
     mission_id = f"{mission['mission_id']}_{window}"
     try:
-        from tools.ops.run_mission import run_mission
+        # Load run_mission by absolute file path to bypass namespace package resolution
+        # issues when launchd strips PYTHONPATH and dotenvx provides a minimal environment.
+        import importlib.util as _ilu
+        _rm_path = Path(__file__).resolve().parents[1] / "tools" / "ops" / "run_mission.py"
+        _spec = _ilu.spec_from_file_location("run_mission", str(_rm_path))
+        _mod = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        run_mission = _mod.run_mission
         result = run_mission(
             mission["prompt"],
             operator_id=mission.get("operator_id", "boss"),

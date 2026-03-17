@@ -7,8 +7,8 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/opt/homebrew/bin/python3</string>
-        <string>/Users/icmini/0luka/runtime/mission_scheduler.py</string>
+        <string>/bin/zsh</string>
+        <string>/Users/icmini/0luka/runtime/services/mission_scheduler_runner.zsh</string>
     </array>
 
     <key>EnvironmentVariables</key>
@@ -17,6 +17,8 @@
         <string>/Users/icmini/0luka_runtime</string>
         <key>PYTHONPATH</key>
         <string>/Users/icmini/0luka</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     </dict>
 
     <key>StartInterval</key>
@@ -24,6 +26,9 @@
 
     <key>RunAtLoad</key>
     <false/>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/icmini/0luka</string>
 
     <key>StandardOutPath</key>
     <string>/Users/icmini/0luka_runtime/logs/mission_scheduler.stdout.log</string>
