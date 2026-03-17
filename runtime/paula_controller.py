@@ -304,6 +304,10 @@ def record_paper_trade(intent: dict, brief_id: str, operator_id: str) -> dict:
         "governed": True,
         "status": "recorded",
         "ts": ts,
+        "opened_at": intent.get("ts") or ts,
+        "closed_at": None,
+        "close_reason": None,
+        "pnl": None,
     }
 
     sd = _state_dir()
