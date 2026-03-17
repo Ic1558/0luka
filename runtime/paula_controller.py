@@ -333,6 +333,66 @@ def build_paper_trade_intent(summary: dict) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# AG-P16.8: Strategy-governed pre-trade filter
+# ---------------------------------------------------------------------------
+MIN_RR_FOR_TRADE = 1.0  # At least one TP must yield RR >= this to allow execution
+
+
+def _compute_rr_summary(intent: dict) -> dict[str, float]:
+    """Compute expected RR for every TP level using weighted entry and SL."""
+    entry = intent.get("entry_hint")
+    sl = intent.get("sl")
+    direction = intent.get("direction")
+    tp_levels = intent.get("tp_levels") or {}
+    if not entry or not sl or not direction or abs(entry - sl) < 1e-9:
+        return {}
+    risk = abs(entry - sl)
+    rr_map: dict[str, float] = {}
+    for tp_name, tp_val in tp_levels.items():
+        if tp_val is None:
+            continue
+        if direction == "LONG":
+            rr = round((tp_val - entry) / risk, 3)
+        else:
+            rr = round((entry - tp_val) / risk, 3)
+        rr_map[tp_name] = rr
+    return rr_map
+
+
+def apply_strategy_filter(
+    intent: dict, summary: dict
+) -> tuple[bool, str, dict[str, float]]:
+    """Strategy-governed pre-trade filter. Fail-closed.
+
+    Checks:
+      1. actionable_bias present → else missing_required_fields
+      2. global_score != 0        → else weak_signal_filtered
+      3. max(TP RR) >= MIN_RR     → else rr_below_threshold
+
+    Returns: (allowed, reason, rr_summary)
+    """
+    rec = summary.get("next_action_recommendation", {})
+    actionable_bias = rec.get("actionable_bias") or intent.get("confidence")
+    if not actionable_bias:
+        return False, "missing_required_fields", {}
+
+    global_score = rec.get("global_score")
+    if global_score is None:
+        return False, "missing_required_fields", {}
+    if global_score == 0:
+        return False, "weak_signal_filtered", {}
+
+    rr_summary = _compute_rr_summary(intent)
+    if not rr_summary:
+        return False, "rr_below_threshold", rr_summary
+    max_rr = max(rr_summary.values())
+    if max_rr < MIN_RR_FOR_TRADE:
+        return False, "rr_below_threshold", rr_summary
+
+    return True, "passed", rr_summary
+
+
 def validate_paper_trade(intent: dict) -> tuple[bool, str]:
     """Risk gate — fail-closed on hard checks; soft checks append to warnings only."""
     # Hard checks
@@ -432,16 +492,24 @@ def run_paula_brief(operator_id: str = "boss", provider: str = "claude") -> dict
     inference_result = route_inference(prompt, provider, operator_id)
     brief_text: str | None = inference_result.get("response")
 
-    # --- paper trade intent + validation ---
+    # --- paper trade intent + P16.8 strategy filter + validation ---
     intent = build_paper_trade_intent(summary)
-    paper_valid, paper_reason = validate_paper_trade(intent)
+    filter_allowed, filter_reason, rr_summary = apply_strategy_filter(intent, summary)
 
     paper_record = None
-    if paper_valid:
-        paper_record = record_paper_trade(intent, brief_id, operator_id)
-        paper_status = "recorded"
+    filter_decision = "skipped" if not filter_allowed else "executed"
+
+    if not filter_allowed:
+        paper_status = f"skipped:{filter_reason}"
     else:
-        paper_status = f"blocked:{paper_reason}"
+        paper_valid, paper_reason = validate_paper_trade(intent)
+        if paper_valid:
+            paper_record = record_paper_trade(intent, brief_id, operator_id)
+            paper_status = "recorded"
+        else:
+            paper_status = f"blocked:{paper_reason}"
+            filter_decision = "skipped"
+            filter_reason = paper_reason
 
     record = {
         "brief_id": brief_id,
@@ -456,6 +524,9 @@ def run_paula_brief(operator_id: str = "boss", provider: str = "claude") -> dict
         "summary": summary,
         "inference_id": inference_result.get("inference_id"),
         "brief": brief_text,
+        "filter_decision": filter_decision,
+        "filter_reason": filter_reason,
+        "rr_summary": rr_summary,
         "paper_trade_id": paper_record["paper_trade_id"] if paper_record else None,
         "paper_trade_status": paper_status,
         "paper_trade": paper_record,
