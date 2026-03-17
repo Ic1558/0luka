@@ -55,6 +55,13 @@ def _atomic_write(path: Path, data: dict) -> None:
 P166_MARKER = "entry_source"   # first quality improvement (grounded entry)
 P168_MARKER = "filter_decision"  # strategy filter active
 
+# AG-P16.11: Post-P16.10 cohort marker.
+# A paper trade is post-P16.10 if and only if:
+#   1. entry_source is present (P16.6+)          AND
+#   2. "FULL" key exists in tp_levels (P16.10+)
+# This is the most unambiguous identifier — FULL TP was never in pre-P16.10 trades.
+P1610_TP_MARKER = "FULL"
+
 
 # ---------------------------------------------------------------------------
 # Load
@@ -114,6 +121,26 @@ def split_cohorts(trades: list[dict]) -> tuple[list[dict], list[dict]]:
     pre = [t for t in trades if P166_MARKER not in t]
     post = [t for t in trades if P166_MARKER in t]
     return pre, post
+
+
+def split_p1610_cohort(trades: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Split trades into pre-P16.10 and post-P16.10 cohorts.
+
+    Post-P16.10 requires BOTH:
+      1. entry_source present (P16.6+ grounded entry)
+      2. "FULL" key in tp_levels (P16.10+ FULL-TP-first policy)
+
+    This is the most unambiguous marker — FULL TP was never in pre-P16.10 trades.
+    """
+    def _is_p1610(t: dict) -> bool:
+        if P166_MARKER not in t:
+            return False
+        tp_levels = t.get("tp_levels") or {}
+        return P1610_TP_MARKER in tp_levels
+
+    post_p1610 = [t for t in trades if _is_p1610(t)]
+    pre_p1610 = [t for t in trades if not _is_p1610(t)]
+    return pre_p1610, post_p1610
 
 
 # ---------------------------------------------------------------------------
@@ -256,6 +283,9 @@ def run_paula_sample_validation(operator_id: str = "boss") -> dict:
 
     pre_trades, post_trades = split_cohorts(trades)
 
+    # AG-P16.11: Post-P16.10 cohort (entry_source + FULL in tp_levels)
+    _, post_p1610_trades = split_p1610_cohort(trades)
+
     # Cohort metrics
     pre_metrics = cohort_metrics(pre_trades, "pre_p168_real")
     post_metrics = cohort_metrics(post_trades, "post_p168_real") if post_trades else {
@@ -265,6 +295,28 @@ def run_paula_sample_validation(operator_id: str = "boss") -> dict:
         "closed_trades": 0,
     }
     projected = projected_post_p168_metrics()
+
+    # Post-P16.10 real cohort metrics
+    if post_p1610_trades:
+        post_p1610_metrics = cohort_metrics(post_p1610_trades, "post_p1610_real")
+    else:
+        post_p1610_metrics = {
+            "cohort": "post_p1610_real",
+            "note": (
+                "no post-P16.10 trades yet — "
+                "ATG signals have global_score=0 so P16.8 filter blocks all executions. "
+                "Cohort marker: entry_source present AND 'FULL' in tp_levels."
+            ),
+            "total_trades": 0,
+            "closed_trades": 0,
+            "trade_ids": [],
+        }
+
+    # Post-P16.10 gate check (real data only)
+    post_p1610_gate = _check_metrics_against_gate(post_p1610_metrics)
+
+    # Derive trade_ids for post-P16.10 cohort (evidence integrity)
+    post_p1610_trade_ids = [t.get("paper_trade_id") for t in post_p1610_trades]
 
     # Brief cohort stats
     post_p168_briefs = [b for b in briefs if P168_MARKER in b]
@@ -279,7 +331,7 @@ def run_paula_sample_validation(operator_id: str = "boss") -> dict:
     pre_gate = _check_metrics_against_gate(pre_metrics)
     proj_gate = _check_metrics_against_gate(projected)
 
-    # Improvement analysis
+    # Improvement analysis (pre vs projected, for legacy comparison)
     improvements: list[str] = []
     regressions: list[str] = []
     for key in ["min_closed_trades", "win_rate_ok", "avg_rr_ok"]:
@@ -291,7 +343,7 @@ def run_paula_sample_validation(operator_id: str = "boss") -> dict:
             regressions.append(key)
 
     remaining_blockers: list[str] = [
-        k for k, v in proj_gate["checks"].items() if not v["pass"]
+        k for k, v in post_p1610_gate["checks"].items() if not v["pass"]
     ]
     remaining_blockers += [
         "approval_active (operator must set paula_live_execution.approved=true)",
@@ -303,11 +355,27 @@ def run_paula_sample_validation(operator_id: str = "boss") -> dict:
         "operator_id": operator_id,
         "ts": ts,
         "governed": True,
-        "cohort_boundary": "entry_source field (added P16.6) — post-P16.8 also has filter_decision",
+        "cohort_boundary": {
+            "p166": "entry_source field present (P16.6+ grounded entry)",
+            "p168": "filter_decision field present (P16.8+ strategy filter)",
+            "p1610": "entry_source present AND 'FULL' in tp_levels (P16.10+ FULL-TP-first policy)",
+        },
         "cohorts": {
             "pre_p168_real": pre_metrics,
             "post_p168_real": post_metrics,
             "post_p168_projected": projected,
+            "post_p1610_real": post_p1610_metrics,
+        },
+        "post_p1610_cohort": {
+            "definition": "entry_source present AND 'FULL' in tp_levels",
+            "trade_ids": post_p1610_trade_ids,
+            "total_trades": len(post_p1610_trades),
+            "closed_trades": post_p1610_metrics.get("closed_trades", 0),
+            "wins": post_p1610_metrics.get("wins", 0),
+            "losses": post_p1610_metrics.get("losses", 0),
+            "win_rate": post_p1610_metrics.get("win_rate"),
+            "avg_rr": post_p1610_metrics.get("avg_rr"),
+            "gate_result": post_p1610_gate,
         },
         "brief_stats": {
             "total_briefs": len(briefs),
@@ -319,15 +387,17 @@ def run_paula_sample_validation(operator_id: str = "boss") -> dict:
         "gate_analysis": {
             "pre_p168_performance_checks": pre_gate,
             "projected_post_p168_checks": proj_gate,
+            "post_p1610_real_checks": post_p1610_gate,
             "improvements_over_pre": improvements,
             "regressions": regressions,
         },
         "remaining_blockers": remaining_blockers,
         "honest_assessment": (
-            "Pre-P16.8 trades have null entry/RR — gate cannot pass avg_rr check. "
-            "Post-P16.8 filter prevents weak/low-RR trades from polluting the sample. "
-            "Projection shows avg_rr improvement to ~0.472 → still below 1.0 gate. "
-            "Real gate pass requires: 10 closed filtered trades + operator approval + live flag."
+            "Post-P16.10 cohort has zero real trades. "
+            "ATG decision history stale since 2026-03-12 — all signals have global_score=0. "
+            "P16.8 filter correctly blocks all briefs (weak_signal_filtered). "
+            "Gate cannot pass min_closed_trades until ATG generates actionable non-weak signals. "
+            "P16.11_BLOCKED: real closed trades do not exist in post-P16.10 cohort."
         ),
     }
 
