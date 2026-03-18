@@ -1,0 +1,17 @@
+{
+  "skill_id": "analysis",
+  "family": "analysis",
+  "description": "Analysis operations: summarize, inspect, review, and report on data or files.",
+  "capabilities": ["summarize_file", "count_lines", "inspect_json"],
+  "risk_tier": "low",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "capability": {"type": "string"},
+      "path": {"type": "string"}
+    },
+    "required": ["capability"]
+  },
+  "allowed_capabilities": ["summarize_file", "count_lines", "inspect_json"],
+  "forbidden_capabilities": ["delete_all", "overwrite_system", "exfiltrate_data"]
+}

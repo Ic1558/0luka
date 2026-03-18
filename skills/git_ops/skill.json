@@ -1,0 +1,17 @@
+{
+  "skill_id": "git_ops",
+  "family": "git_ops",
+  "description": "Git repository operations: status, diff, log, and branch inspection.",
+  "capabilities": ["git_status", "git_log", "git_diff", "git_branches"],
+  "risk_tier": "low",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "capability": {"type": "string"},
+      "path": {"type": "string"}
+    },
+    "required": ["capability"]
+  },
+  "allowed_capabilities": ["git_status", "git_log", "git_diff", "git_branches"],
+  "forbidden_capabilities": ["git_force_push", "git_reset_hard", "delete_history", "overwrite_remote"]
+}

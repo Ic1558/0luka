@@ -1,0 +1,17 @@
+{
+  "skill_id": "file_ops",
+  "family": "file_ops",
+  "description": "File system operations: list, read, and inspect files and directories.",
+  "capabilities": ["list_files", "read_file", "file_info"],
+  "risk_tier": "low",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "capability": {"type": "string"},
+      "path": {"type": "string"}
+    },
+    "required": ["capability", "path"]
+  },
+  "allowed_capabilities": ["list_files", "read_file", "file_info"],
+  "forbidden_capabilities": ["delete_all", "overwrite_system", "rm_rf", "chmod_777"]
+}
