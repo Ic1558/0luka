@@ -30,12 +30,13 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from pathlib import Path
+from core.config import RUNTIME_LOGS_DIR
 from core.orchestrator_v1 import handle_request
 from core.replay_engine import replay_trace
 
 _FALLBACK_RISK = {"risk_level": "medium", "guard_action": "review", "reason": "unknown intent"}
 _FALLBACK_AGENT = {"agent": "system", "mode": "fallback"}
-_FEED = Path.home() / "0luka/observability/activity_feed.jsonl"
+_FEED = RUNTIME_LOGS_DIR / "activity_feed.jsonl"
 
 
 def _last_trace_id():

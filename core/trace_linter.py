@@ -33,10 +33,11 @@ Output contract (all functions):
 import json
 from pathlib import Path
 
+from core.config import RUNTIME_LOGS_DIR
 from core.snapshot_store import load_snapshot
 from core.trace_versioning import is_supported
 
-TRACE_FILE = Path.home() / "0luka/observability/activity_feed.jsonl"
+TRACE_FILE = RUNTIME_LOGS_DIR / "activity_feed.jsonl"
 
 # Full Phase 4.1 trace contract — all fields always written by trace_writer.write_trace()
 # Split by nullability:

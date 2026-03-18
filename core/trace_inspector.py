@@ -34,9 +34,10 @@ get_trace() contract:
 import json
 from pathlib import Path
 
+from core.config import RUNTIME_LOGS_DIR
 from core.snapshot_store import load_snapshot
 
-TRACE_FILE = Path.home() / "0luka/observability/activity_feed.jsonl"
+TRACE_FILE = RUNTIME_LOGS_DIR / "activity_feed.jsonl"
 
 
 def _has_snapshot(trace_id: str) -> bool:
