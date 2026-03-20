@@ -58,6 +58,7 @@ def register_contract_task(task: dict) -> dict:
     valid, reason = validate_task(task)
     contract_id = str(uuid.uuid4())
     record = {
+        "contract_task_id": contract_id,
         "contract_id": contract_id,
         "task_id": task.get("task_id"),
         "actor_id": task.get("actor_id"),

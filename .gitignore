@@ -11,8 +11,16 @@ logs/
 reports/
 artifacts/
 g/
-/runtime/
-/interface/
+# runtime/ contains source — only generated state and logs are ignored (see below)
+runtime/state/
+# interface/ source is tracked — only pipeline runtime state dirs and cache are ignored:
+interface/completed/
+interface/inbox/
+interface/outbox/
+interface/processing/
+interface/rejected/
+interface/plans/
+interface/evidence/
 
 # Large file patterns (>10MB typical)
 *.tracev3
@@ -145,3 +153,4 @@ reports/summary/latest.md
 
 # Nested repos (separate git checkouts — never track contents in outer repo)
 /repos/qs/
+*.pyc

@@ -1,0 +1,16 @@
+{
+  "skill_id": "trading",
+  "family": "trading",
+  "description": "Trading operations: position inquiry, PnL check, portfolio summary.",
+  "capabilities": ["show_positions", "show_pnl", "portfolio_summary"],
+  "risk_tier": "high",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "capability": {"type": "string"}
+    },
+    "required": ["capability"]
+  },
+  "allowed_capabilities": ["show_positions", "show_pnl", "portfolio_summary"],
+  "forbidden_capabilities": ["place_order", "cancel_all_orders", "liquidate", "delete_account"]
+}

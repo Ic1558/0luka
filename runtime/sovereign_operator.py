@@ -84,6 +84,7 @@ def enter_sovereign_mode(operator_id: str) -> dict:
     session = {
         "session_id": session_id,
         "operator_id": operator_id,
+        "final_authority": operator_id,
         "version": SOVEREIGN_VERSION,
         "capabilities": SOVEREIGN_CAPABILITIES,
         "runtime_state": runtime_state,

@@ -2543,7 +2543,7 @@ def create_app():
         app.add_api_route("/", root_endpoint, methods=["GET"], response_class=HTMLResponse)
         return app
 
-    return FastAPI(
+    _app = FastAPI(
         routes=[
             Route("/health", health_endpoint),
             Route("/api/operator_status", operator_status_endpoint),
@@ -2603,6 +2603,12 @@ def create_app():
         ]
         + _build_ag29_ag30_routes()
     )
+    # AG-44→72: mount extra runtime routes onto the app before returning.
+    # _register_extra_routes() must be called inside create_app() so every
+    # caller (tests, WSGI, hot-reload) gets the full route surface — not only
+    # the module-level singleton.
+    _register_extra_routes(_app)
+    return _app
 
 
 def _build_ag29_ag30_routes() -> list:
@@ -2834,8 +2840,7 @@ def _register_extra_routes(app) -> None:
         pass
 
 
-app = create_app()
-_register_extra_routes(app)
+app = create_app()  # AG-44→72 routes are now registered inside create_app()
 
 
 def main() -> int:

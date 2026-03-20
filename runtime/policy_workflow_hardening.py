@@ -37,7 +37,7 @@ def _run_stage(stage_name: str, fn) -> dict:
         return {"stage_name": stage_name, "status": "PASS",
                 "result_summary": str(result)[:200], "ts": ts_s}
     except Exception as e:
-        return {"stage_name": stage_name, "status": "INFO",
+        return {"stage_name": stage_name, "status": "FAIL",
                 "result_summary": str(e)[:200], "ts": ts_s}
 
 
@@ -55,15 +55,14 @@ def run_review(policy_id: str, operator_id: str) -> dict:
         return f"candidates_found={len(matched)}"
     stages.append(_run_stage("candidate_check", _candidate_check))
 
-    # Stage 2: promotion_check
+    # Stage 2: promotion_check — fail-closed: raises on load failure or empty policy set
     def _promotion_check():
-        try:
-            from core.policy.policy_lifecycle import list_active_policies
-            active = list_active_policies()
-            matched = [p for p in active if p.get("policy_id") == policy_id]
-            return f"active_matched={len(matched)}"
-        except Exception as e:
-            return f"registry_unavailable: {e}"
+        from core.policy.policy_lifecycle import list_active_policies
+        active = list_active_policies()
+        if not active:
+            raise RuntimeError("promotion_check_failed: policy set empty or unreadable")
+        matched = [p for p in active if p.get("policy_id") == policy_id]
+        return f"active_matched={len(matched)}"
     stages.append(_run_stage("promotion_check", _promotion_check))
 
     # Stage 3: effectiveness_check
@@ -86,7 +85,7 @@ def run_review(policy_id: str, operator_id: str) -> dict:
     stages.append({"stage_name": "COMPLETE", "status": "PASS",
                    "result_summary": "workflow complete", "ts": _now()})
 
-    overall_status = "PASS" if all(s["status"] in ("PASS", "INFO") for s in stages) else "FAIL"
+    overall_status = "PASS" if all(s["status"] == "PASS" for s in stages) else "FAIL"
 
     report = {
         "workflow_id": workflow_id,

@@ -1,0 +1,1 @@
+../core_brain/ops/catalog_lookup.zsh

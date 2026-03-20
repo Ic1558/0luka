@@ -1,0 +1,16 @@
+{
+  "skill_id": "system_ops",
+  "family": "system_ops",
+  "description": "System operations: health checks, process listing, resource usage.",
+  "capabilities": ["health_check", "list_processes", "disk_usage", "memory_info"],
+  "risk_tier": "medium",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "capability": {"type": "string"}
+    },
+    "required": ["capability"]
+  },
+  "allowed_capabilities": ["health_check", "list_processes", "disk_usage", "memory_info"],
+  "forbidden_capabilities": ["kill_all", "shutdown", "reboot", "wipe_disk", "overwrite_system"]
+}

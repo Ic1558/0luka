@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.0luka.runtime-sovereign</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>/Users/icmini/0luka/runtime/runtime_sovereign_service.py</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>LUKA_RUNTIME_ROOT</key>
+        <string>/Users/icmini/0luka_runtime</string>
+        <key>PYTHONPATH</key>
+        <string>/Users/icmini/0luka</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+    <key>KeepAlive</key>
+    <true/>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/icmini/0luka_runtime/logs/runtime_sovereign_service.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/icmini/0luka_runtime/logs/runtime_sovereign_service.stderr.log</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/icmini/0luka</string>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+</dict>
+</plist>
