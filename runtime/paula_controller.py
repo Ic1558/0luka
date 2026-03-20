@@ -10,7 +10,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Paths — OPTION_REPO is read-only source; all writes go to runtime state/
 # ---------------------------------------------------------------------------
-OPTION_REPO = Path("/Users/icmini/0luka/repos/option")
+OPTION_REPO = Path(__file__).resolve().parents[1] / "repos" / "option"
 
 # ---------------------------------------------------------------------------
 # AG-P16.7: Strategy entry model constants (from system-context / make_decision)

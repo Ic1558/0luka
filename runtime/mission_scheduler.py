@@ -268,7 +268,7 @@ def main() -> None:
     root = Path(__file__).resolve().parents[1]
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
-    os.environ.setdefault("LUKA_RUNTIME_ROOT", "/Users/icmini/0luka_runtime")
+    os.environ.setdefault("LUKA_RUNTIME_ROOT", str(Path.home() / "0luka_runtime"))
 
     results = tick()
     print(json.dumps({"tick_ts": _now(), "dispatched": len(results), "results": results}, indent=2))
