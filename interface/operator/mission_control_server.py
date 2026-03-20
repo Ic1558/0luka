@@ -16,7 +16,7 @@ try:
     from fastapi.responses import HTMLResponse, JSONResponse
     # This module's endpoints expect raw Starlette request objects rather than
     # FastAPI parameter parsing, so use the Starlette route path consistently.
-    FASTAPI_AVAILABLE = False
+    FASTAPI_AVAILABLE = True
 except ImportError:  # pragma: no cover
     from starlette.applications import Starlette as FastAPI
     from starlette.responses import HTMLResponse, JSONResponse
