@@ -17,6 +17,7 @@ LANES = (
     "api_recovery",
     "redis_recovery",
     "task_execution",
+    "paula_live_execution",
 )
 
 

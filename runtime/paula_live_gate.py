@@ -6,6 +6,8 @@ import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 
+from tools.ops import approval_state
+
 # ── Thresholds ────────────────────────────────────────────────────────────────
 MIN_CLOSED_TRADES = 10
 MIN_WIN_RATE = 0.40
@@ -76,12 +78,11 @@ def _read_paper_log() -> list[dict]:
 
 
 def _read_approval() -> bool:
-    """Check approval_state.json for paula_live_execution approval."""
-    p = _state_dir() / "approval_state.json"
+    """Check the Paula live execution approval lane through the boundary owner."""
     try:
-        state = json.loads(p.read_text())
-        entry = state.get("paula_live_execution", {})
-        return bool(entry.get("approved", False))
+        state = approval_state.load_approval_state(runtime_root=_runtime_root())
+        entry = state["lanes"].get(PAULA_APPROVAL_KEY, {})
+        return bool(entry.get("approved_effective", False))
     except Exception:
         return False
 
@@ -103,20 +104,14 @@ PAULA_APPROVAL_KEY = "paula_live_execution"
 
 
 def _ensure_paula_approval_lane() -> None:
-    """Initialize paula_live_execution approval lane (approved=false) if absent."""
-    p = _state_dir() / "approval_state.json"
+    """Ensure the Paula live execution lane exists through the boundary owner."""
     try:
-        state = json.loads(p.read_text()) if p.exists() else {}
+        state = approval_state.load_approval_state(runtime_root=_runtime_root())
     except Exception:
-        state = {}
-    if PAULA_APPROVAL_KEY not in state:
-        state[PAULA_APPROVAL_KEY] = {
-            "approved": False,
-            "approved_at": None,
-            "approved_by": None,
-            "expires_at": None,
-        }
-        _atomic_write(p, state)
+        state = {"lanes": {}}
+    lanes = dict(state.get("lanes", {}))
+    if PAULA_APPROVAL_KEY not in lanes:
+        approval_state.write_approval_state(lanes, runtime_root=_runtime_root())
 
 
 def _live_flag_enabled() -> bool:
@@ -171,7 +166,7 @@ def _check_losing_streak(closed_trades: list[dict]) -> tuple[bool, str]:
 
 def _check_approval(approved: bool) -> tuple[bool, str]:
     if not approved:
-        return False, "paula_live_execution approval not set in approval_state.json"
+        return False, "paula_live_execution approval not active"
     return True, "approved"
 
 
