@@ -137,7 +137,7 @@ repo/
 │
 ├── observability/
 │   ├── logs/
-│   │   └── activity_feed.jsonl              ← Activity chain (RUNTIME_LOGS_DIR)
+│   │   └── activity_feed.jsonl              ← Activity chain (unchanged path)
 │   └── reports/
 │       ├── cost_router/                     ← NEW (created, .gitkeep exists)
 │       │   ├── decisions.jsonl              ← [Runtime: append-only audit]
@@ -181,7 +181,7 @@ from core_brain.agents.cost_router import select_model, CostRouter
 
 | Evidence Artifact | Path | Layer |
 |------------------|------|-------|
-| Activity feed | `RUNTIME_LOGS_DIR / "activity_feed.jsonl"` | Observability (unchanged) |
+| Activity feed | `observability/logs/activity_feed.jsonl` | Observability (unchanged) |
 | Decisions log | `observability/reports/cost_router/decisions.jsonl` | Observability (new) |
 | Spend ledger | `observability/reports/cost_router/spend_ledger.jsonl` | Observability (new) |
 | Phase proof | `observability/reports/phase3E/cost_router_proof.json` | Observability (new) |
@@ -197,7 +197,7 @@ All evidence paths are under `observability/` — never under `core/` or `core_b
 
 | Scenario | Impact |
 |----------|--------|
-| Keep in `core_brain/` | **ZERO**. Activity feed path is `RUNTIME_LOGS_DIR / "activity_feed.jsonl"` per `dod_checker.py` line 168. Source code location is irrelevant to activity feed location. |
+| Keep in `core_brain/` | **ZERO**. Activity feed path is `observability/logs/activity_feed.jsonl` per `dod_checker.py` line 168. Source code location is irrelevant to activity feed location. |
 | Move to `core/` | **ZERO**. Same reason — activity path is decoupled from source path. |
 
 **Verdict**: No impact either way.
@@ -216,7 +216,7 @@ All evidence paths are under `observability/` — never under `core/` or `core_b
 `dod_checker.py` detects phases by:
 1. Reading `docs/dod/DOD__PHASE_*.md` (DoD file)
 2. Reading `core/governance/phase_status.yaml` (registry)
-3. Reading `RUNTIME_LOGS_DIR / "activity_feed.jsonl"` (activity chain)
+3. Reading `observability/logs/activity_feed.jsonl` (activity chain)
 
 None of these reference `core_brain/agents/` or `core/agents/`. Phase detection is **fully decoupled** from source code location.
 

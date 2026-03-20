@@ -29,7 +29,7 @@
 ## Evidence Anchors
 
 - Activity feed reference:
-  - Path: `RUNTIME_LOGS_DIR / "activity_feed.jsonl"`
+  - Path: `${ROOT}/observability/logs/activity_feed.jsonl`
   - SHA256: `ee0cbd35a89a35eed7645580648ecb7c175e1f3d3205ccaaa08f040a3cae85fc`
 - Latest snapshot reference:
   - Path: `${ROOT}/observability/artifacts/snapshots/260221_001600_snapshot.md`
