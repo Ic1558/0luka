@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.0luka.clc-inbox-watcher</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>/Users/icmini/0luka/tools/agents/watcher_core.zsh</string>
+    </array>
+    <key>WatchPaths</key>
+    <array>
+        <string>/Users/icmini/My Drive (ittipong.c@gmail.com)/luka core/luka-ai/_AI_INBOX/clc/inbox</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>AGENT_NAME</key>
+        <string>clc</string>
+        <key>LUKA_RUNTIME_ROOT</key>
+        <string>/Users/icmini/0luka_runtime</string>
+        <key>AI_INBOX_ROOT</key>
+        <string>/Users/icmini/My Drive (ittipong.c@gmail.com)/luka core/luka-ai/_AI_INBOX</string>
+        <key>WORKING_DIR</key>
+        <string>/Users/icmini/0luka</string>
+        <key>LOG_DIR</key>
+        <string>/Users/icmini/0luka/observability/logs</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/icmini/0luka/observability/logs/clc_inbox_watcher.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/icmini/0luka/observability/logs/clc_inbox_watcher.stderr.log</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/icmini/0luka</string>
+</dict>
+</plist>
