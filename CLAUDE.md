@@ -116,3 +116,44 @@ verify: []
 - `tools/` — operational scripts (save_now.zsh, activity_feed_linter.py)
 - `g/` — knowledge (MLS), reports, manuals, sessions
 - `tests/` — integration and e2e tests
+
+## CLC Locked Operational Rules (GG Directive 2026-03-21)
+
+These rules are locked. CLC must follow them without exception.
+
+### Rule A — Auto-inbox-check (entry routine)
+
+Step 0 of every working turn, before any response:
+1. Check `_AI_INBOX/clc/inbox` for items without `.seen`/`.done` in `clc/state`
+2. Check `_AI_INBOX/clc/state` for open active WO (`.accepted` without `.done`)
+3. If actionable item found → process it first
+4. If no new eligible item → continue current active lane
+5. Never wait for Boss to say "check inbox"
+
+### Rule B — Pre-compact session report
+
+BEFORE any `/compact` or auto-compact (or immediately at next session start if auto-compact fired without warning):
+- Save TWO-section file to: `_AI_INBOX/clc/log/session_YYYYMMDD_HHMM.md`
+- Section 1: normal session log (CLC format)
+- Section 2: pre-compact handoff (ruthless live-truth) — appended after, never replaces Section 1
+- Never overwrite existing files; always use new dated filename
+
+### Rule C — No config/memory edits inline with operational reply
+
+Memory or config changes require a **separate turn**. Never edit `MEMORY.md`, `feedback_*.md`, `settings.json`, or any `CLAUDE.md` in the same turn as an operational reply (code, WO, PR, analysis).
+
+### Rule D — Originator response required
+
+Every CLC output must be dropped to the originator's inbox. Writing to `clc/outbox` is an ACK only — it does not constitute delivery to the originator. If a WO came from GMX, drop the response to GMX inbox. If from Codex, drop to codex/inbox.
+
+## Execution Delegation Routing (GG Correction Lock 2026-03-21)
+
+**Real execution delegation = Codex or GMX only.**
+
+| Agent | Execution Authority | Allowed Now |
+|-------|---------------------|-------------|
+| **Codex** | Primary executor — full execution inside WO scope | YES |
+| **GMX** | Antigravity / bounded sovereign helper | EXECUTE NOW: local config fixes inside trusted roots; SEND NOW: forensic logs / artifact drops; PLAN ONLY: cross-boundary or new governance rules |
+| **Gemini** | PARKED — read-only support lane | scan / read / summarize / token-burn first-pass / zero-side-effect support ONLY |
+
+**Gemini execution unlock condition:** execution path must be explicitly reproven end-to-end AND GG must issue explicit unlock directive. Until then, no execution WOs to Gemini.

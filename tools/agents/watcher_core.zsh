@@ -65,7 +65,7 @@ has_any_active() {
 
 scan_backlog() {
   local inbox="$1"
-  /usr/bin/find "$inbox" -maxdepth 1 -type f \( -name 'WO-*.md' -o -name 'PLAN-*.md' -o -name 'RESULT-*.md' \) -print0 | /usr/bin/xargs -0 /bin/ls -1tr 2>/dev/null
+  /usr/bin/find "$inbox" -maxdepth 1 -type f -name '*.md' -print0 | /usr/bin/xargs -0 /bin/ls -1tr 2>/dev/null
 }
 
 classify_wo() {
@@ -73,12 +73,18 @@ classify_wo() {
   local wo_name="${wo_file:t}"
   if [[ "$wo_name" == RESULT-* ]]; then
     printf '%s\n' "INBOUND-RESULT"
-  elif /usr/bin/grep -qi 'DEFINITION OF DONE' "$wo_file"; then
-    printf '%s\n' "READY"
-  elif [[ "$wo_name" == PLAN-* ]] || /usr/bin/grep -q 'PLAN-ONLY' "$wo_file"; then
+  elif [[ "$wo_name" == WO-* ]]; then
+    if /usr/bin/grep -qi 'DEFINITION OF DONE' "$wo_file"; then
+      printf '%s\n' "READY"
+    elif /usr/bin/grep -q 'PLAN-ONLY' "$wo_file"; then
+      printf '%s\n' "PLAN-ONLY"
+    else
+      printf '%s\n' "UNCLEAR"
+    fi
+  elif [[ "$wo_name" == PLAN-* ]]; then
     printf '%s\n' "PLAN-ONLY"
   else
-    printf '%s\n' "UNCLEAR"
+    printf '%s\n' "INBOUND-INFORM"
   fi
 }
 
@@ -157,6 +163,10 @@ handle_wo() {
     UNCLEAR)
       ADAPTER_ARTIFACT_PATH="${AI_INBOX_ROOT}/clc/inbox/BLOCKED-${WO_ID}.md"
       write_artifact "$ADAPTER_ARTIFACT_PATH" "BLOCKED: unclear WO ${WO_ID} for ${AGENT_NAME} at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      write_marker "${STATE_DIR}/${WO_ID}.done" "done_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      return 0
+      ;;
+    INBOUND-INFORM)
       write_marker "${STATE_DIR}/${WO_ID}.done" "done_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       return 0
       ;;
