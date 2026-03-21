@@ -103,6 +103,13 @@ dispatch_adapter() {
   source "$adapter"
 }
 
+dispatch_result_handler() {
+  local wo_file="$1"
+  local handler="${WORKING_DIR}/tools/agents/adapters/${AGENT_NAME}_result_handler.zsh"
+  [[ -f "$handler" ]] || return 0
+  source "$handler"
+}
+
 write_failed_artifact() {
   local wo_id="$1"
   local agent_upper="${AGENT_NAME:u}"
@@ -126,7 +133,19 @@ handle_wo() {
 
   case "$verdict" in
     INBOUND-RESULT)
-      write_marker "${STATE_DIR}/${WO_ID}.done" "done_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      ADAPTER_ARTIFACT_PATH=""
+      local adapter_exit=0
+      dispatch_result_handler "$wo_file" || adapter_exit=$?
+
+      if [[ $adapter_exit -ne 0 ]]; then
+        if [[ -z "${ADAPTER_ARTIFACT_PATH}" ]] || [[ ! -f "${ADAPTER_ARTIFACT_PATH}" ]]; then
+          write_failed_artifact "$WO_ID"
+        fi
+      fi
+
+      if [[ -n "${ADAPTER_ARTIFACT_PATH}" ]] && [[ -f "${ADAPTER_ARTIFACT_PATH}" ]]; then
+        write_marker "${STATE_DIR}/${WO_ID}.done" "done_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      fi
       return 0
       ;;
     READY)
