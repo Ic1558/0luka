@@ -44,6 +44,13 @@ is_active() {
     ([[ -f "${STATE_DIR}/${wo_id}.accepted" ]] || [[ -f "${STATE_DIR}/${wo_id}.planned" ]])
 }
 
+is_terminal_agent() {
+  case "${AGENT_NAME}" in
+    gmx|gg) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 has_any_active() {
   local marker
   for marker in "${STATE_DIR}"/*.accepted(N) "${STATE_DIR}"/*.planned(N); do
@@ -117,7 +124,7 @@ handle_wo() {
 
   case "$verdict" in
     READY)
-      write_marker "${STATE_DIR}/${WO_ID}.accepted" "accepted_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      is_terminal_agent || write_marker "${STATE_DIR}/${WO_ID}.accepted" "accepted_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       ;;
     PLAN-ONLY)
       write_marker "${STATE_DIR}/${WO_ID}.planned" "planned_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -131,8 +138,8 @@ handle_wo() {
   esac
 
   ADAPTER_ARTIFACT_PATH=""
-  dispatch_adapter "$wo_file"
-  local adapter_exit=$?
+  local adapter_exit=0
+  dispatch_adapter "$wo_file" || adapter_exit=$?
 
   if [[ $adapter_exit -ne 0 ]]; then
     if [[ -z "${ADAPTER_ARTIFACT_PATH}" ]] || [[ ! -f "${ADAPTER_ARTIFACT_PATH}" ]]; then
