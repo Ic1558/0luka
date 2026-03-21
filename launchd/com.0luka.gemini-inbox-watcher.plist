@@ -25,6 +25,8 @@
         <string>/Users/icmini/0luka</string>
         <key>LOG_DIR</key>
         <string>/Users/icmini/0luka/observability/logs</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
     <key>StandardOutPath</key>
     <string>/Users/icmini/0luka/observability/logs/gemini_inbox_watcher.stdout.log</string>
