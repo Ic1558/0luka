@@ -4,8 +4,8 @@ This file is the single source of truth for Skill OS loading order and constrain
 
 ## Chained Load Contract
 1. Read this `skills/manifest.md` before any skill-backed execution planning.
-2. For each selected skill with `Mandatory Read: YES`, ingest its `SKILL.md` before proposing steps.
-3. Enforce caps and forbidden actions from manifest and each `SKILL.md`.
+2. For each selected skill with `Mandatory Read: YES`, ingest its governed skill document before proposing steps (`SKILL.md` by default; legacy `skill.md` only where explicitly retained for compatibility).
+3. Enforce caps and forbidden actions from manifest and each governed skill document.
 4. Skills in this manifest are read/assist only unless explicitly upgraded by governance.
 
 ## Core-Brain Owned Skills (Phase 15)
@@ -18,9 +18,12 @@ This file is the single source of truth for Skill OS loading order and constrain
 | `scope-lock` | Prevent scope creep and enforce file/module boundaries for implementation lanes. | YES | Local FS MCP (read-only) | Task scope and changed file set | Scope compliance decision | Allowlist validation and fail-closed boundary checks | Out-of-scope edits and silent expansion |
 | `verify-first` | Require verification-first execution discipline with explicit evidence before/after changes. | YES | Local FS MCP (read-only) | Verify commands and outputs | Pass/fail evidence summary | Baseline + post-change verification enforcement | Shipping without evidence or suppressing failures |
 | `single-flight` | Enforce no-retry/single-flight policy for guarded operations to avoid retry storms. | YES | Local FS MCP (read-only) | Guarded operation metadata | Deterministic run policy decision | max_retries=0 and no_parallel enforcement | Blind retries, parallel fan-out on guarded paths |
+| `runtime_boundary_audit` | Audit LUKA runtime-root and environment-boundary integrity through a governed read-only skill. | YES | Local FS MCP (read-only) | Runtime-root target, boundary evidence, verification context | Boundary status, findings, next-check note | Read-only boundary inspection and deterministic audit reporting | Runtime mutation, environment remediation, scheduler/policy edits |
 | `pattern-killer` | Deterministic text pattern cleanup pipeline (detect/rewrite/score) for reusable writing hygiene. | NO | Local FS MCP (read-only) | Plain text + JSONL patterns database | JSON findings, rewritten text preview/apply result, stable score | Local deterministic regex analysis and atomic rewrite output | Network calls, non-deterministic inference, execution path mutation |
 | `cad2data-pipeline` | BIM/CAD-to-data ETL for normalized quantity extraction and estimator-ready handoff datasets. | YES | Local FS MCP (read-only) | Revit/AutoCAD/IFC/DGN model artifacts + extraction constraints | Structured quantity dataset (`.csv/.xlsx/.json`) + validation notes | Deterministic conversion guidance, field mapping, estimator handoff prep | Model mutation, runtime state writes, contract/bid commitments |
 | `construction-estimator` | Deterministic BOQ and cost-estimation workflow from normalized quantity datasets. | YES | Local FS MCP (read-only) | Structured quantity dataset + pricing assumptions + regional factor inputs | DDC-aligned priced BOQ estimate + transparent calculation notes | Deterministic quantity/price math, breakdown formatting, assumption traceability | Autonomous commitments, procurement actions, policy/runtime mutation |
+| `liam` | Canonical governed ingress for the Liam planning/architect persona; legacy lowercase adapter remains compatibility-only. | YES | Local FS MCP (read-only) | Goal, incident report, planning context | TaskSpec or PatchPlan | Canonical persona selection, mandatory-read ingestion, governed plan-contract resolution | Direct execution authority via router-local adapter chaining |
+| `codex` | Canonical governed ingress for the Codex execution/documentation persona; legacy lowercase adapter remains compatibility-only. | YES | Local FS MCP (read-only) | TaskSpec, execution context, verification requirements | Execution report, docs/git management outcome | Canonical persona selection, mandatory-read ingestion, governed contract resolution | Independent ingress authority outside manifest/compiler wiring |
 
 ## Codex Hand Wiring Map (Phase 15.2)
 
@@ -32,8 +35,11 @@ This file is the single source of truth for Skill OS loading order and constrain
 | `scope-lock` | `scope-lock` | `read_assist_only` | 0 | true | true |
 | `verify-first` | `verify-first` | `read_assist_only` | 0 | true | true |
 | `single-flight` | `single-flight` | `read_assist_only` | 0 | true | true |
+| `runtime_boundary_audit` | `verify-first` | `read_assist_only` | 0 | true | true |
 | `cad2data-pipeline` | `verify-first` | `read_assist_only` | 0 | true | true |
 | `construction-estimator` | `verify-first` | `read_assist_only` | 0 | true | true |
+| `liam` | `verify-first` | `actor_governed` | 0 | true | true |
+| `codex` | `verify-first` | `actor_governed` | 0 | true | true |
 
 ## Skill Aliases (Phase 15.4)
 
