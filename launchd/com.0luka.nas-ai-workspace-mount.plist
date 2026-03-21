@@ -8,7 +8,7 @@
     <array>
         <string>/bin/zsh</string>
         <string>-c</string>
-        <string>mount | grep -q '/nas/ai-workspace' || mount_smbfs "$(cat /Users/icmini/.0luka/nas_mount_url)" /Users/icmini/nas/ai-workspace</string>
+        <string>mount | grep -q '/nas/ai-workspace' || /opt/homebrew/bin/dotenvx run -f /Users/icmini/0luka/.xenv -- /bin/zsh -c 'PW=$(python3 -c "import urllib.parse,os; print(urllib.parse.quote(os.environ[\"NAS_PASSWORD\"],safe=\"\"))") && mount_smbfs "//${NAS_USER}:${PW}@${NAS_IP}/${NAS_SHARED_FOLDER}" /Users/icmini/nas/ai-workspace'</string>
     </array>
     <key>RunAtLoad</key>
     <true/>

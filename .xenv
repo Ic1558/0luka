@@ -1,0 +1,14 @@
+#/-------------------[DOTENV_PUBLIC_KEY]--------------------/
+#/            public-key encryption for .env files          /
+#/       [how it works](https://dotenvx.com/encryption)     /
+#/----------------------------------------------------------/
+DOTENV_PUBLIC_KEY_.XENV="02e4d643046301f3d5ed12ceb15347f0939c2c7c83bd8a923e8997e70ca20aa462"
+
+# .xenv
+# NAS ENVIRONMENT CONFIGURATION
+NAS_MODEL=encrypted:BFO+7AgaZ/Q8Seu8+QZUqG+1iIbtHGXRKKHD+6CmyUEOPNDxCjQcmTFNdINZvK6bodNoX1K32Fke9sd8+GPXtEFRGiyIFF6NfNEL+5N9hAJGsd/c6jlfvoYq7WwM8WNLaDYtVY8=
+NAS_IP=encrypted:BM9SVZApZwMY+kxd8TMXZ0iVzPZLC/hbUh4i9bHgYJZHpDsRwH/lXN3nFWzuIK6RgLXiuLHn0BoF6d3fw5sc2wYcKjwP40zoaGGBFWvCEGwiM0JbkfAhUZOJWzc8/bGkPdJpI6AaQ4zxXh1MMQ==
+NAS_USER=encrypted:BN3GJUAHNBqiK9Yihcjm5WwpYTAPt/1Ln4rL4qfRAt/hezhAh3LTLgh+O1xGTFtWLGT0080+hhPk1d5TkgicPY6AFQ/SOjETsPgvrVaY70TSD7NiyNVpFDLQKMixHw7iiEn8yF98LmM6Mar+dEg=
+NAS_PASSWORD=encrypted:BNQsx2IsftQjFX21FVRikfKVnoli8JTc8k0cOaPILvWxpLZrnYkUJHhJz6i2FU8bARAFdV0e9p/L3CkDVMMULvgcqZJDX6B8YLz30c5ojnhgyBs9brHUbLOQewP+XY82rRX1VpOzcN9mU+U=#CC$01!
+NAS_SHARED_FOLDER=encrypted:BL6Z93zTHwxunvxznRHGe8NwosE0QwEGTvx6XR3YqW3ysJReOUIYnZr7yOmQUmijkrUXdY7aY/YUr2WRDWNMb9+Ef5wtWngk/3N9PZ5q6bjPxCHWaufVSGcs/vUDV/IWKhQlaWDN0N9kboEOow==
+NAS_BRAND=encrypted:BKditSjH2pN1qK4Xe5XqFle/sqosPp+a5KO0Gt88SmzMbwIXOvop6kWiNmyyQYIDFojECoAPsIw+d0a25D6B9iYVKxWOqF69wWUb+jaBu/TaYS+/w1IgsxCHbG66nSG7SJf2qyMY3TCs
