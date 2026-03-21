@@ -128,20 +128,37 @@
 **CURRENT JAIL:**
 1. Execution path unproven — headless `gemini -p` works but result routing untested end-to-end
 2. Trust boundary not configured — same GD path write problem as Codex
-3. No direct execution authority — bounded worker only, results returned to CLC for review before acting
+3. Gemini still drifts — behavior not stable enough for execution authority
+4. NOT an approved real executor — read-only support lane only
 
-**DECISION MODE:** BOUNDED-WORKER (process explicit worker WOs, return to CLC inbox)
+**DECISION MODE:** READ-ONLY (scan / read / summarize / token-burn first-pass / zero-side-effect support)
 
 **NEXT REQUIRED ACTION:**
-- Parked until Codex trust boundary fix is proven
-- Then re-prove `gemini_invoke.zsh` end-to-end
+- Parked. No action until GG issues explicit execution-unlock directive.
 
 **WHAT GEMINI MUST NOT DO:**
-- Take direct execution actions on repo
-- Forward results to non-CLC inboxes
-- Act without explicit WO
+- Accept or execute WOs with side effects
+- Write artifacts that trigger downstream actions
+- Operate as executor until path reproven AND GG unlock issued
+- Receive execution delegation from CLC for any real work
 
-**STATUS:** CLEARANCE-E-PARKED-PENDING-D
+**STATUS:** CLEARANCE-E-PARKED-EXECUTION-LOCKED
+
+---
+
+## GG Correction Lock (2026-03-21 — appended)
+
+**Real execution delegation = Codex or GMX only.**
+
+| Agent | Mode |
+|-------|------|
+| Codex | Primary executor |
+| GMX | EXECUTE NOW (local config, trusted roots) / SEND NOW (forensic/artifact drops) / PLAN ONLY (cross-boundary/new governance) |
+| Gemini | PARKED — scan/read/summarize/token-burn only, zero side effects |
+
+Gemini unlock requires: execution path reproven end-to-end + explicit GG unlock directive.
+
+*Correction issued by GG Orchestrator. Locked system-wide.*
 
 ---
 

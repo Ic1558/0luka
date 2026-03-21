@@ -145,3 +145,15 @@ Memory or config changes require a **separate turn**. Never edit `MEMORY.md`, `f
 ### Rule D — Originator response required
 
 Every CLC output must be dropped to the originator's inbox. Writing to `clc/outbox` is an ACK only — it does not constitute delivery to the originator. If a WO came from GMX, drop the response to GMX inbox. If from Codex, drop to codex/inbox.
+
+## Execution Delegation Routing (GG Correction Lock 2026-03-21)
+
+**Real execution delegation = Codex or GMX only.**
+
+| Agent | Execution Authority | Allowed Now |
+|-------|---------------------|-------------|
+| **Codex** | Primary executor — full execution inside WO scope | YES |
+| **GMX** | Antigravity / bounded sovereign helper | EXECUTE NOW: local config fixes inside trusted roots; SEND NOW: forensic logs / artifact drops; PLAN ONLY: cross-boundary or new governance rules |
+| **Gemini** | PARKED — read-only support lane | scan / read / summarize / token-burn first-pass / zero-side-effect support ONLY |
+
+**Gemini execution unlock condition:** execution path must be explicitly reproven end-to-end AND GG must issue explicit unlock directive. Until then, no execution WOs to Gemini.
