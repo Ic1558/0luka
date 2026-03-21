@@ -9,10 +9,8 @@
         <string>/bin/zsh</string>
         <string>/Users/icmini/0luka/tools/agents/watcher_core.zsh</string>
     </array>
-    <key>WatchPaths</key>
-    <array>
-        <string>/Users/icmini/My Drive (ittipong.c@gmail.com)/luka core/luka-ai/_AI_INBOX/gmx/inbox</string>
-    </array>
+    <key>StartInterval</key>
+    <integer>60</integer>
     <key>EnvironmentVariables</key>
     <dict>
         <key>AGENT_NAME</key>
